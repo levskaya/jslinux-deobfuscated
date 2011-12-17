@@ -197,7 +197,7 @@ CPU_X86.prototype.dump = function() {
 
 CPU_X86.prototype.exec_internal = function(ua, va) {
     var cpu, fa, regs;
-    var _src, za, Aa, Ba, Ca;
+    var _src, _dst, _op, Ba, Ca;
     var Da, Ea, Fa, b, Ga, ga, Ha, Ia, Ja, Ka, La, Ma;
     var Na, Oa, Pa, Qa, Ra, Sa;
     var phys_mem8, Ua;
@@ -730,48 +730,48 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             case 0:
                 _src = Zb;
                 Yb = (Yb + Zb) >> 0;
-                za = Yb;
-                Aa = 2;
+                _dst = Yb;
+                _op = 2;
                 break;
             case 1:
                 Yb = Yb | Zb;
-                za = Yb;
-                Aa = 14;
+                _dst = Yb;
+                _op = 14;
                 break;
             case 2:
                 ac = bc();
                 _src = Zb;
                 Yb = (Yb + Zb + ac) >> 0;
-                za = Yb;
-                Aa = ac ? 5 : 2;
+                _dst = Yb;
+                _op = ac ? 5 : 2;
                 break;
             case 3:
                 ac = bc();
                 _src = Zb;
                 Yb = (Yb - Zb - ac) >> 0;
-                za = Yb;
-                Aa = ac ? 11 : 8;
+                _dst = Yb;
+                _op = ac ? 11 : 8;
                 break;
             case 4:
                 Yb = Yb & Zb;
-                za = Yb;
-                Aa = 14;
+                _dst = Yb;
+                _op = 14;
                 break;
             case 5:
                 _src = Zb;
                 Yb = (Yb - Zb) >> 0;
-                za = Yb;
-                Aa = 8;
+                _dst = Yb;
+                _op = 8;
                 break;
             case 6:
                 Yb = Yb ^ Zb;
-                za = Yb;
-                Aa = 14;
+                _dst = Yb;
+                _op = 14;
                 break;
             case 7:
                 _src = Zb;
-                za = (Yb - Zb) >> 0;
-                Aa = 8;
+                _dst = (Yb - Zb) >> 0;
+                _op = 8;
                 break;
             default:
                 throw "arith" + cc + ": invalid op";
@@ -784,48 +784,48 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             case 0:
                 _src = Zb;
                 Yb = (((Yb + Zb) << 16) >> 16);
-                za = Yb;
-                Aa = 1;
+                _dst = Yb;
+                _op = 1;
                 break;
             case 1:
                 Yb = (((Yb | Zb) << 16) >> 16);
-                za = Yb;
-                Aa = 13;
+                _dst = Yb;
+                _op = 13;
                 break;
             case 2:
                 ac = bc();
                 _src = Zb;
                 Yb = (((Yb + Zb + ac) << 16) >> 16);
-                za = Yb;
-                Aa = ac ? 4 : 1;
+                _dst = Yb;
+                _op = ac ? 4 : 1;
                 break;
             case 3:
                 ac = bc();
                 _src = Zb;
                 Yb = (((Yb - Zb - ac) << 16) >> 16);
-                za = Yb;
-                Aa = ac ? 10 : 7;
+                _dst = Yb;
+                _op = ac ? 10 : 7;
                 break;
             case 4:
                 Yb = (((Yb & Zb) << 16) >> 16);
-                za = Yb;
-                Aa = 13;
+                _dst = Yb;
+                _op = 13;
                 break;
             case 5:
                 _src = Zb;
                 Yb = (((Yb - Zb) << 16) >> 16);
-                za = Yb;
-                Aa = 7;
+                _dst = Yb;
+                _op = 7;
                 break;
             case 6:
                 Yb = (((Yb ^ Zb) << 16) >> 16);
-                za = Yb;
-                Aa = 13;
+                _dst = Yb;
+                _op = 13;
                 break;
             case 7:
                 _src = Zb;
-                za = (((Yb - Zb) << 16) >> 16);
-                Aa = 7;
+                _dst = (((Yb - Zb) << 16) >> 16);
+                _op = 7;
                 break;
             default:
                 throw "arith" + cc + ": invalid op";
@@ -833,22 +833,22 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         return Yb;
     }
     function ec(ga) {
-        if (Aa < 25) {
-            Ba = Aa;
-            Ca = za;
+        if (_op < 25) {
+            Ba = _op;
+            Ca = _dst;
         }
-        za = (((ga + 1) << 16) >> 16);
-        Aa = 26;
-        return za;
+        _dst = (((ga + 1) << 16) >> 16);
+        _op = 26;
+        return _dst;
     }
     function fc(ga) {
-        if (Aa < 25) {
-            Ba = Aa;
-            Ca = za;
+        if (_op < 25) {
+            Ba = _op;
+            Ca = _dst;
         }
-        za = (((ga - 1) << 16) >> 16);
-        Aa = 29;
-        return za;
+        _dst = (((ga - 1) << 16) >> 16);
+        _op = 29;
+        return _dst;
     }
     function gc(Ja, Yb, Zb) {
         var ac;
@@ -856,48 +856,48 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             case 0:
                 _src = Zb;
                 Yb = (((Yb + Zb) << 24) >> 24);
-                za = Yb;
-                Aa = 0;
+                _dst = Yb;
+                _op = 0;
                 break;
             case 1:
                 Yb = (((Yb | Zb) << 24) >> 24);
-                za = Yb;
-                Aa = 12;
+                _dst = Yb;
+                _op = 12;
                 break;
             case 2:
                 ac = bc();
                 _src = Zb;
                 Yb = (((Yb + Zb + ac) << 24) >> 24);
-                za = Yb;
-                Aa = ac ? 3 : 0;
+                _dst = Yb;
+                _op = ac ? 3 : 0;
                 break;
             case 3:
                 ac = bc();
                 _src = Zb;
                 Yb = (((Yb - Zb - ac) << 24) >> 24);
-                za = Yb;
-                Aa = ac ? 9 : 6;
+                _dst = Yb;
+                _op = ac ? 9 : 6;
                 break;
             case 4:
                 Yb = (((Yb & Zb) << 24) >> 24);
-                za = Yb;
-                Aa = 12;
+                _dst = Yb;
+                _op = 12;
                 break;
             case 5:
                 _src = Zb;
                 Yb = (((Yb - Zb) << 24) >> 24);
-                za = Yb;
-                Aa = 6;
+                _dst = Yb;
+                _op = 6;
                 break;
             case 6:
                 Yb = (((Yb ^ Zb) << 24) >> 24);
-                za = Yb;
-                Aa = 12;
+                _dst = Yb;
+                _op = 12;
                 break;
             case 7:
                 _src = Zb;
-                za = (((Yb - Zb) << 24) >> 24);
-                Aa = 6;
+                _dst = (((Yb - Zb) << 24) >> 24);
+                _op = 6;
                 break;
             default:
                 throw "arith" + cc + ": invalid op";
@@ -905,22 +905,22 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         return Yb;
     }
     function hc(ga) {
-        if (Aa < 25) {
-            Ba = Aa;
-            Ca = za;
+        if (_op < 25) {
+            Ba = _op;
+            Ca = _dst;
         }
-        za = (((ga + 1) << 24) >> 24);
-        Aa = 25;
-        return za;
+        _dst = (((ga + 1) << 24) >> 24);
+        _op = 25;
+        return _dst;
     }
     function ic(ga) {
-        if (Aa < 25) {
-            Ba = Aa;
-            Ca = za;
+        if (_op < 25) {
+            Ba = _op;
+            Ca = _dst;
         }
-        za = (((ga - 1) << 24) >> 24);
-        Aa = 28;
-        return za;
+        _dst = (((ga - 1) << 24) >> 24);
+        _op = 28;
+        return _dst;
     }
     function jc(Ja, Yb, Zb) {
         var kc, ac;
@@ -933,8 +933,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Yb = (Yb << Zb) | (Yb >>> (8 - Zb));
                     _src = lc();
                     _src |= (Yb & 0x0001) | (((kc ^ Yb) << 4) & 0x0800);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 1:
@@ -945,8 +945,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Yb = (Yb >>> Zb) | (Yb << (8 - Zb));
                     _src = lc();
                     _src |= ((Yb >> 7) & 0x0001) | (((kc ^ Yb) << 4) & 0x0800);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 2:
@@ -960,8 +960,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Yb |= kc >>> (9 - Zb);
                     _src = lc();
                     _src |= (((kc ^ Yb) << 4) & 0x0800) | ((kc >> (8 - Zb)) & 0x0001);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 3:
@@ -975,8 +975,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Yb |= kc << (9 - Zb);
                     _src = lc();
                     _src |= (((kc ^ Yb) << 4) & 0x0800) | ((kc >> (Zb - 1)) & 0x0001);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 4:
@@ -984,8 +984,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Zb &= 0x1f;
                 if (Zb) {
                     _src = Yb << (Zb - 1);
-                    za = Yb = (((Yb << Zb) << 24) >> 24);
-                    Aa = 15;
+                    _dst = Yb = (((Yb << Zb) << 24) >> 24);
+                    _op = 15;
                 }
                 break;
             case 5:
@@ -993,8 +993,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb &= 0xff;
                     _src = Yb >>> (Zb - 1);
-                    za = Yb = (((Yb >>> Zb) << 24) >> 24);
-                    Aa = 18;
+                    _dst = Yb = (((Yb >>> Zb) << 24) >> 24);
+                    _op = 18;
                 }
                 break;
             case 7:
@@ -1002,8 +1002,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb = (Yb << 24) >> 24;
                     _src = Yb >> (Zb - 1);
-                    za = Yb = (((Yb >> Zb) << 24) >> 24);
-                    Aa = 18;
+                    _dst = Yb = (((Yb >> Zb) << 24) >> 24);
+                    _op = 18;
                 }
                 break;
             default:
@@ -1022,8 +1022,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Yb = (Yb << Zb) | (Yb >>> (16 - Zb));
                     _src = lc();
                     _src |= (Yb & 0x0001) | (((kc ^ Yb) >> 4) & 0x0800);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 1:
@@ -1034,8 +1034,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Yb = (Yb >>> Zb) | (Yb << (16 - Zb));
                     _src = lc();
                     _src |= ((Yb >> 15) & 0x0001) | (((kc ^ Yb) >> 4) & 0x0800);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 2:
@@ -1049,8 +1049,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Yb |= kc >>> (17 - Zb);
                     _src = lc();
                     _src |= (((kc ^ Yb) >> 4) & 0x0800) | ((kc >> (16 - Zb)) & 0x0001);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 3:
@@ -1064,8 +1064,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Yb |= kc << (17 - Zb);
                     _src = lc();
                     _src |= (((kc ^ Yb) >> 4) & 0x0800) | ((kc >> (Zb - 1)) & 0x0001);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 4:
@@ -1073,8 +1073,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Zb &= 0x1f;
                 if (Zb) {
                     _src = Yb << (Zb - 1);
-                    za = Yb = (((Yb << Zb) << 16) >> 16);
-                    Aa = 16;
+                    _dst = Yb = (((Yb << Zb) << 16) >> 16);
+                    _op = 16;
                 }
                 break;
             case 5:
@@ -1082,8 +1082,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb &= 0xffff;
                     _src = Yb >>> (Zb - 1);
-                    za = Yb = (((Yb >>> Zb) << 16) >> 16);
-                    Aa = 19;
+                    _dst = Yb = (((Yb >>> Zb) << 16) >> 16);
+                    _op = 19;
                 }
                 break;
             case 7:
@@ -1091,8 +1091,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb = (Yb << 16) >> 16;
                     _src = Yb >> (Zb - 1);
-                    za = Yb = (((Yb >> Zb) << 16) >> 16);
-                    Aa = 19;
+                    _dst = Yb = (((Yb >> Zb) << 16) >> 16);
+                    _op = 19;
                 }
                 break;
             default:
@@ -1110,8 +1110,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Yb = (Yb << Zb) | (Yb >>> (32 - Zb));
                     _src = lc();
                     _src |= (Yb & 0x0001) | (((kc ^ Yb) >> 20) & 0x0800);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 1:
@@ -1121,8 +1121,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Yb = (Yb >>> Zb) | (Yb << (32 - Zb));
                     _src = lc();
                     _src |= ((Yb >> 31) & 0x0001) | (((kc ^ Yb) >> 20) & 0x0800);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 2:
@@ -1135,8 +1135,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Yb |= kc >>> (33 - Zb);
                     _src = lc();
                     _src |= (((kc ^ Yb) >> 20) & 0x0800) | ((kc >> (32 - Zb)) & 0x0001);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 3:
@@ -1149,8 +1149,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Yb |= kc << (33 - Zb);
                     _src = lc();
                     _src |= (((kc ^ Yb) >> 20) & 0x0800) | ((kc >> (Zb - 1)) & 0x0001);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                 }
                 break;
             case 4:
@@ -1158,24 +1158,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Zb &= 0x1f;
                 if (Zb) {
                     _src = Yb << (Zb - 1);
-                    za = Yb = Yb << Zb;
-                    Aa = 17;
+                    _dst = Yb = Yb << Zb;
+                    _op = 17;
                 }
                 break;
             case 5:
                 Zb &= 0x1f;
                 if (Zb) {
                     _src = Yb >>> (Zb - 1);
-                    za = Yb = Yb >>> Zb;
-                    Aa = 20;
+                    _dst = Yb = Yb >>> Zb;
+                    _op = 20;
                 }
                 break;
             case 7:
                 Zb &= 0x1f;
                 if (Zb) {
                     _src = Yb >> (Zb - 1);
-                    za = Yb = Yb >> Zb;
-                    Aa = 20;
+                    _dst = Yb = Yb >> Zb;
+                    _op = 20;
                 }
                 break;
             default:
@@ -1194,16 +1194,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc <<= pc;
                 if (pc > 16)
                     qc |= Zb << (pc - 16);
-                Yb = za = qc >> 16;
-                Aa = 19;
+                Yb = _dst = qc >> 16;
+                _op = 19;
             } else {
                 qc = (Yb & 0xffff) | (Zb << 16);
                 _src = qc >> (pc - 1);
                 qc >>= pc;
                 if (pc > 16)
                     qc |= Zb << (32 - pc);
-                Yb = za = (((qc) << 16) >> 16);
-                Aa = 19;
+                Yb = _dst = (((qc) << 16) >> 16);
+                _op = 19;
             }
         }
         return Yb;
@@ -1212,8 +1212,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         pc &= 0x1f;
         if (pc) {
             _src = Yb << (pc - 1);
-            za = Yb = (Yb << pc) | (Zb >>> (32 - pc));
-            Aa = 17;
+            _dst = Yb = (Yb << pc) | (Zb >>> (32 - pc));
+            _op = 17;
         }
         return Yb;
     }
@@ -1221,20 +1221,20 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         pc &= 0x1f;
         if (pc) {
             _src = Yb >> (pc - 1);
-            za = Yb = (Yb >>> pc) | (Zb << (32 - pc));
-            Aa = 20;
+            _dst = Yb = (Yb >>> pc) | (Zb << (32 - pc));
+            _op = 20;
         }
         return Yb;
     }
     function tc(Yb, Zb) {
         Zb &= 0xf;
         _src = Yb >> Zb;
-        Aa = 19;
+        _op = 19;
     }
     function uc(Yb, Zb) {
         Zb &= 0x1f;
         _src = Yb >> Zb;
-        Aa = 20;
+        _op = 20;
     }
     function vc(Ja, Yb, Zb) {
         var wc;
@@ -1253,7 +1253,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Yb ^= wc;
                 break;
         }
-        Aa = 19;
+        _op = 19;
         return Yb;
     }
     function xc(Ja, Yb, Zb) {
@@ -1273,7 +1273,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Yb ^= wc;
                 break;
         }
-        Aa = 20;
+        _op = 20;
         return Yb;
     }
     function yc(Yb, Zb) {
@@ -1284,11 +1284,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Yb++;
                 Zb >>= 1;
             }
-            za = 1;
+            _dst = 1;
         } else {
-            za = 0;
+            _dst = 0;
         }
-        Aa = 14;
+        _op = 14;
         return Yb;
     }
     function zc(Yb, Zb) {
@@ -1298,11 +1298,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Yb++;
                 Zb >>= 1;
             }
-            za = 1;
+            _dst = 1;
         } else {
-            za = 0;
+            _dst = 0;
         }
-        Aa = 14;
+        _op = 14;
         return Yb;
     }
     function Ac(Yb, Zb) {
@@ -1313,11 +1313,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Yb--;
                 Zb <<= 1;
             }
-            za = 1;
+            _dst = 1;
         } else {
-            za = 0;
+            _dst = 0;
         }
-        Aa = 14;
+        _op = 14;
         return Yb;
     }
     function Bc(Yb, Zb) {
@@ -1327,11 +1327,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Yb--;
                 Zb <<= 1;
             }
-            za = 1;
+            _dst = 1;
         } else {
-            za = 0;
+            _dst = 0;
         }
-        Aa = 14;
+        _op = 14;
         return Yb;
     }
     function Cc(b) {
@@ -1445,8 +1445,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         b &= 0xff;
         qc = (regs[0] & 0xff) * (b & 0xff);
         _src = qc >> 8;
-        za = (((qc) << 24) >> 24);
-        Aa = 21;
+        _dst = (((qc) << 24) >> 24);
+        _op = 21;
         return qc;
     }
     function Pc(a, b) {
@@ -1454,17 +1454,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         a = (((a) << 24) >> 24);
         b = (((b) << 24) >> 24);
         qc = (a * b) >> 0;
-        za = (((qc) << 24) >> 24);
-        _src = (qc != za) >> 0;
-        Aa = 21;
+        _dst = (((qc) << 24) >> 24);
+        _src = (qc != _dst) >> 0;
+        _op = 21;
         return qc;
     }
     function Qc(a, b) {
         var qc;
         qc = ((a & 0xffff) * (b & 0xffff)) >> 0;
         _src = qc >>> 16;
-        za = (((qc) << 16) >> 16);
-        Aa = 22;
+        _dst = (((qc) << 16) >> 16);
+        _op = 22;
         return qc;
     }
     function Rc(a, b) {
@@ -1472,9 +1472,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         a = (a << 16) >> 16;
         b = (b << 16) >> 16;
         qc = (a * b) >> 0;
-        za = (((qc) << 16) >> 16);
-        _src = (qc != za) >> 0;
-        Aa = 22;
+        _dst = (((qc) << 16) >> 16);
+        _src = (qc != _dst) >> 0;
+        _op = 22;
         return qc;
     }
     function Sc(a, b) {
@@ -1512,10 +1512,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         return r;
     }
     function Vc(a, b) {
-        za = Sc(a, b);
+        _dst = Sc(a, b);
         _src = Ma;
-        Aa = 23;
-        return za;
+        _op = 23;
+        return _dst;
     }
     function Wc(a, b) {
         var s, r;
@@ -1536,19 +1536,19 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Ma = (Ma + 1) >> 0;
             }
         }
-        za = r;
+        _dst = r;
         _src = (Ma - (r >> 31)) >> 0;
-        Aa = 23;
+        _op = 23;
         return r;
     }
     function bc() {
         var Yb, qc, Xc, Yc;
-        if (Aa >= 25) {
+        if (_op >= 25) {
             Xc = Ba;
             Yc = Ca;
         } else {
-            Xc = Aa;
-            Yc = za;
+            Xc = _op;
+            Yc = _dst;
         }
         switch (Xc) {
             case 0:
@@ -1618,60 +1618,60 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc = _src & 1;
                 break;
             default:
-                throw "GET_CARRY: unsupported cc_op=" + Aa;
+                throw "GET_CARRY: unsupported cc_op=" + _op;
         }
         return qc;
     }
     function Zc() {
         var qc, Yb;
-        switch (Aa) {
+        switch (_op) {
             case 0:
-                Yb = (za - _src) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ za)) >> 7) & 1;
+                Yb = (_dst - _src) >> 0;
+                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 1:
-                Yb = (za - _src) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ za)) >> 15) & 1;
+                Yb = (_dst - _src) >> 0;
+                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 2:
-                Yb = (za - _src) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ za)) >> 31) & 1;
+                Yb = (_dst - _src) >> 0;
+                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 3:
-                Yb = (za - _src - 1) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ za)) >> 7) & 1;
+                Yb = (_dst - _src - 1) >> 0;
+                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 4:
-                Yb = (za - _src - 1) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ za)) >> 15) & 1;
+                Yb = (_dst - _src - 1) >> 0;
+                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 5:
-                Yb = (za - _src - 1) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ za)) >> 31) & 1;
+                Yb = (_dst - _src - 1) >> 0;
+                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 6:
-                Yb = (za + _src) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ za)) >> 7) & 1;
+                Yb = (_dst + _src) >> 0;
+                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 7:
-                Yb = (za + _src) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ za)) >> 15) & 1;
+                Yb = (_dst + _src) >> 0;
+                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 8:
-                Yb = (za + _src) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ za)) >> 31) & 1;
+                Yb = (_dst + _src) >> 0;
+                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 9:
-                Yb = (za + _src + 1) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ za)) >> 7) & 1;
+                Yb = (_dst + _src + 1) >> 0;
+                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 10:
-                Yb = (za + _src + 1) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ za)) >> 15) & 1;
+                Yb = (_dst + _src + 1) >> 0;
+                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 11:
-                Yb = (za + _src + 1) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ za)) >> 31) & 1;
+                Yb = (_dst + _src + 1) >> 0;
+                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 12:
             case 13:
@@ -1680,15 +1680,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 break;
             case 15:
             case 18:
-                qc = ((_src ^ za) >> 7) & 1;
+                qc = ((_src ^ _dst) >> 7) & 1;
                 break;
             case 16:
             case 19:
-                qc = ((_src ^ za) >> 15) & 1;
+                qc = ((_src ^ _dst) >> 15) & 1;
                 break;
             case 17:
             case 20:
-                qc = ((_src ^ za) >> 31) & 1;
+                qc = ((_src ^ _dst) >> 31) & 1;
                 break;
             case 21:
             case 22:
@@ -1699,67 +1699,67 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc = (_src >> 11) & 1;
                 break;
             case 25:
-                qc = (za & 0xff) == 0x80;
+                qc = (_dst & 0xff) == 0x80;
                 break;
             case 26:
-                qc = (za & 0xffff) == 0x8000;
+                qc = (_dst & 0xffff) == 0x8000;
                 break;
             case 27:
-                qc = (za == -2147483648);
+                qc = (_dst == -2147483648);
                 break;
             case 28:
-                qc = (za & 0xff) == 0x7f;
+                qc = (_dst & 0xff) == 0x7f;
                 break;
             case 29:
-                qc = (za & 0xffff) == 0x7fff;
+                qc = (_dst & 0xffff) == 0x7fff;
                 break;
             case 30:
-                qc = za == 0x7fffffff;
+                qc = _dst == 0x7fffffff;
                 break;
             default:
-                throw "JO: unsupported cc_op=" + Aa;
+                throw "JO: unsupported cc_op=" + _op;
         }
         return qc;
     }
     function ad() {
         var qc;
-        switch (Aa) {
+        switch (_op) {
             case 6:
-                qc = ((za + _src) & 0xff) <= (_src & 0xff);
+                qc = ((_dst + _src) & 0xff) <= (_src & 0xff);
                 break;
             case 7:
-                qc = ((za + _src) & 0xffff) <= (_src & 0xffff);
+                qc = ((_dst + _src) & 0xffff) <= (_src & 0xffff);
                 break;
             case 8:
-                qc = ((za + _src) >>> 0) <= (_src >>> 0);
+                qc = ((_dst + _src) >>> 0) <= (_src >>> 0);
                 break;
             case 24:
                 qc = (_src & (0x0040 | 0x0001)) != 0;
                 break;
             default:
-                qc = bc() | (za == 0);
+                qc = bc() | (_dst == 0);
                 break;
         }
         return qc;
     }
     function bd() {
-        if (Aa == 24) {
+        if (_op == 24) {
             return (_src >> 2) & 1;
         } else {
-            return aa[za & 0xff];
+            return aa[_dst & 0xff];
         }
     }
     function cd() {
         var qc;
-        switch (Aa) {
+        switch (_op) {
             case 6:
-                qc = ((za + _src) << 24) < (_src << 24);
+                qc = ((_dst + _src) << 24) < (_src << 24);
                 break;
             case 7:
-                qc = ((za + _src) << 16) < (_src << 16);
+                qc = ((_dst + _src) << 16) < (_src << 16);
                 break;
             case 8:
-                qc = ((za + _src) >> 0) < _src;
+                qc = ((_dst + _src) >> 0) < _src;
                 break;
             case 12:
             case 25:
@@ -1770,28 +1770,28 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             case 14:
             case 27:
             case 30:
-                qc = za < 0;
+                qc = _dst < 0;
                 break;
             case 24:
                 qc = ((_src >> 7) ^ (_src >> 11)) & 1;
                 break;
             default:
-                qc = (Aa == 24 ? ((_src >> 7) & 1) : (za < 0)) ^ Zc();
+                qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ Zc();
                 break;
         }
         return qc;
     }
     function dd() {
         var qc;
-        switch (Aa) {
+        switch (_op) {
             case 6:
-                qc = ((za + _src) << 24) <= (_src << 24);
+                qc = ((_dst + _src) << 24) <= (_src << 24);
                 break;
             case 7:
-                qc = ((za + _src) << 16) <= (_src << 16);
+                qc = ((_dst + _src) << 16) <= (_src << 16);
                 break;
             case 8:
-                qc = ((za + _src) >> 0) <= _src;
+                qc = ((_dst + _src) >> 0) <= _src;
                 break;
             case 12:
             case 25:
@@ -1802,43 +1802,43 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             case 14:
             case 27:
             case 30:
-                qc = za <= 0;
+                qc = _dst <= 0;
                 break;
             case 24:
                 qc = (((_src >> 7) ^ (_src >> 11)) | (_src >> 6)) & 1;
                 break;
             default:
-                qc = ((Aa == 24 ? ((_src >> 7) & 1) : (za < 0)) ^ Zc()) | (za == 0);
+                qc = ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ Zc()) | (_dst == 0);
                 break;
         }
         return qc;
     }
     function ed() {
         var Yb, qc;
-        switch (Aa) {
+        switch (_op) {
             case 0:
             case 1:
             case 2:
-                Yb = (za - _src) >> 0;
-                qc = (za ^ Yb ^ _src) & 0x10;
+                Yb = (_dst - _src) >> 0;
+                qc = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 3:
             case 4:
             case 5:
-                Yb = (za - _src - 1) >> 0;
-                qc = (za ^ Yb ^ _src) & 0x10;
+                Yb = (_dst - _src - 1) >> 0;
+                qc = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 6:
             case 7:
             case 8:
-                Yb = (za + _src) >> 0;
-                qc = (za ^ Yb ^ _src) & 0x10;
+                Yb = (_dst + _src) >> 0;
+                qc = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 9:
             case 10:
             case 11:
-                Yb = (za + _src + 1) >> 0;
-                qc = (za ^ Yb ^ _src) & 0x10;
+                Yb = (_dst + _src + 1) >> 0;
+                qc = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 12:
             case 13:
@@ -1862,15 +1862,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             case 25:
             case 26:
             case 27:
-                qc = (za ^ (za - 1)) & 0x10;
+                qc = (_dst ^ (_dst - 1)) & 0x10;
                 break;
             case 28:
             case 29:
             case 30:
-                qc = (za ^ (za + 1)) & 0x10;
+                qc = (_dst ^ (_dst + 1)) & 0x10;
                 break;
             default:
-                throw "AF: unsupported cc_op=" + Aa;
+                throw "AF: unsupported cc_op=" + _op;
         }
         return qc;
     }
@@ -1884,13 +1884,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc = bc();
                 break;
             case 2:
-                qc = (za == 0);
+                qc = (_dst == 0);
                 break;
             case 3:
                 qc = ad();
                 break;
             case 4:
-                qc = (Aa == 24 ? ((_src >> 7) & 1) : (za < 0));
+                qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0));
                 break;
             case 5:
                 qc = bd();
@@ -1907,10 +1907,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         return qc ^ (gd & 1);
     }
     function lc() {
-        return (bd() << 2) | ((za == 0) << 6) | ((Aa == 24 ? ((_src >> 7) & 1) : (za < 0)) << 7) | ed();
+        return (bd() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | ed();
     }
     function hd() {
-        return (bc() << 0) | (bd() << 2) | ((za == 0) << 6) | ((Aa == 24 ? ((_src >> 7) & 1) : (za < 0)) << 7) | (Zc() << 11) | ed();
+        return (bc() << 0) | (bd() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | (Zc() << 11) | ed();
     }
     function id() {
         var jd;
@@ -1921,8 +1921,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function kd(jd, ld) {
         _src = jd & (0x0800 | 0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001);
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
         cpu.df = 1 - (2 * ((jd >> 10) & 1));
         cpu.eflags = (cpu.eflags & ~ld) | (jd & ld);
     }
@@ -1935,8 +1935,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function od() {
         cpu.eip = Jb;
         cpu.cc_src = _src;
-        cpu.cc_dst = za;
-        cpu.cc_op = Aa;
+        cpu.cc_dst = _dst;
+        cpu.cc_op = _op;
         cpu.cc_op2 = Ba;
         cpu.cc_dst2 = Ca;
         cpu.dump();
@@ -1944,8 +1944,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function pd() {
         cpu.eip = Jb;
         cpu.cc_src = _src;
-        cpu.cc_dst = za;
-        cpu.cc_op = Aa;
+        cpu.cc_dst = _dst;
+        cpu.cc_op = _op;
         cpu.cc_op2 = Ba;
         cpu.cc_dst2 = Ca;
         cpu.dump_short();
@@ -1954,8 +1954,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         cpu.cycle_count += (ua - Ka);
         cpu.eip = Jb;
         cpu.cc_src = _src;
-        cpu.cc_dst = za;
-        cpu.cc_op = Aa;
+        cpu.cc_dst = _dst;
+        cpu.cc_op = _op;
         cpu.cc_op2 = Ba;
         cpu.cc_dst2 = Ca;
         throw {intno: intno,error_code: error_code};
@@ -4390,8 +4390,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             else
                 Wb(Ga, ga);
         }
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
     }
     function rf(selector, ud) {
         var e, Yd, Wd, He, he, se;
@@ -4434,8 +4434,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             _src |= 0x0040;
         else
             _src &= ~0x0040;
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
     }
     function tf() {
         var Ea, ga, Ha, Fa;
@@ -4463,8 +4463,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         } else {
             _src &= ~0x0040;
         }
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
     }
     function uf() {
         var Rb;
@@ -4493,8 +4493,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         xf = (wf / base) & -1;
         wf = (wf % base);
         regs[0] = (regs[0] & ~0xffff) | wf | (xf << 8);
-        za = (((wf) << 24) >> 24);
-        Aa = 12;
+        _dst = (((wf) << 24) >> 24);
+        _op = 12;
     }
     function yf(base) {
         var wf, xf;
@@ -4502,8 +4502,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         xf = (regs[0] >> 8) & 0xff;
         wf = (xf * base + wf) & 0xff;
         regs[0] = (regs[0] & ~0xffff) | wf;
-        za = (((wf) << 24) >> 24);
-        Aa = 12;
+        _dst = (((wf) << 24) >> 24);
+        _op = 12;
     }
     function zf() {
         var Af, wf, xf, Bf, jd;
@@ -4522,8 +4522,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         }
         regs[0] = (regs[0] & ~0xffff) | wf | (xf << 8);
         _src = jd;
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
     }
     function Cf() {
         var Af, wf, xf, Bf, jd;
@@ -4542,8 +4542,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         }
         regs[0] = (regs[0] & ~0xffff) | wf | (xf << 8);
         _src = jd;
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
     }
     function Df() {
         var wf, Bf, Ef, jd;
@@ -4565,8 +4565,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         jd |= aa[wf] << 2;
         jd |= (wf & 0x80);
         _src = jd;
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
     }
     function Ff() {
         var wf, Gf, Bf, Ef, jd;
@@ -4591,8 +4591,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         jd |= aa[wf] << 2;
         jd |= (wf & 0x80);
         _src = jd;
-        za = ((_src >> 6) & 1) ^ 1;
-        Aa = 24;
+        _dst = ((_src >> 6) & 1) ^ 1;
+        _op = 24;
     }
     function Hf() {
         var Ea, ga, Ha, Ia;
@@ -4952,10 +4952,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
-                if (!(za == 0))
+                if (!(_dst == 0))
                     return;
             } else {
-                if ((za == 0))
+                if ((_dst == 0))
                     return;
             }
             if (ag & Xf)
@@ -5019,10 +5019,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
-                if (!(za == 0))
+                if (!(_dst == 0))
                     return;
             } else {
-                if ((za == 0))
+                if ((_dst == 0))
                     return;
             }
             if (ag & Xf)
@@ -5194,10 +5194,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
-                if (!(za == 0))
+                if (!(_dst == 0))
                     return;
             } else {
-                if ((za == 0))
+                if ((_dst == 0))
                     return;
             }
             if (ag & Xf)
@@ -5261,10 +5261,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
-                if (!(za == 0))
+                if (!(_dst == 0))
                     return;
             } else {
-                if ((za == 0))
+                if ((_dst == 0))
                     return;
             }
             if (ag & Xf)
@@ -5473,10 +5473,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
-                if (!(za == 0))
+                if (!(_dst == 0))
                     return;
             } else {
-                if ((za == 0))
+                if ((_dst == 0))
                     return;
             }
             if (ag & Xf)
@@ -5540,10 +5540,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
-                if (!(za == 0))
+                if (!(_dst == 0))
                     return;
             } else {
-                if ((za == 0))
+                if ((_dst == 0))
                     return;
             }
             if (ag & Xf)
@@ -5579,8 +5579,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     regs = this.regs;
     _src = this.cc_src;
-    za = this.cc_dst;
-    Aa = this.cc_op;
+    _dst = this.cc_dst;
+    _op = this.cc_op;
     Ba = this.cc_op2;
     Ca = this.cc_dst2;
     Jb = this.eip;
@@ -5981,8 +5981,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Fa = Ea & 7;
                         {
                             _src = Ha;
-                            za = regs[Fa] = (regs[Fa] + _src) >> 0;
-                            Aa = 2;
+                            _dst = regs[Fa] = (regs[Fa] + _src) >> 0;
+                            _op = 2;
                         }
                         ;
                     } else {
@@ -5990,8 +5990,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ga = qb();
                         {
                             _src = Ha;
-                            za = ga = (ga + _src) >> 0;
-                            Aa = 2;
+                            _dst = ga = (ga + _src) >> 0;
+                            _op = 2;
                         }
                         ;
                         wb(ga);
@@ -6026,8 +6026,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Fa = Ea & 7;
                         {
                             _src = Ha;
-                            za = (regs[Fa] - _src) >> 0;
-                            Aa = 8;
+                            _dst = (regs[Fa] - _src) >> 0;
+                            _op = 8;
                         }
                         ;
                     } else {
@@ -6035,8 +6035,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ga = kb();
                         {
                             _src = Ha;
-                            za = (ga - _src) >> 0;
-                            Aa = 8;
+                            _dst = (ga - _src) >> 0;
+                            _op = 8;
                         }
                         ;
                     }
@@ -6074,8 +6074,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     {
                         _src = Ha;
-                        za = regs[Ga] = (regs[Ga] + _src) >> 0;
-                        Aa = 2;
+                        _dst = regs[Ga] = (regs[Ga] + _src) >> 0;
+                        _op = 2;
                     }
                     ;
                     break Fd;
@@ -6110,8 +6110,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     {
                         _src = Ha;
-                        za = (regs[Ga] - _src) >> 0;
-                        Aa = 8;
+                        _dst = (regs[Ga] - _src) >> 0;
+                        _op = 8;
                     }
                     ;
                     break Fd;
@@ -6136,8 +6136,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     {
                         _src = Ha;
-                        za = regs[0] = (regs[0] + _src) >> 0;
-                        Aa = 2;
+                        _dst = regs[0] = (regs[0] + _src) >> 0;
+                        _op = 2;
                     }
                     ;
                     break Fd;
@@ -6161,8 +6161,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     {
-                        za = regs[0] = regs[0] ^ Ha;
-                        Aa = 14;
+                        _dst = regs[0] = regs[0] ^ Ha;
+                        _op = 14;
                     }
                     ;
                     break Fd;
@@ -6174,8 +6174,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     {
                         _src = Ha;
-                        za = (regs[0] - _src) >> 0;
-                        Aa = 8;
+                        _dst = (regs[0] - _src) >> 0;
+                        _op = 8;
                     }
                     ;
                     break Fd;
@@ -6221,8 +6221,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ;
                         {
                             _src = Ha;
-                            za = (ga - _src) >> 0;
-                            Aa = 8;
+                            _dst = (ga - _src) >> 0;
+                            _op = 8;
                         }
                         ;
                     } else {
@@ -6262,8 +6262,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ;
                         {
                             _src = Ha;
-                            za = (ga - _src) >> 0;
-                            Aa = 8;
+                            _dst = (ga - _src) >> 0;
+                            _op = 8;
                         }
                         ;
                     } else {
@@ -6292,12 +6292,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x47:
                     Ga = b & 7;
                     {
-                        if (Aa < 25) {
-                            Ba = Aa;
-                            Ca = za;
+                        if (_op < 25) {
+                            Ba = _op;
+                            Ca = _dst;
                         }
-                        regs[Ga] = za = (regs[Ga] + 1) >> 0;
-                        Aa = 27;
+                        regs[Ga] = _dst = (regs[Ga] + 1) >> 0;
+                        _op = 27;
                     }
                     ;
                     break Fd;
@@ -6311,12 +6311,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x4f:
                     Ga = b & 7;
                     {
-                        if (Aa < 25) {
-                            Ba = Aa;
-                            Ca = za;
+                        if (_op < 25) {
+                            Ba = _op;
+                            Ca = _dst;
                         }
-                        regs[Ga] = za = (regs[Ga] - 1) >> 0;
-                        Aa = 30;
+                        regs[Ga] = _dst = (regs[Ga] - 1) >> 0;
+                        _op = 30;
                     }
                     ;
                     break Fd;
@@ -6364,8 +6364,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ga = (Ea >> 3) & 7;
                     Ha = (regs[Ga & 3] >> ((Ga & 4) << 1));
                     {
-                        za = (((ga & Ha) << 24) >> 24);
-                        Aa = 12;
+                        _dst = (((ga & Ha) << 24) >> 24);
+                        _op = 12;
                     }
                     ;
                     break Fd;
@@ -6380,8 +6380,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     Ha = regs[(Ea >> 3) & 7];
                     {
-                        za = ga & Ha;
-                        Aa = 14;
+                        _dst = ga & Ha;
+                        _op = 14;
                     }
                     ;
                     break Fd;
@@ -6389,8 +6389,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ha = phys_mem8[Kb++];
                     ;
                     {
-                        za = (((regs[0] & Ha) << 24) >> 24);
-                        Aa = 12;
+                        _dst = (((regs[0] & Ha) << 24) >> 24);
+                        _op = 12;
                     }
                     ;
                     break Fd;
@@ -6401,8 +6401,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     {
-                        za = regs[0] & Ha;
-                        Aa = 14;
+                        _dst = regs[0] & Ha;
+                        _op = 14;
                     }
                     ;
                     break Fd;
@@ -6422,8 +6422,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ha = phys_mem8[Kb++];
                             ;
                             {
-                                za = (((ga & Ha) << 24) >> 24);
-                                Aa = 12;
+                                _dst = (((ga & Ha) << 24) >> 24);
+                                _op = 12;
                             }
                             ;
                             break;
@@ -6511,8 +6511,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             ;
                             {
-                                za = ga & Ha;
-                                Aa = 14;
+                                _dst = ga & Ha;
+                                _op = 14;
                             }
                             ;
                             break;
@@ -6885,24 +6885,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
                                 {
-                                    if (Aa < 25) {
-                                        Ba = Aa;
-                                        Ca = za;
+                                    if (_op < 25) {
+                                        Ba = _op;
+                                        Ca = _dst;
                                     }
-                                    regs[Fa] = za = (regs[Fa] + 1) >> 0;
-                                    Aa = 27;
+                                    regs[Fa] = _dst = (regs[Fa] + 1) >> 0;
+                                    _op = 27;
                                 }
                                 ;
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
                                 {
-                                    if (Aa < 25) {
-                                        Ba = Aa;
-                                        Ca = za;
+                                    if (_op < 25) {
+                                        Ba = _op;
+                                        Ca = _dst;
                                     }
-                                    ga = za = (ga + 1) >> 0;
-                                    Aa = 27;
+                                    ga = _dst = (ga + 1) >> 0;
+                                    _op = 27;
                                 }
                                 ;
                                 wb(ga);
@@ -6912,24 +6912,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
                                 {
-                                    if (Aa < 25) {
-                                        Ba = Aa;
-                                        Ca = za;
+                                    if (_op < 25) {
+                                        Ba = _op;
+                                        Ca = _dst;
                                     }
-                                    regs[Fa] = za = (regs[Fa] - 1) >> 0;
-                                    Aa = 30;
+                                    regs[Fa] = _dst = (regs[Fa] - 1) >> 0;
+                                    _op = 30;
                                 }
                                 ;
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
                                 {
-                                    if (Aa < 25) {
-                                        Ba = Aa;
-                                        Ca = za;
+                                    if (_op < 25) {
+                                        Ba = _op;
+                                        Ca = _dst;
                                     }
-                                    ga = za = (ga - 1) >> 0;
-                                    Aa = 30;
+                                    ga = _dst = (ga - 1) >> 0;
+                                    _op = 30;
                                 }
                                 ;
                                 wb(ga);
@@ -7056,7 +7056,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x74:
-                    if ((za == 0)) {
+                    if ((_dst == 0)) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         ;
                         Kb = (Kb + ga) >> 0;
@@ -7065,7 +7065,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x75:
-                    if (!(za == 0)) {
+                    if (!(_dst == 0)) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         ;
                         Kb = (Kb + ga) >> 0;
@@ -7092,7 +7092,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x78:
-                    if ((Aa == 24 ? ((_src >> 7) & 1) : (za < 0))) {
+                    if ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0))) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         ;
                         Kb = (Kb + ga) >> 0;
@@ -7101,7 +7101,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x79:
-                    if (!(Aa == 24 ? ((_src >> 7) & 1) : (za < 0))) {
+                    if (!(_op == 24 ? ((_src >> 7) & 1) : (_dst < 0))) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         ;
                         Kb = (Kb + ga) >> 0;
@@ -7176,9 +7176,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     regs[1] = (regs[1] & ~Ja) | Ha;
                     b &= 3;
                     if (b == 0)
-                        Ia = !(za == 0);
+                        Ia = !(_dst == 0);
                     else if (b == 1)
-                        Ia = (za == 0);
+                        Ia = (_dst == 0);
                     else
                         Ia = 1;
                     if (Ha && Ia) {
@@ -7306,18 +7306,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 case 0xf5:
                     _src = hd() ^ 0x0001;
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                     break Fd;
                 case 0xf8:
                     _src = hd() & ~0x0001;
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                     break Fd;
                 case 0xf9:
                     _src = hd() | 0x0001;
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                     break Fd;
                 case 0xfc:
                     cpu.df = 1;
@@ -7344,8 +7344,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 case 0x9e:
                     _src = ((regs[0] >> 8) & (0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001)) | (Zc() << 11);
-                    za = ((_src >> 6) & 1) ^ 1;
-                    Aa = 24;
+                    _dst = ((_src >> 6) & 1) ^ 1;
+                    _op = 24;
                     break Fd;
                 case 0x9f:
                     ga = id();
@@ -8559,16 +8559,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             Ha = regs[(Ea >> 3) & 7];
                             {
-                                za = (((ga & Ha) << 16) >> 16);
-                                Aa = 13;
+                                _dst = (((ga & Ha) << 16) >> 16);
+                                _op = 13;
                             }
                             ;
                             break Fd;
                         case 0x1a9:
                             Ha = Ob();
                             {
-                                za = (((regs[0] & Ha) << 16) >> 16);
-                                Aa = 13;
+                                _dst = (((regs[0] & Ha) << 16) >> 16);
+                                _op = 13;
                             }
                             ;
                             break Fd;
@@ -8586,8 +8586,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     }
                                     Ha = Ob();
                                     {
-                                        za = (((ga & Ha) << 16) >> 16);
-                                        Aa = 13;
+                                        _dst = (((ga & Ha) << 16) >> 16);
+                                        _op = 13;
                                     }
                                     ;
                                     break;
@@ -9536,8 +9536,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     this.cycle_count += (ua - Ka);
     this.eip = (Jb + Kb - Mb);
     this.cc_src = _src;
-    this.cc_dst = za;
-    this.cc_op = Aa;
+    this.cc_dst = _dst;
+    this.cc_op = _op;
     this.cc_op2 = Ba;
     this.cc_dst2 = Ca;
     return La;
