@@ -3,6 +3,49 @@
 Opcode ref
 http://ref.x86asm.net/coder32.html#xC4
 
+http://en.wikipedia.org/wiki/X86
+http://en.wikipedia.org/wiki/Control_register
+http://en.wikipedia.org/wiki/X86_assembly_language
+
+http://en.wikipedia.org/wiki/Translation_lookaside_buffer
+
+http://bellard.org/jslinux/tech.html
+
+===================================================================================================
+CPU Emulation
+
+Some of the code is inspired from my x86 dynamic translator present in QEMU, but there are important differences because here it is an interpreter. The CPU is close to a 486 compatible x86 without FPU. The lack of FPU is not a problem when running Linux as Operating System because it contains a FPU emulator. In order to be able to run Linux, a complete MMU is implemented. The exact restrictions of the emulated CPU are:
+No FPU/MMX/SSE
+No segment limit and right checks when accessing memory (Linux does not rely on them for memory protection, so it is not an issue. The x86 emulator of QEMU has the same restriction).
+No single-stepping
+I added some tricks which are not present in QEMU to be more precise when emulating unaligned load/stores at page boundaries. The condition code emulation is also more efficient than the one in QEMU.
+
+===================================================================================================
+
+Devices
+
+Currently there is no synchronization between the PIT frequency and the real time, so there is a variable drift between the time returned by Linux (try the "date" command) and the real time.
+The UART (serial port) does not support FIFO mode. Perhaps it could help to improve the display speed.
+
+There is no network emulation at this point.
+
+A clipboard device (seen as /dev/clipboard in the emulator) was added to allow exchange of data between the emulator and the outside world.
+
+
+
+Javascript terminal
+
+Although I could have reused the excellent termlib, I decided to write my own because I was curious to see how it could be done. The main problem is the key handling which is different among browsers and OSes, as described here.
+Linux distribution
+
+
+
+I compiled a 2.6.20 Linux kernel (I guess any other version would work provided there is still an FPU emulator). The Linux kernel configuration, patch and the source code of the Linux starter (kind of BIOS) are available: linuxstart-20110820.tar.gz.
+The disk image is just a ram disk image loaded at boot time. It contains a filesystem generated with Buildroot containing BusyBox. I added my toy C compiler TinyCC and my unfinished but usable emacs clone QEmacs. There is also a small MS-DOS .COM launcher I use to test the 16 bit emulation with a tiny .COM program to compute pi and a small self-assembling assembler for MS-DOS.
+
+
+
+
 */
 var aa = [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
 
@@ -1396,7 +1439,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         a = regs[0] & 0xffff;
         b &= 0xff;
         if ((a >> 8) >= b)
-            Dc(0);
+            blow_up_errcode0(0);
         q = (a / b) >> 0;
         r = (a % b);
         Wb(0, (q & 0xff) | (r << 8));
@@ -1406,10 +1449,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         a = (regs[0] << 16) >> 16;
         b = (b << 24) >> 24;
         if (b == 0)
-            Dc(0);
+            blow_up_errcode0(0);
         q = (a / b) >> 0;
         if (((q << 24) >> 24) != q)
-            Dc(0);
+            blow_up_errcode0(0);
         r = (a % b);
         Wb(0, (q & 0xff) | (r << 8));
     }
@@ -1418,7 +1461,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         a = (regs[2] << 16) | (regs[0] & 0xffff);
         b &= 0xffff;
         if ((a >>> 16) >= b)
-            Dc(0);
+            blow_up_errcode0(0);
         q = (a / b) >> 0;
         r = (a % b);
         Wb(0, q);
@@ -1429,10 +1472,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         a = (regs[2] << 16) | (regs[0] & 0xffff);
         b = (b << 16) >> 16;
         if (b == 0)
-            Dc(0);
+            blow_up_errcode0(0);
         q = (a / b) >> 0;
         if (((q << 16) >> 16) != q)
-            Dc(0);
+            blow_up_errcode0(0);
         r = (a % b);
         Wb(0, q);
         Wb(2, r);
@@ -1443,7 +1486,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Jc = Jc >>> 0;
         b = b >>> 0;
         if (Ic >= b) {
-            Dc(0);
+            blow_up_errcode0(0);
         }
         if (Ic >= 0 && Ic <= 0x200000) {
             a = Ic * 4294967296 + Jc;
@@ -1485,11 +1528,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Nc ^= Mc;
         if (Nc) {
             if ((q >>> 0) > 0x80000000)
-                Dc(0);
+                blow_up_errcode0(0);
             q = (-q) >> 0;
         } else {
             if ((q >>> 0) >= 0x80000000)
-                Dc(0);
+                blow_up_errcode0(0);
         }
         if (Mc) {
             Ma = (-Ma) >> 0;
@@ -2019,7 +2062,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         cpu.cc_dst2 = _dst2;
         throw {intno: intno, error_code: error_code};
     }
-    function Dc(intno) {
+    function blow_up_errcode0(intno) {
         blow_up(intno, 0);
     }
 
@@ -2107,7 +2150,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x65:
                     {
                         if ((n + 1) > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                         fa = (Nb + (n++)) >> 0;
                         b = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
@@ -2120,7 +2163,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     {
                         if ((n + 1) > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                         fa = (Nb + (n++)) >> 0;
                         b = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
@@ -2267,7 +2310,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xd5:
                     n++;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0xb8:
                 case 0xb9:
@@ -2291,7 +2334,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xe8:
                     n += Ed;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0x88:
                 case 0x89:
@@ -2358,7 +2401,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     {
                         {
                             if ((n + 1) > 15)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
                             Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
@@ -2380,7 +2423,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            Dc(6);
+                                            blow_up_errcode0(6);
                                         fa = (Nb + (n++)) >> 0;
                                         Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
@@ -2425,7 +2468,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                         }
                         if (n > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break Fd;
                 case 0xa0:
@@ -2437,7 +2480,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     else
                         n += 4;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0xc6:
                 case 0x80:
@@ -2449,7 +2492,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     {
                         {
                             if ((n + 1) > 15)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
                             Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
@@ -2471,7 +2514,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            Dc(6);
+                                            blow_up_errcode0(6);
                                         fa = (Nb + (n++)) >> 0;
                                         Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
@@ -2516,11 +2559,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                         }
                         if (n > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     n++;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0xc7:
                 case 0x81:
@@ -2528,7 +2571,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     {
                         {
                             if ((n + 1) > 15)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
                             Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
@@ -2550,7 +2593,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            Dc(6);
+                                            blow_up_errcode0(6);
                                         fa = (Nb + (n++)) >> 0;
                                         Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
@@ -2595,17 +2638,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                         }
                         if (n > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     n += Ed;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0xf6:
                     {
                         {
                             if ((n + 1) > 15)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
                             Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
@@ -2627,7 +2670,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            Dc(6);
+                                            blow_up_errcode0(6);
                                         fa = (Nb + (n++)) >> 0;
                                         Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
@@ -2672,20 +2715,20 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                         }
                         if (n > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     Ja = (Ea >> 3) & 7;
                     if (Ja == 0) {
                         n++;
                         if (n > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break Fd;
                 case 0xf7:
                     {
                         {
                             if ((n + 1) > 15)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
                             Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
@@ -2707,7 +2750,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            Dc(6);
+                                            blow_up_errcode0(6);
                                         fa = (Nb + (n++)) >> 0;
                                         Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
@@ -2752,40 +2795,40 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                         }
                         if (n > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     Ja = (Ea >> 3) & 7;
                     if (Ja == 0) {
                         n += Ed;
                         if (n > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break Fd;
                 case 0xea:
                 case 0x9a:
                     n += 2 + Ed;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0xc2:
                 case 0xca:
                     n += 2;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0xc8:
                     n += 3;
                     if (n > 15)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     break Fd;
                 case 0xd6:
                 case 0xf1:
                 default:
-                    Dc(6);
+                    blow_up_errcode0(6);
                 case 0x0f:
                     {
                         if ((n + 1) > 15)
-                            Dc(6);
+                            blow_up_errcode0(6);
                         fa = (Nb + (n++)) >> 0;
                         b = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
@@ -2824,7 +2867,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x8f:
                             n += Ed;
                             if (n > 15)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             break Fd;
                         case 0x90:
                         case 0x91:
@@ -2888,7 +2931,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             {
                                 {
                                     if ((n + 1) > 15)
-                                        Dc(6);
+                                        blow_up_errcode0(6);
                                     fa = (Nb + (n++)) >> 0;
                                     Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                 }
@@ -2910,7 +2953,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         case 0x04:
                                             {
                                                 if ((n + 1) > 15)
-                                                    Dc(6);
+                                                    blow_up_errcode0(6);
                                                 fa = (Nb + (n++)) >> 0;
                                                 Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                             }
@@ -2955,7 +2998,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     }
                                 }
                                 if (n > 15)
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break Fd;
                         case 0xa4:
@@ -2964,7 +3007,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             {
                                 {
                                     if ((n + 1) > 15)
-                                        Dc(6);
+                                        blow_up_errcode0(6);
                                     fa = (Nb + (n++)) >> 0;
                                     Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                 }
@@ -2986,7 +3029,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         case 0x04:
                                             {
                                                 if ((n + 1) > 15)
-                                                    Dc(6);
+                                                    blow_up_errcode0(6);
                                                 fa = (Nb + (n++)) >> 0;
                                                 Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                             }
@@ -3031,11 +3074,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     }
                                 }
                                 if (n > 15)
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             n++;
                             if (n > 15)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             break Fd;
                         case 0x04:
                         case 0x05:
@@ -3153,7 +3196,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xc6:
                         case 0xc7:
                         default:
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break;
             }
@@ -4276,7 +4319,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             if (cpu.eflags & 0x00020000) {
                 Sa = (cpu.eflags >> 12) & 3;
                 if (Sa != 3)
-                    Dc(13);
+                    blow_up_errcode0(13);
             }
             af(je, 1, 0);
         } else {
@@ -4342,7 +4385,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function qf(je, pf) {
         var ga, Ea, Ga, selector;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
-            Dc(6);
+            blow_up_errcode0(6);
         Ea = phys_mem8[Kb++];
         Ga = (Ea >> 3) & 7;
         if ((Ea >> 6) == 3) {
@@ -4412,7 +4455,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function tf() {
         var Ea, ga, Ha, Fa;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
-            Dc(6);
+            blow_up_errcode0(6);
         Ea = phys_mem8[Kb++];
         if ((Ea >> 6) == 3) {
             Fa = Ea & 7;
@@ -4459,7 +4502,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function vf(base) {
         var wf, xf;
         if (base == 0)
-            Dc(0);
+            blow_up_errcode0(0);
         wf = regs[0] & 0xff;
         xf = (wf / base) & -1;
         wf = (wf % base);
@@ -4569,7 +4612,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Ea, ga, Ha, Ia;
         Ea = phys_mem8[Kb++];
         if ((Ea >> 3) == 3)
-            Dc(6);
+            blow_up_errcode0(6);
         fa = Pb(Ea);
         ga = kb();
         fa = (fa + 4) & -1;
@@ -4577,13 +4620,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Ga = (Ea >> 3) & 7;
         Ia = regs[Ga];
         if (Ia < ga || Ia > Ha)
-            Dc(5);
+            blow_up_errcode0(5);
     }
     function If() {
         var Ea, ga, Ha, Ia;
         Ea = phys_mem8[Kb++];
         if ((Ea >> 3) == 3)
-            Dc(6);
+            blow_up_errcode0(6);
         fa = Pb(Ea);
         ga = (ib() << 16) >> 16;
         fa = (fa + 2) & -1;
@@ -4591,7 +4634,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Ga = (Ea >> 3) & 7;
         Ia = (regs[Ga] << 16) >> 16;
         if (Ia < ga || Ia > Ha)
-            Dc(5);
+            blow_up_errcode0(5);
     }
     function Jf() {
         var ga, Ha, Ga;
@@ -4731,7 +4774,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var ga, Ha, Ea;
         Ea = phys_mem8[Kb++];
         if ((Ea >> 3) == 3)
-            Dc(6);
+            blow_up_errcode0(6);
         fa = Pb(Ea);
         ga = kb();
         fa += 4;
@@ -4743,7 +4786,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var ga, Ha, Ea;
         Ea = phys_mem8[Kb++];
         if ((Ea >> 3) == 3)
-            Dc(6);
+            blow_up_errcode0(6);
         fa = Pb(Ea);
         ga = ib();
         fa += 2;
@@ -4755,7 +4798,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Xf, Yf, Zf, ag, Sa, ga;
         Sa = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > Sa)
-            Dc(13);
+            blow_up_errcode0(13);
         if (Da & 0x0080)
             Xf = 0xffff;
         else
@@ -4784,7 +4827,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Xf, cg, Sb, ag, Zf, Sa, ga;
         Sa = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > Sa)
-            Dc(13);
+            blow_up_errcode0(13);
         if (Da & 0x0080)
             Xf = 0xffff;
         else
@@ -4983,7 +5026,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Xf, Yf, Zf, ag, Sa, ga;
         Sa = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > Sa)
-            Dc(13);
+            blow_up_errcode0(13);
         if (Da & 0x0080)
             Xf = 0xffff;
         else
@@ -5012,7 +5055,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Xf, cg, Sb, ag, Zf, Sa, ga;
         Sa = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > Sa)
-            Dc(13);
+            blow_up_errcode0(13);
         if (Da & 0x0080)
             Xf = 0xffff;
         else
@@ -5211,7 +5254,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Xf, Yf, Zf, ag, Sa, ga;
         Sa = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > Sa)
-            Dc(13);
+            blow_up_errcode0(13);
         if (Da & 0x0080)
             Xf = 0xffff;
         else
@@ -5240,7 +5283,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Xf, cg, Sb, ag, Zf, Sa, ga;
         Sa = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > Sa)
-            Dc(13);
+            blow_up_errcode0(13);
         if (Da & 0x0080)
             Xf = 0xffff;
         else
@@ -5799,7 +5842,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
                     if (Ga >= 6 || Ga == 1)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     if ((Ea >> 6) == 3) {
                         ga = regs[Ea & 7] & 0xffff;
                     } else {
@@ -5812,7 +5855,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
                     if (Ga >= 6)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     ga = cpu.segs[Ga].selector;
                     if ((Ea >> 6) == 3) {
                         if ((((Da >> 8) & 1) ^ 1)) {
@@ -6333,7 +6376,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ec(ga);
                             break;
                         default:
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break Fd;
                 case 0xf7:
@@ -6419,7 +6462,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             regs[2] = Ma;
                             break;
                         default:
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break Fd;
                 //Rotate and Shift ops
@@ -6704,7 +6747,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x9c:
                     Sa = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && Sa != 3)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     ga = id() & ~(0x00020000 | 0x00010000);
                     if ((((Da >> 8) & 1) ^ 1)) {
                         xd(ga);
@@ -6719,7 +6762,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x9d:
                     Sa = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && Sa != 3)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     if ((((Da >> 8) & 1) ^ 1)) {
                         ga = Ad();
                         Bd();
@@ -6757,7 +6800,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x8d:
                     Ea = phys_mem8[Kb++];
                     if ((Ea >> 6) == 3)
-                        Dc(6);
+                        blow_up_errcode0(6);
                     Da = (Da & ~0x000f) | (6 + 1);
                     regs[(Ea >> 3) & 7] = Pb(Ea);
                     break Fd;
@@ -6788,7 +6831,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break;
                         default:
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break Fd;
                 case 0xff:
@@ -6889,7 +6932,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 3:
                         case 5:
                             if ((Ea >> 6) == 3)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             fa = Pb(Ea);
                             ga = kb();
                             fa = (fa + 4) >> 0;
@@ -6900,7 +6943,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 Oe(Ha, ga);
                             break;
                         default:
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break Fd;
                 case 0xeb:
@@ -7173,7 +7216,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xcd:
                     ga = phys_mem8[Kb++];
                     if ((cpu.eflags & 0x00020000) && ((cpu.eflags >> 12) & 3) != 3)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     Ha = (eip + Kb - Mb);
                     Ae(ga, 1, 0, Ha, 0);
                     break Fd;
@@ -7210,13 +7253,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xfa:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     cpu.eflags &= ~0x00000200;
                     break Fd;
                 case 0xfb:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     cpu.eflags |= 0x00000200;
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7234,7 +7277,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 case 0xf4:
                     if (cpu.cpl != 0)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     cpu.halted = 1;
                     La = 257;
                     break Bg;
@@ -7305,7 +7348,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xde:
                 case 0xdf:
                     if (cpu.cr0 & ((1 << 2) | (1 << 3))) {
-                        Dc(7);
+                        blow_up_errcode0(7);
                     }
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
@@ -7322,7 +7365,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xe4:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     ga = phys_mem8[Kb++];
                     Vb(0, cpu.ld8_port(ga));
                     {
@@ -7333,7 +7376,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xe5:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     ga = phys_mem8[Kb++];
                     regs[0] = cpu.ld32_port(ga);
                     {
@@ -7344,7 +7387,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xe6:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     ga = phys_mem8[Kb++];
                     cpu.st8_port(ga, regs[0] & 0xff);
                     {
@@ -7355,7 +7398,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xe7:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     ga = phys_mem8[Kb++];
                     cpu.st32_port(ga, regs[0]);
                     {
@@ -7366,7 +7409,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xec:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     Vb(0, cpu.ld8_port(regs[2] & 0xffff));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7376,7 +7419,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xed:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     regs[0] = cpu.ld32_port(regs[2] & 0xffff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7386,7 +7429,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xee:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     cpu.st8_port(regs[2] & 0xffff, regs[0] & 0xff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7396,7 +7439,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xef:
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
-                        Dc(13);
+                        blow_up_errcode0(13);
                     cpu.st32_port(regs[2] & 0xffff, regs[0]);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7428,9 +7471,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 case 0xd6:
                 case 0xf1:
-                    Dc(6);
+                    blow_up_errcode0(6);
                     break;
-                /* TWO BYTE CODE INSTRUCTIONS BEGIN WITH 0F :  0F xx */
+
+                /*
+                   TWO BYTE CODE INSTRUCTIONS BEGIN WITH 0F :  0F xx
+                   =====================================================================================================
+                */
                 case 0x0f:
                     b = phys_mem8[Kb++];
                     switch (b) {
@@ -7556,7 +7603,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break Fd;
                         case 0x00:
                             if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
-                                Dc(6);
+                                blow_up_errcode0(6);
                             Ea = phys_mem8[Kb++];
                             Ja = (Ea >> 3) & 7;
                             switch (Ja) {
@@ -7576,7 +7623,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 2:
                                 case 3:
                                     if (cpu.cpl != 0)
-                                        Dc(13);
+                                        blow_up_errcode0(13);
                                     if ((Ea >> 6) == 3) {
                                         ga = regs[Ea & 7] & 0xffff;
                                     } else {
@@ -7599,7 +7646,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     sf(ga, Ja & 1);
                                     break;
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break Fd;
                         case 0x01:
@@ -7609,9 +7656,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 2:
                                 case 3:
                                     if ((Ea >> 6) == 3)
-                                        Dc(6);
+                                        blow_up_errcode0(6);
                                     if (this.cpl != 0)
-                                        Dc(13);
+                                        blow_up_errcode0(13);
                                     fa = Pb(Ea);
                                     ga = ib();
                                     fa += 2;
@@ -7626,14 +7673,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                                 case 7:
                                     if (this.cpl != 0)
-                                        Dc(13);
+                                        blow_up_errcode0(13);
                                     if ((Ea >> 6) == 3)
-                                        Dc(6);
+                                        blow_up_errcode0(6);
                                     fa = Pb(Ea);
                                     cpu.tlb_flush_page(fa & -4096);
                                     break;
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break Fd;
                         case 0x02:
@@ -7642,10 +7689,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break Fd;
                         case 0x20:
                             if (cpu.cpl != 0)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             Ea = phys_mem8[Kb++];
                             if ((Ea >> 6) != 3)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             Ga = (Ea >> 3) & 7;
                             switch (Ga) {
                                 case 0:
@@ -7661,16 +7708,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     ga = cpu.cr4;
                                     break;
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             regs[Ea & 7] = ga;
                             break Fd;
                         case 0x22:
                             if (cpu.cpl != 0)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             Ea = phys_mem8[Kb++];
                             if ((Ea >> 6) != 3)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             Ga = (Ea >> 3) & 7;
                             ga = regs[Ea & 7];
                             switch (Ga) {
@@ -7687,24 +7734,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     Td(ga);
                                     break;
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break Fd;
                         case 0x06:
                             if (cpu.cpl != 0)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             Pd(cpu.cr0 & ~(1 << 3));
                             break Fd;
                         case 0x23:
                             if (cpu.cpl != 0)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             Ea = phys_mem8[Kb++];
                             if ((Ea >> 6) != 3)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             Ga = (Ea >> 3) & 7;
                             ga = regs[Ea & 7];
                             if (Ga == 4 || Ga == 5)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             break Fd;
                         case 0xb2:
                         case 0xb4:
@@ -7803,7 +7850,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     }
                                     break;
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break Fd;
                         case 0xa3:
@@ -7863,7 +7910,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break Fd;
                         case 0x31:
                             if ((cpu.cr4 & (1 << 2)) && cpu.cpl != 0)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             ga = md();
                             regs[0] = ga >>> 0;
                             regs[2] = (ga / 0x100000000) >>> 0;
@@ -8134,7 +8181,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xfe:
                         case 0xff:
                         default:
-                            Dc(6);
+                            blow_up_errcode0(6);
                     }
                     break;
                 default:
@@ -8465,7 +8512,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     Gc(ga);
                                     break;
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break Fd;
                         case 0x1c1:
@@ -8592,7 +8639,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x18d:
                             Ea = phys_mem8[Kb++];
                             if ((Ea >> 6) == 3)
-                                Dc(6);
+                                blow_up_errcode0(6);
                             Da = (Da & ~0x000f) | (6 + 1);
                             Wb((Ea >> 3) & 7, Pb(Ea));
                             break Fd;
@@ -8653,7 +8700,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 3:
                                 case 5:
                                     if ((Ea >> 6) == 3)
-                                        Dc(6);
+                                        blow_up_errcode0(6);
                                     fa = Pb(Ea);
                                     ga = ib();
                                     fa = (fa + 2) >> 0;
@@ -8664,7 +8711,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         Oe(Ha, ga);
                                     break;
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break Fd;
                         case 0x1eb:
@@ -8747,7 +8794,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x1e5:
                             Sa = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > Sa)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             ga = phys_mem8[Kb++];
                             Wb(0, cpu.ld16_port(ga));
                             {
@@ -8758,7 +8805,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x1e7:
                             Sa = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > Sa)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             ga = phys_mem8[Kb++];
                             cpu.st16_port(ga, regs[0] & 0xffff);
                             {
@@ -8769,7 +8816,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x1ed:
                             Sa = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > Sa)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             Wb(0, cpu.ld16_port(regs[2] & 0xffff));
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -8779,7 +8826,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x1ef:
                             Sa = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > Sa)
-                                Dc(13);
+                                blow_up_errcode0(13);
                             cpu.st16_port(regs[2] & 0xffff, regs[0] & 0xffff);
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -8903,7 +8950,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x1d6:
                         case 0x1f1:
                         default:
-                            Dc(6);
+                            blow_up_errcode0(6);
                         case 0x10f:
                             b = phys_mem8[Kb++];
                             b |= 0x0100;
@@ -9084,7 +9131,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                             }
                                             break;
                                         default:
-                                            Dc(6);
+                                            blow_up_errcode0(6);
                                     }
                                     break Fd;
                                 case 0x1a3:
@@ -9299,20 +9346,20 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x1bf:
                                 case 0x1c0:
                                 default:
-                                    Dc(6);
+                                    blow_up_errcode0(6);
                             }
                             break;
                     }
             }
         }
-    } while (--Ka);
+    } while (--Ka); //End Giant Core DO WHILE Execution Loop
     this.cycle_count += (ua - Ka);
-    this.eip = (eip + Kb - Mb);
-    this.cc_src = _src;
-    this.cc_dst = _dst;
-    this.cc_op = _op;
-    this.cc_op2 = _op2;
-    this.cc_dst2 = _dst2;
+    this.eip           = (eip + Kb - Mb);
+    this.cc_src        = _src;
+    this.cc_dst        = _dst;
+    this.cc_op         = _op;
+    this.cc_op2        = _op2;
+    this.cc_dst2       = _dst2;
     return La;
 };
 
