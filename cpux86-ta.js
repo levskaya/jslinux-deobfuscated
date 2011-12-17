@@ -5,27 +5,29 @@ var ba = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, 3, 
 var ca = [0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4];
 
 function CPU_X86() {
-    var i, da;
+    var i, tlb_size;
     this.regs = new Array();
-    for (i = 0; i < 8; i++) { this.regs[i] = 0;} //8 registers
-    this.eip = 0;
-    this.cc_op = 0;
-    this.cc_dst = 0;
-    this.cc_src = 0;
-    this.cc_op2 = 0;
-    this.cc_dst2 = 0;
-    this.df = 1;
-    this.eflags = 0x2;
+    for (i = 0; i < 8; i++) {
+        this.regs[i] = 0;
+    }
+    this.eip         = 0;
+    this.cc_op       = 0;
+    this.cc_dst      = 0;
+    this.cc_src      = 0;
+    this.cc_op2      = 0;
+    this.cc_dst2     = 0;
+    this.df          = 1;
+    this.eflags      = 0x2;
     this.cycle_count = 0;
-    this.hard_irq = 0;
-    this.hard_intno = -1;
-    this.cpl = 0;
-    this.cr0 = (1 << 0);
-    this.cr2 = 0;
-    this.cr3 = 0;
-    this.cr4 = 0;
-    this.idt = {base: 0,limit: 0};
-    this.gdt = {base: 0,limit: 0};
+    this.hard_irq    = 0;
+    this.hard_intno  = -1;
+    this.cpl         = 0;
+    this.cr0         = (1 << 0);
+    this.cr2         = 0;
+    this.cr3         = 0;
+    this.cr4         = 0;
+    this.idt         = {base: 0,limit: 0};
+    this.gdt         = {base: 0,limit: 0};
 
     this.segs = new Array();
     for (i = 0; i < 7; i++) {this.segs[i] = {selector: 0, base: 0, limit: 0, flags: 0}; }
@@ -36,12 +38,13 @@ function CPU_X86() {
     this.ldt = {selector: 0,base: 0,limit: 0,flags: 0};
     this.halted = 0;
     this.phys_mem = null;
-    da = 0x100000;
-    this.tlb_read_kernel  = new Int32Array(da);
-    this.tlb_write_kernel = new Int32Array(da);
-    this.tlb_read_user    = new Int32Array(da);
-    this.tlb_write_user   = new Int32Array(da);
-    for (i = 0; i < da; i++) {
+
+    tlb_size = 0x100000;
+    this.tlb_read_kernel  = new Int32Array(tlb_size);
+    this.tlb_write_kernel = new Int32Array(tlb_size);
+    this.tlb_read_user    = new Int32Array(tlb_size);
+    this.tlb_write_user   = new Int32Array(tlb_size);
+    for (i = 0; i < tlb_size; i++) {
         this.tlb_read_kernel[i]  = -1;
         this.tlb_write_kernel[i] = -1;
         this.tlb_read_user[i]    = -1;
@@ -60,7 +63,8 @@ CPU_X86.prototype.phys_mem_resize = function(new_mem_size) {
     this.phys_mem32 = new Int32Array(this.phys_mem, 0, new_mem_size / 4);
 };
 
-CPU_X86.prototype.ld8_phys = function(fa) {    return this.phys_mem8[fa]; };
+CPU_X
+86.prototype.ld8_phys = function(fa) {    return this.phys_mem8[fa]; };
 CPU_X86.prototype.st8_phys = function(fa, ga) {    this.phys_mem8[fa] = ga; };
 CPU_X86.prototype.ld32_phys = function(fa) {    return this.phys_mem32[fa >> 2]; };
 CPU_X86.prototype.st32_phys = function(fa, ga) {    this.phys_mem32[fa >> 2] = ga; };
@@ -202,16 +206,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     var Na, Oa, Pa, Qa, Ra, Sa;
     var phys_mem8, Ua;
     var phys_mem16, phys_mem32;
-    var tlb_read_kernel, tlb_write_kernel, tlb_read_user, tlb_write_user, bb, cb;
+    var tlb_read_kernel, tlb_write_kernel, tlb_read_user, tlb_write_user, _tlb_read_, _tlb_write_;
     function db() {
         var eb;
         fb(fa, 0, cpu.cpl == 3);
-        eb = bb[fa >>> 12] ^ fa;
+        eb = _tlb_read_[fa >>> 12] ^ fa;
         return phys_mem8[eb];
     }
     function gb() {
         var Ua;
-        return (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+        return (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
     }
     function hb() {
         var ga;
@@ -223,7 +227,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function ib() {
         var Ua;
-        return (((Ua = bb[fa >>> 12]) | fa) & 1 ? hb() : phys_mem16[(fa ^ Ua) >> 1]);
+        return (((Ua = _tlb_read_[fa >>> 12]) | fa) & 1 ? hb() : phys_mem16[(fa ^ Ua) >> 1]);
     }
     function jb() {
         var ga;
@@ -239,17 +243,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function kb() {
         var Ua;
-        return (((Ua = bb[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
+        return (((Ua = _tlb_read_[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
     }
     function lb() {
         var eb;
         fb(fa, 1, cpu.cpl == 3);
-        eb = cb[fa >>> 12] ^ fa;
+        eb = _tlb_write_[fa >>> 12] ^ fa;
         return phys_mem8[eb];
     }
     function mb() {
         var eb;
-        return ((eb = cb[fa >>> 12]) == -1) ? lb() : phys_mem8[fa ^ eb];
+        return ((eb = _tlb_write_[fa >>> 12]) == -1) ? lb() : phys_mem8[fa ^ eb];
     }
     function nb() {
         var ga;
@@ -261,7 +265,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function ob() {
         var eb;
-        return ((eb = cb[fa >>> 12]) | fa) & 1 ? nb() : phys_mem16[(fa ^ eb) >> 1];
+        return ((eb = _tlb_write_[fa >>> 12]) | fa) & 1 ? nb() : phys_mem16[(fa ^ eb) >> 1];
     }
     function pb() {
         var ga;
@@ -277,18 +281,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function qb() {
         var eb;
-        return ((eb = cb[fa >>> 12]) | fa) & 3 ? pb() : phys_mem32[(fa ^ eb) >> 2];
+        return ((eb = _tlb_write_[fa >>> 12]) | fa) & 3 ? pb() : phys_mem32[(fa ^ eb) >> 2];
     }
     function rb(ga) {
         var eb;
         fb(fa, 1, cpu.cpl == 3);
-        eb = cb[fa >>> 12] ^ fa;
+        eb = _tlb_write_[fa >>> 12] ^ fa;
         phys_mem8[eb] = ga;
     }
     function sb(ga) {
         var Ua;
         {
-            Ua = cb[fa >>> 12];
+            Ua = _tlb_write_[fa >>> 12];
             if (Ua == -1) {
                 rb(ga);
             } else {
@@ -305,7 +309,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function ub(ga) {
         var Ua;
         {
-            Ua = cb[fa >>> 12];
+            Ua = _tlb_write_[fa >>> 12];
             if ((Ua | fa) & 1) {
                 tb(ga);
             } else {
@@ -326,7 +330,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function wb(ga) {
         var Ua;
         {
-            Ua = cb[fa >>> 12];
+            Ua = _tlb_write_[fa >>> 12];
             if ((Ua | fa) & 3) {
                 vb(ga);
             } else {
@@ -1941,26 +1945,26 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function rd(sd) {
         cpu.cpl = sd;
         if (cpu.cpl == 3) {
-            bb = tlb_read_user;
-            cb = tlb_write_user;
+            _tlb_read_ = tlb_read_user;
+            _tlb_write_ = tlb_write_user;
         } else {
-            bb = tlb_read_kernel;
-            cb = tlb_write_kernel;
+            _tlb_read_ = tlb_read_kernel;
+            _tlb_write_ = tlb_write_kernel;
         }
     }
     function td(fa, ud) {
         var eb;
         if (ud) {
-            eb = cb[fa >>> 12];
+            eb = _tlb_write_[fa >>> 12];
         } else {
-            eb = bb[fa >>> 12];
+            eb = _tlb_read_[fa >>> 12];
         }
         if (eb == -1) {
             fb(fa, ud, cpu.cpl == 3);
             if (ud) {
-                eb = cb[fa >>> 12];
+                eb = _tlb_write_[fa >>> 12];
             } else {
-                eb = bb[fa >>> 12];
+                eb = _tlb_read_[fa >>> 12];
             }
         }
         return eb ^ fa;
@@ -2024,7 +2028,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         if ((n + 1) > 15)
                             Dc(6);
                         fa = (Nb + (n++)) >> 0;
-                        b = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                        b = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
                     break;
                 case 0x67:
@@ -2037,7 +2041,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         if ((n + 1) > 15)
                             Dc(6);
                         fa = (Nb + (n++)) >> 0;
-                        b = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                        b = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
                     break;
                 case 0x91:
@@ -2275,7 +2279,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 Dc(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
                             switch (Ea >> 6) {
@@ -2297,7 +2301,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         if ((n + 1) > 15)
                                             Dc(6);
                                         fa = (Nb + (n++)) >> 0;
-                                        Dd = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                        Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
                                     if ((Dd & 7) == 5) {
                                         n += 4;
@@ -2366,7 +2370,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 Dc(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
                             switch (Ea >> 6) {
@@ -2388,7 +2392,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         if ((n + 1) > 15)
                                             Dc(6);
                                         fa = (Nb + (n++)) >> 0;
-                                        Dd = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                        Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
                                     if ((Dd & 7) == 5) {
                                         n += 4;
@@ -2445,7 +2449,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 Dc(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
                             switch (Ea >> 6) {
@@ -2467,7 +2471,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         if ((n + 1) > 15)
                                             Dc(6);
                                         fa = (Nb + (n++)) >> 0;
-                                        Dd = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                        Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
                                     if ((Dd & 7) == 5) {
                                         n += 4;
@@ -2522,7 +2526,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 Dc(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
                             switch (Ea >> 6) {
@@ -2544,7 +2548,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         if ((n + 1) > 15)
                                             Dc(6);
                                         fa = (Nb + (n++)) >> 0;
-                                        Dd = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                        Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
                                     if ((Dd & 7) == 5) {
                                         n += 4;
@@ -2602,7 +2606,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 Dc(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
                             switch (Ea >> 6) {
@@ -2624,7 +2628,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         if ((n + 1) > 15)
                                             Dc(6);
                                         fa = (Nb + (n++)) >> 0;
-                                        Dd = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                        Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                     }
                                     if ((Dd & 7) == 5) {
                                         n += 4;
@@ -2702,7 +2706,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         if ((n + 1) > 15)
                             Dc(6);
                         fa = (Nb + (n++)) >> 0;
-                        b = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                        b = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
                     switch (b) {
                         case 0x06:
@@ -2805,7 +2809,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     if ((n + 1) > 15)
                                         Dc(6);
                                     fa = (Nb + (n++)) >> 0;
-                                    Ea = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                    Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                 }
                                 if (Da & 0x0080) {
                                     switch (Ea >> 6) {
@@ -2827,7 +2831,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                                 if ((n + 1) > 15)
                                                     Dc(6);
                                                 fa = (Nb + (n++)) >> 0;
-                                                Dd = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                                Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                             }
                                             if ((Dd & 7) == 5) {
                                                 n += 4;
@@ -2881,7 +2885,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     if ((n + 1) > 15)
                                         Dc(6);
                                     fa = (Nb + (n++)) >> 0;
-                                    Ea = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                    Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                 }
                                 if (Da & 0x0080) {
                                     switch (Ea >> 6) {
@@ -2903,7 +2907,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                                 if ((n + 1) > 15)
                                                     Dc(6);
                                                 fa = (Nb + (n++)) >> 0;
-                                                Dd = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                                Dd = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                             }
                                             if ((Dd & 7) == 5) {
                                                 n += 4;
@@ -5387,6 +5391,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
+
     cpu = this;
     phys_mem8 = this.phys_mem8;
     phys_mem16 = this.phys_mem16;
@@ -5395,12 +5400,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     tlb_write_user = this.tlb_write_user;
     tlb_read_kernel = this.tlb_read_kernel;
     tlb_write_kernel = this.tlb_write_kernel;
-    if (cpu.cpl == 3) {
-        bb = tlb_read_user;
-        cb = tlb_write_user;
+    if (cpu.cpl == 3) {  //current privilege level
+        _tlb_read_ = tlb_read_user;
+        _tlb_write_ = tlb_write_user;
     } else {
-        bb = tlb_read_kernel;
-        cb = tlb_write_kernel;
+        _tlb_read_ = tlb_read_kernel;
+        _tlb_write_ = tlb_write_kernel;
     }
     if (cpu.halted) {
         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200)) {
@@ -5433,15 +5438,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     Kb = 0;
     Mb = 0;
+
     Bg: do {
         eip = (eip + Kb - Mb) >> 0;
         Nb = (eip + Na) >> 0;
-        Lb = bb[Nb >>> 12];
+        Lb = _tlb_read_[Nb >>> 12];
         if (((Lb | Nb) & 0xfff) >= (4096 - 15 + 1)) {
             var Cg;
             if (Lb == -1)
                 fb(Nb, 0, cpu.cpl == 3);
-            Lb = bb[Nb >>> 12];
+            Lb = _tlb_read_[Nb >>> 12];
             Mb = Kb = Nb ^ Lb;
             b = phys_mem8[Kb++];
             Cg = Nb & 0xfff;
@@ -5451,7 +5457,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Mb = Kb = this.mem_size;
                     for (Ha = 0; Ha < ga; Ha++) {
                         fa = (Nb + Ha) >> 0;
-                        phys_mem8[Kb + Ha] = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                        phys_mem8[Kb + Ha] = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
                     Kb++;
                 }
@@ -5560,7 +5566,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     } else {
                         fa = Pb(Ea);
                         {
-                            Ua = cb[fa >>> 12];
+                            Ua = _tlb_write_[fa >>> 12];
                             if (Ua == -1) {
                                 rb(ga);
                             } else {
@@ -5577,7 +5583,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     } else {
                         fa = Pb(Ea);
                         {
-                            Ua = cb[fa >>> 12];
+                            Ua = _tlb_write_[fa >>> 12];
                             if ((Ua | fa) & 3) {
                                 vb(ga);
                             } else {
@@ -5593,7 +5599,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                     } else {
                         fa = Pb(Ea);
-                        ga = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                        ga = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
                     Ga = (Ea >> 3) & 7;
                     Ua = (Ga & 4) << 1;
@@ -5605,7 +5611,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ga = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
-                        ga = (((Ua = bb[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
+                        ga = (((Ua = _tlb_read_[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
                     }
                     regs[(Ea >> 3) & 7] = ga;
                     break Fd;
@@ -6428,7 +6434,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     if (Qa) {
                         fa = (regs[4] - 4) >> 0;
                         {
-                            Ua = cb[fa >>> 12];
+                            Ua = _tlb_write_[fa >>> 12];
                             if ((Ua | fa) & 3) {
                                 vb(ga);
                             } else {
@@ -6450,7 +6456,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x5f:
                     if (Qa) {
                         fa = regs[4];
-                        ga = (((Ua = bb[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
+                        ga = (((Ua = _tlb_read_[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
                         regs[4] = (fa + 4) >> 0;
                     } else {
                         ga = Ad();
@@ -7327,7 +7333,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1)) & 0xff;
                             } else {
                                 fa = Pb(Ea);
-                                ga = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                ga = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                             }
                             regs[Ga] = ga;
                             break Fd;
@@ -7350,7 +7356,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
                                 fa = Pb(Ea);
-                                ga = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                ga = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                             }
                             regs[Ga] = (((ga) << 24) >> 24);
                             break Fd;
