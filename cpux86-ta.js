@@ -196,13 +196,13 @@ CPU_X86.prototype.dump = function() {
 };
 
 CPU_X86.prototype.exec_internal = function(ua, va) {
-    var cpu, fa, xa;
+    var cpu, fa, regs;
     var _src, za, Aa, Ba, Ca;
     var Da, Ea, Fa, b, Ga, ga, Ha, Ia, Ja, Ka, La, Ma;
     var Na, Oa, Pa, Qa, Ra, Sa;
     var phys_mem8, Ua;
     var phys_mem16, phys_mem32;
-    var Xa, Ya, Za, ab, bb, cb;
+    var tlb_read_kernel, tlb_write_kernel, tlb_read_user, tlb_write_user, bb, cb;
     function db() {
         var eb;
         fb(fa, 0, cpu.cpl == 3);
@@ -340,12 +340,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function xb() {
         var eb;
         fb(fa, 0, 0);
-        eb = Xa[fa >>> 12] ^ fa;
+        eb = tlb_read_kernel[fa >>> 12] ^ fa;
         return phys_mem8[eb];
     }
     function yb() {
         var eb;
-        return ((eb = Xa[fa >>> 12]) == -1) ? xb() : phys_mem8[fa ^ eb];
+        return ((eb = tlb_read_kernel[fa >>> 12]) == -1) ? xb() : phys_mem8[fa ^ eb];
     }
     function zb() {
         var ga;
@@ -357,7 +357,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Ab() {
         var eb;
-        return ((eb = Xa[fa >>> 12]) | fa) & 1 ? zb() : phys_mem16[(fa ^ eb) >> 1];
+        return ((eb = tlb_read_kernel[fa >>> 12]) | fa) & 1 ? zb() : phys_mem16[(fa ^ eb) >> 1];
     }
     function Bb() {
         var ga;
@@ -373,17 +373,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Cb() {
         var eb;
-        return ((eb = Xa[fa >>> 12]) | fa) & 3 ? Bb() : phys_mem32[(fa ^ eb) >> 2];
+        return ((eb = tlb_read_kernel[fa >>> 12]) | fa) & 3 ? Bb() : phys_mem32[(fa ^ eb) >> 2];
     }
     function Db(ga) {
         var eb;
         fb(fa, 1, 0);
-        eb = Ya[fa >>> 12] ^ fa;
+        eb = tlb_write_kernel[fa >>> 12] ^ fa;
         phys_mem8[eb] = ga;
     }
     function Eb(ga) {
         var eb;
-        eb = Ya[fa >>> 12];
+        eb = tlb_write_kernel[fa >>> 12];
         if (eb == -1) {
             Db(ga);
         } else {
@@ -398,7 +398,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Gb(ga) {
         var eb;
-        eb = Ya[fa >>> 12];
+        eb = tlb_write_kernel[fa >>> 12];
         if ((eb | fa) & 1) {
             Fb(ga);
         } else {
@@ -417,7 +417,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Ib(ga) {
         var eb;
-        eb = Ya[fa >>> 12];
+        eb = tlb_write_kernel[fa >>> 12];
         if ((eb | fa) & 3) {
             Hb(ga);
         } else {
@@ -448,11 +448,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         }
                         ;
                     } else {
-                        fa = xa[base];
+                        fa = regs[base];
                     }
                     Rb = (Qb >> 3) & 7;
                     if (Rb != 4) {
-                        fa = (fa + (xa[Rb] << (Qb >> 6))) >> 0;
+                        fa = (fa + (regs[Rb] << (Qb >> 6))) >> 0;
                     }
                     break;
                 case 0x0c:
@@ -461,10 +461,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     fa = ((phys_mem8[Kb++] << 24) >> 24);
                     ;
                     base = Qb & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     Rb = (Qb >> 3) & 7;
                     if (Rb != 4) {
-                        fa = (fa + (xa[Rb] << (Qb >> 6))) >> 0;
+                        fa = (fa + (regs[Rb] << (Qb >> 6))) >> 0;
                     }
                     break;
                 case 0x14:
@@ -476,10 +476,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     base = Qb & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     Rb = (Qb >> 3) & 7;
                     if (Rb != 4) {
-                        fa = (fa + (xa[Rb] << (Qb >> 6))) >> 0;
+                        fa = (fa + (regs[Rb] << (Qb >> 6))) >> 0;
                     }
                     break;
                 case 0x05:
@@ -496,7 +496,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x06:
                 case 0x07:
                     base = Ea & 7;
-                    fa = xa[base];
+                    fa = regs[base];
                     break;
                 case 0x08:
                 case 0x09:
@@ -508,7 +508,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     fa = ((phys_mem8[Kb++] << 24) >> 24);
                     ;
                     base = Ea & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     break;
                 case 0x10:
                 case 0x11:
@@ -524,7 +524,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     base = Ea & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     break;
             }
             return fa;
@@ -547,36 +547,36 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 }
                 switch (Ea & 7) {
                     case 0:
-                        fa = (fa + xa[3] + xa[6]) & 0xffff;
+                        fa = (fa + regs[3] + regs[6]) & 0xffff;
                         Tb = 3;
                         break;
                     case 1:
-                        fa = (fa + xa[3] + xa[7]) & 0xffff;
+                        fa = (fa + regs[3] + regs[7]) & 0xffff;
                         Tb = 3;
                         break;
                     case 2:
-                        fa = (fa + xa[5] + xa[6]) & 0xffff;
+                        fa = (fa + regs[5] + regs[6]) & 0xffff;
                         Tb = 2;
                         break;
                     case 3:
-                        fa = (fa + xa[5] + xa[7]) & 0xffff;
+                        fa = (fa + regs[5] + regs[7]) & 0xffff;
                         Tb = 2;
                         break;
                     case 4:
-                        fa = (fa + xa[6]) & 0xffff;
+                        fa = (fa + regs[6]) & 0xffff;
                         Tb = 3;
                         break;
                     case 5:
-                        fa = (fa + xa[7]) & 0xffff;
+                        fa = (fa + regs[7]) & 0xffff;
                         Tb = 3;
                         break;
                     case 6:
-                        fa = (fa + xa[5]) & 0xffff;
+                        fa = (fa + regs[5]) & 0xffff;
                         Tb = 2;
                         break;
                     case 7:
                     default:
-                        fa = (fa + xa[3]) & 0xffff;
+                        fa = (fa + regs[3]) & 0xffff;
                         Tb = 3;
                         break;
                 }
@@ -603,11 +603,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ;
                         base = 0;
                     } else {
-                        fa = xa[base];
+                        fa = regs[base];
                     }
                     Rb = (Qb >> 3) & 7;
                     if (Rb != 4) {
-                        fa = (fa + (xa[Rb] << (Qb >> 6))) >> 0;
+                        fa = (fa + (regs[Rb] << (Qb >> 6))) >> 0;
                     }
                     break;
                 case 0x0c:
@@ -616,10 +616,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     fa = ((phys_mem8[Kb++] << 24) >> 24);
                     ;
                     base = Qb & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     Rb = (Qb >> 3) & 7;
                     if (Rb != 4) {
-                        fa = (fa + (xa[Rb] << (Qb >> 6))) >> 0;
+                        fa = (fa + (regs[Rb] << (Qb >> 6))) >> 0;
                     }
                     break;
                 case 0x14:
@@ -631,10 +631,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     base = Qb & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     Rb = (Qb >> 3) & 7;
                     if (Rb != 4) {
-                        fa = (fa + (xa[Rb] << (Qb >> 6))) >> 0;
+                        fa = (fa + (regs[Rb] << (Qb >> 6))) >> 0;
                     }
                     break;
                 case 0x05:
@@ -652,7 +652,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x06:
                 case 0x07:
                     base = Ea & 7;
-                    fa = xa[base];
+                    fa = regs[base];
                     break;
                 case 0x08:
                 case 0x09:
@@ -664,7 +664,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     fa = ((phys_mem8[Kb++] << 24) >> 24);
                     ;
                     base = Ea & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     break;
                 case 0x10:
                 case 0x11:
@@ -680,7 +680,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     base = Ea & 7;
-                    fa = (fa + xa[base]) >> 0;
+                    fa = (fa + regs[base]) >> 0;
                     break;
             }
             Sb = Da & 0x000f;
@@ -717,12 +717,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Vb(Ga, ga) {
         if (Ga & 4)
-            xa[Ga & 3] = (xa[Ga & 3] & -65281) | ((ga & 0xff) << 8);
+            regs[Ga & 3] = (regs[Ga & 3] & -65281) | ((ga & 0xff) << 8);
         else
-            xa[Ga & 3] = (xa[Ga & 3] & -256) | (ga & 0xff);
+            regs[Ga & 3] = (regs[Ga & 3] & -256) | (ga & 0xff);
     }
     function Wb(Ga, ga) {
-        xa[Ga] = (xa[Ga] & -65536) | (ga & 0xffff);
+        regs[Ga] = (regs[Ga] & -65536) | (ga & 0xffff);
     }
     function Xb(Ja, Yb, Zb) {
         var ac;
@@ -1336,7 +1336,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Cc(b) {
         var a, q, r;
-        a = xa[0] & 0xffff;
+        a = regs[0] & 0xffff;
         b &= 0xff;
         if ((a >> 8) >= b)
             Dc(0);
@@ -1346,7 +1346,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Ec(b) {
         var a, q, r;
-        a = (xa[0] << 16) >> 16;
+        a = (regs[0] << 16) >> 16;
         b = (b << 24) >> 24;
         if (b == 0)
             Dc(0);
@@ -1358,7 +1358,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Fc(b) {
         var a, q, r;
-        a = (xa[2] << 16) | (xa[0] & 0xffff);
+        a = (regs[2] << 16) | (regs[0] & 0xffff);
         b &= 0xffff;
         if ((a >>> 16) >= b)
             Dc(0);
@@ -1369,7 +1369,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Gc(b) {
         var a, q, r;
-        a = (xa[2] << 16) | (xa[0] & 0xffff);
+        a = (regs[2] << 16) | (regs[0] & 0xffff);
         b = (b << 16) >> 16;
         if (b == 0)
             Dc(0);
@@ -1443,7 +1443,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var qc;
         a &= 0xff;
         b &= 0xff;
-        qc = (xa[0] & 0xff) * (b & 0xff);
+        qc = (regs[0] & 0xff) * (b & 0xff);
         _src = qc >> 8;
         za = (((qc) << 24) >> 24);
         Aa = 21;
@@ -1966,11 +1966,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function rd(sd) {
         cpu.cpl = sd;
         if (cpu.cpl == 3) {
-            bb = Za;
-            cb = ab;
+            bb = tlb_read_user;
+            cb = tlb_write_user;
         } else {
-            bb = Xa;
-            cb = Ya;
+            bb = tlb_read_kernel;
+            cb = tlb_write_kernel;
         }
     }
     function td(fa, ud) {
@@ -1992,31 +1992,31 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function vd(ga) {
         var wd;
-        wd = xa[4] - 2;
+        wd = regs[4] - 2;
         fa = ((wd & Pa) + Oa) >> 0;
         ub(ga);
-        xa[4] = (xa[4] & ~Pa) | ((wd) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((wd) & Pa);
     }
     function xd(ga) {
         var wd;
-        wd = xa[4] - 4;
+        wd = regs[4] - 4;
         fa = ((wd & Pa) + Oa) >> 0;
         wb(ga);
-        xa[4] = (xa[4] & ~Pa) | ((wd) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((wd) & Pa);
     }
     function yd() {
-        fa = ((xa[4] & Pa) + Oa) >> 0;
+        fa = ((regs[4] & Pa) + Oa) >> 0;
         return ib();
     }
     function zd() {
-        xa[4] = (xa[4] & ~Pa) | ((xa[4] + 2) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((regs[4] + 2) & Pa);
     }
     function Ad() {
-        fa = ((xa[4] & Pa) + Oa) >> 0;
+        fa = ((regs[4] & Pa) + Oa) >> 0;
         return kb();
     }
     function Bd() {
-        xa[4] = (xa[4] & ~Pa) | ((xa[4] + 4) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((regs[4] + 4) & Pa);
     }
     function Cd(Nb, b) {
         var n, Da, l, Ea, Dd, base, Ja, Ed;
@@ -3363,7 +3363,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ue = 0;
             Pa = Vd(cpu.segs[2].flags);
             qe = cpu.segs[2].base;
-            le = xa[4];
+            le = regs[4];
             he = se;
         } else {
             qd(13, selector & 0xfffc);
@@ -3410,7 +3410,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 {
                     le = (le - 4) & -1;
                     fa = (qe + (le & Pa)) & -1;
-                    Ib(xa[4]);
+                    Ib(regs[4]);
                 }
                 ;
             }
@@ -3477,7 +3477,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 {
                     le = (le - 2) & -1;
                     fa = (qe + (le & Pa)) & -1;
-                    Gb(xa[4]);
+                    Gb(regs[4]);
                 }
                 ;
             }
@@ -3518,7 +3518,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ke = (ke & ~3) | he;
             de(2, ke, qe, Zd(we, xe), xe);
         }
-        xa[4] = (xa[4] & ~Pa) | ((le) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((le) & Pa);
         selector = (selector & ~3) | he;
         de(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
         rd(he);
@@ -3537,7 +3537,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         ve = Ab();
         fa = (fa + 2) >> 0;
         selector = Ab();
-        le = xa[4];
+        le = regs[4];
         if (ne)
             ye = oe;
         else
@@ -3560,7 +3560,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ub(ye);
         }
         ;
-        xa[4] = (xa[4] & ~Pa) | ((le) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((le) & Pa);
         Jb = ve, Kb = Mb = 0;
         cpu.segs[1].selector = selector;
         cpu.segs[1].base = (selector << 4);
@@ -3570,7 +3570,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         if (intno == 0x06) {
             var Be = Jb;
             var Nb;
-            na = "do_interrupt: intno=" + _2_bytes_(intno) + " error_code=" + _4_bytes_(error_code) + " EIP=" + _4_bytes_(Be) + " ESP=" + _4_bytes_(xa[4]) + " EAX=" + _4_bytes_(xa[0]) + " EBX=" + _4_bytes_(xa[3]) + " ECX=" + _4_bytes_(xa[1]);
+            na = "do_interrupt: intno=" + _2_bytes_(intno) + " error_code=" + _4_bytes_(error_code) + " EIP=" + _4_bytes_(Be) + " ESP=" + _4_bytes_(regs[4]) + " EAX=" + _4_bytes_(regs[0]) + " EBX=" + _4_bytes_(regs[3]) + " ECX=" + _4_bytes_(regs[1]);
             if (intno == 0x0e) {
                 na += " CR2=" + _4_bytes_(cpu.cr2);
             }
@@ -3775,7 +3775,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function Qe(je, Ke, Le, oe) {
         var le;
-        le = xa[4];
+        le = regs[4];
         if (je) {
             {
                 le = (le - 4) >> 0;
@@ -3803,7 +3803,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             }
             ;
         }
-        xa[4] = (xa[4] & ~Pa) | ((le) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((le) & Pa);
         Jb = Le, Kb = Mb = 0;
         cpu.segs[1].selector = Ke;
         cpu.segs[1].base = (Ke << 4);
@@ -3823,7 +3823,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Yd = e[0];
         Wd = e[1];
         se = cpu.cpl;
-        We = xa[4];
+        We = regs[4];
         if (Wd & (1 << 12)) {
             if (!(Wd & (1 << 11)))
                 qd(13, Ke & 0xfffc);
@@ -3874,7 +3874,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 limit = Zd(Yd, Wd);
                 if (Le > limit)
                     qd(13, Ke & 0xfffc);
-                xa[4] = (xa[4] & ~Pa) | ((Te) & Pa);
+                regs[4] = (regs[4] & ~Pa) | ((Te) & Pa);
                 de(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
                 Jb = Le, Kb = Mb = 0;
             }
@@ -4027,7 +4027,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             selector = (selector & ~3) | he;
             de(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
             rd(he);
-            xa[4] = (xa[4] & ~Pa) | ((Te) & Pa);
+            regs[4] = (regs[4] & ~Pa) | ((Te) & Pa);
             Jb = ve, Kb = Mb = 0;
         }
     }
@@ -4041,7 +4041,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function af(je, bf, cf) {
         var Te, Ke, Le, df, Pa, qe, ef;
         Pa = 0xffff;
-        Te = xa[4];
+        Te = regs[4];
         qe = cpu.segs[2].base;
         if (je == 1) {
             {
@@ -4083,7 +4083,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             }
             ;
         }
-        xa[4] = (xa[4] & ~Pa) | ((Te + cf) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((Te + cf) & Pa);
         cpu.segs[1].selector = Ke;
         cpu.segs[1].base = (Ke << 4);
         Jb = Le, Kb = Mb = 0;
@@ -4105,7 +4105,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var se, he, He, ef, Sa;
         var qe, Te, Le, wd, Pa;
         Pa = Vd(cpu.segs[2].flags);
-        Te = xa[4];
+        Te = regs[4];
         qe = cpu.segs[2].base;
         df = 0;
         if (je == 1) {
@@ -4175,7 +4175,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     fe(4, kf & 0xffff);
                     fe(5, lf & 0xffff);
                     Jb = Le & 0xffff, Kb = Mb = 0;
-                    xa[4] = (xa[4] & ~Pa) | ((wd) & Pa);
+                    regs[4] = (regs[4] & ~Pa) | ((wd) & Pa);
                     return;
                 }
             }
@@ -4283,7 +4283,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Pe(5, He);
             Te = (Te + cf) & -1;
         }
-        xa[4] = (xa[4] & ~Pa) | ((Te) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((Te) & Pa);
         Jb = Le, Kb = Mb = 0;
         if (bf) {
             ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00010000 | 0x00004000;
@@ -4374,7 +4374,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         ;
         Ga = (Ea >> 3) & 7;
         if ((Ea >> 6) == 3) {
-            selector = xa[Ea & 7] & 0xffff;
+            selector = regs[Ea & 7] & 0xffff;
         } else {
             fa = Pb(Ea);
             selector = ib();
@@ -4386,7 +4386,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         } else {
             _src |= 0x0040;
             if (je)
-                xa[Ga] = ga;
+                regs[Ga] = ga;
             else
                 Wb(Ga, ga);
         }
@@ -4445,12 +4445,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         ;
         if ((Ea >> 6) == 3) {
             Fa = Ea & 7;
-            ga = xa[Fa] & 0xffff;
+            ga = regs[Fa] & 0xffff;
         } else {
             fa = Pb(Ea);
             ga = ob();
         }
-        Ha = xa[(Ea >> 3) & 7];
+        Ha = regs[(Ea >> 3) & 7];
         _src = hd();
         if ((ga & 3) < (Ha & 3)) {
             ga = (ga & ~3) | (Ha & 3);
@@ -4468,20 +4468,20 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function uf() {
         var Rb;
-        Rb = xa[0];
+        Rb = regs[0];
         switch (Rb) {
             case 0:
-                xa[0] = 1;
-                xa[3] = 0x756e6547 & -1;
-                xa[2] = 0x49656e69 & -1;
-                xa[1] = 0x6c65746e & -1;
+                regs[0] = 1;
+                regs[3] = 0x756e6547 & -1;
+                regs[2] = 0x49656e69 & -1;
+                regs[1] = 0x6c65746e & -1;
                 break;
             case 1:
             default:
-                xa[0] = (5 << 8) | (4 << 4) | 3;
-                xa[3] = 8 << 8;
-                xa[1] = 0;
-                xa[2] = (1 << 4);
+                regs[0] = (5 << 8) | (4 << 4) | 3;
+                regs[3] = 8 << 8;
+                regs[1] = 0;
+                regs[2] = (1 << 4);
                 break;
         }
     }
@@ -4489,19 +4489,19 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var wf, xf;
         if (base == 0)
             Dc(0);
-        wf = xa[0] & 0xff;
+        wf = regs[0] & 0xff;
         xf = (wf / base) & -1;
         wf = (wf % base);
-        xa[0] = (xa[0] & ~0xffff) | wf | (xf << 8);
+        regs[0] = (regs[0] & ~0xffff) | wf | (xf << 8);
         za = (((wf) << 24) >> 24);
         Aa = 12;
     }
     function yf(base) {
         var wf, xf;
-        wf = xa[0] & 0xff;
-        xf = (xa[0] >> 8) & 0xff;
+        wf = regs[0] & 0xff;
+        xf = (regs[0] >> 8) & 0xff;
         wf = (xf * base + wf) & 0xff;
-        xa[0] = (xa[0] & ~0xffff) | wf;
+        regs[0] = (regs[0] & ~0xffff) | wf;
         za = (((wf) << 24) >> 24);
         Aa = 12;
     }
@@ -4509,8 +4509,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Af, wf, xf, Bf, jd;
         jd = hd();
         Bf = jd & 0x0010;
-        wf = xa[0] & 0xff;
-        xf = (xa[0] >> 8) & 0xff;
+        wf = regs[0] & 0xff;
+        xf = (regs[0] >> 8) & 0xff;
         Af = (wf > 0xf9);
         if (((wf & 0x0f) > 9) || Bf) {
             wf = (wf + 6) & 0x0f;
@@ -4520,7 +4520,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             jd &= ~(0x0001 | 0x0010);
             wf &= 0x0f;
         }
-        xa[0] = (xa[0] & ~0xffff) | wf | (xf << 8);
+        regs[0] = (regs[0] & ~0xffff) | wf | (xf << 8);
         _src = jd;
         za = ((_src >> 6) & 1) ^ 1;
         Aa = 24;
@@ -4529,8 +4529,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var Af, wf, xf, Bf, jd;
         jd = hd();
         Bf = jd & 0x0010;
-        wf = xa[0] & 0xff;
-        xf = (xa[0] >> 8) & 0xff;
+        wf = regs[0] & 0xff;
+        xf = (regs[0] >> 8) & 0xff;
         Af = (wf < 6);
         if (((wf & 0x0f) > 9) || Bf) {
             wf = (wf - 6) & 0x0f;
@@ -4540,7 +4540,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             jd &= ~(0x0001 | 0x0010);
             wf &= 0x0f;
         }
-        xa[0] = (xa[0] & ~0xffff) | wf | (xf << 8);
+        regs[0] = (regs[0] & ~0xffff) | wf | (xf << 8);
         _src = jd;
         za = ((_src >> 6) & 1) ^ 1;
         Aa = 24;
@@ -4550,7 +4550,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         jd = hd();
         Ef = jd & 0x0001;
         Bf = jd & 0x0010;
-        wf = xa[0] & 0xff;
+        wf = regs[0] & 0xff;
         jd = 0;
         if (((wf & 0x0f) > 9) || Bf) {
             wf = (wf + 6) & 0xff;
@@ -4560,7 +4560,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             wf = (wf + 0x60) & 0xff;
             jd |= 0x0001;
         }
-        xa[0] = (xa[0] & ~0xff) | wf;
+        regs[0] = (regs[0] & ~0xff) | wf;
         jd |= (wf == 0) << 6;
         jd |= aa[wf] << 2;
         jd |= (wf & 0x80);
@@ -4573,7 +4573,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         jd = hd();
         Ef = jd & 0x0001;
         Bf = jd & 0x0010;
-        wf = xa[0] & 0xff;
+        wf = regs[0] & 0xff;
         jd = 0;
         Gf = wf;
         if (((wf & 0x0f) > 9) || Bf) {
@@ -4586,7 +4586,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             wf = (wf - 0x60) & 0xff;
             jd |= 0x0001;
         }
-        xa[0] = (xa[0] & ~0xff) | wf;
+        regs[0] = (regs[0] & ~0xff) | wf;
         jd |= (wf == 0) << 6;
         jd |= aa[wf] << 2;
         jd |= (wf & 0x80);
@@ -4605,7 +4605,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         fa = (fa + 4) & -1;
         Ha = kb();
         Ga = (Ea >> 3) & 7;
-        Ia = xa[Ga];
+        Ia = regs[Ga];
         if (Ia < ga || Ia > Ha)
             Dc(5);
     }
@@ -4620,69 +4620,69 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         fa = (fa + 2) & -1;
         Ha = (ib() << 16) >> 16;
         Ga = (Ea >> 3) & 7;
-        Ia = (xa[Ga] << 16) >> 16;
+        Ia = (regs[Ga] << 16) >> 16;
         if (Ia < ga || Ia > Ha)
             Dc(5);
     }
     function Jf() {
         var ga, Ha, Ga;
-        Ha = (xa[4] - 16) >> 0;
+        Ha = (regs[4] - 16) >> 0;
         fa = ((Ha & Pa) + Oa) >> 0;
         for (Ga = 7; Ga >= 0; Ga--) {
-            ga = xa[Ga];
+            ga = regs[Ga];
             ub(ga);
             fa = (fa + 2) >> 0;
         }
-        xa[4] = (xa[4] & ~Pa) | ((Ha) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((Ha) & Pa);
     }
     function Kf() {
         var ga, Ha, Ga;
-        Ha = (xa[4] - 32) >> 0;
+        Ha = (regs[4] - 32) >> 0;
         fa = ((Ha & Pa) + Oa) >> 0;
         for (Ga = 7; Ga >= 0; Ga--) {
-            ga = xa[Ga];
+            ga = regs[Ga];
             wb(ga);
             fa = (fa + 4) >> 0;
         }
-        xa[4] = (xa[4] & ~Pa) | ((Ha) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((Ha) & Pa);
     }
     function Lf() {
         var Ga;
-        fa = ((xa[4] & Pa) + Oa) >> 0;
+        fa = ((regs[4] & Pa) + Oa) >> 0;
         for (Ga = 7; Ga >= 0; Ga--) {
             if (Ga != 4) {
                 Wb(Ga, ib());
             }
             fa = (fa + 2) >> 0;
         }
-        xa[4] = (xa[4] & ~Pa) | ((xa[4] + 16) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((regs[4] + 16) & Pa);
     }
     function Mf() {
         var Ga;
-        fa = ((xa[4] & Pa) + Oa) >> 0;
+        fa = ((regs[4] & Pa) + Oa) >> 0;
         for (Ga = 7; Ga >= 0; Ga--) {
             if (Ga != 4) {
-                xa[Ga] = kb();
+                regs[Ga] = kb();
             }
             fa = (fa + 4) >> 0;
         }
-        xa[4] = (xa[4] & ~Pa) | ((xa[4] + 32) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((regs[4] + 32) & Pa);
     }
     function Nf() {
         var ga, Ha;
-        Ha = xa[5];
+        Ha = regs[5];
         fa = ((Ha & Pa) + Oa) >> 0;
         ga = ib();
         Wb(5, ga);
-        xa[4] = (xa[4] & ~Pa) | ((Ha + 2) & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((Ha + 2) & Pa);
     }
     function Of() {
         var ga, Ha;
-        Ha = xa[5];
+        Ha = regs[5];
         fa = ((Ha & Pa) + Oa) >> 0;
         ga = kb();
-        xa[5] = ga;
-        xa[4] = (xa[4] & ~Pa) | ((Ha + 4) & Pa);
+        regs[5] = ga;
+        regs[4] = (regs[4] & ~Pa) | ((Ha + 4) & Pa);
     }
     function Pf() {
         var cf, Qf, le, Rf, ga, Sf;
@@ -4690,8 +4690,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Qf = phys_mem8[Kb++];
         ;
         Qf &= 0x1f;
-        le = xa[4];
-        Rf = xa[5];
+        le = regs[4];
+        Rf = regs[5];
         {
             le = (le - 2) >> 0;
             fa = ((le & Pa) + Oa) >> 0;
@@ -4722,8 +4722,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         le = (le - cf) >> 0;
         fa = ((le & Pa) + Oa) >> 0;
         ob();
-        xa[5] = (xa[5] & ~Pa) | (Sf & Pa);
-        xa[4] = le;
+        regs[5] = (regs[5] & ~Pa) | (Sf & Pa);
+        regs[4] = le;
     }
     function Tf() {
         var cf, Qf, le, Rf, ga, Sf;
@@ -4731,8 +4731,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Qf = phys_mem8[Kb++];
         ;
         Qf &= 0x1f;
-        le = xa[4];
-        Rf = xa[5];
+        le = regs[4];
+        Rf = regs[5];
         {
             le = (le - 4) >> 0;
             fa = ((le & Pa) + Oa) >> 0;
@@ -4763,8 +4763,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         le = (le - cf) >> 0;
         fa = ((le & Pa) + Oa) >> 0;
         qb();
-        xa[5] = (xa[5] & ~Pa) | (Sf & Pa);
-        xa[4] = (xa[4] & ~Pa) | ((le) & Pa);
+        regs[5] = (regs[5] & ~Pa) | (Sf & Pa);
+        regs[4] = (regs[4] & ~Pa) | ((le) & Pa);
     }
     function Uf(Sb) {
         var ga, Ha, Ea;
@@ -4777,7 +4777,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         fa += 4;
         Ha = ib();
         Ie(Sb, Ha);
-        xa[(Ea >> 3) & 7] = ga;
+        regs[(Ea >> 3) & 7] = ga;
     }
     function Vf(Sb) {
         var ga, Ha, Ea;
@@ -4801,18 +4801,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
-        Zf = xa[2] & 0xffff;
+        Yf = regs[7];
+        Zf = regs[2] & 0xffff;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = cpu.ld8_port(Zf);
             fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
             sb(ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
@@ -4820,7 +4820,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ga = cpu.ld8_port(Zf);
             fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
             sb(ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
     function bg() {
@@ -4837,18 +4837,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Zf = xa[2] & 0xffff;
+        cg = regs[6];
+        Zf = regs[2] & 0xffff;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             ga = gb();
             cpu.st8_port(Zf, ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
@@ -4856,7 +4856,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             ga = gb();
             cpu.st8_port(Zf, ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
         }
     }
     function dg() {
@@ -4870,12 +4870,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Yf = xa[7];
+        cg = regs[6];
+        Yf = regs[7];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         eg = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
@@ -4883,9 +4883,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 ga = gb();
                 fa = eg;
                 sb(ga);
-                xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
-                xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
-                xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+                regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+                regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+                regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
                     Kb = Mb;
                 ;
@@ -4894,8 +4894,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ga = gb();
             fa = eg;
             sb(ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
     function fg() {
@@ -4904,24 +4904,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
+        Yf = regs[7];
         fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             {
-                sb(xa[0]);
-                xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
-                xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+                sb(regs[0]);
+                regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+                regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
                     Kb = Mb;
                 ;
             }
         } else {
-            sb(xa[0]);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            sb(regs[0]);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
     function gg() {
@@ -4935,12 +4935,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Yf = xa[7];
+        cg = regs[6];
+        Yf = regs[7];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         eg = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
@@ -4948,9 +4948,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = eg;
             Ha = gb();
             gc(7, ga, Ha);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
                 if (!(za == 0))
                     return;
@@ -4966,8 +4966,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = eg;
             Ha = gb();
             gc(7, ga, Ha);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
     function hg() {
@@ -4981,24 +4981,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
+        cg = regs[6];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = gb();
-            xa[0] = (xa[0] & -256) | ga;
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[0] = (regs[0] & -256) | ga;
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
         } else {
             ga = gb();
-            xa[0] = (xa[0] & -256) | ga;
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
+            regs[0] = (regs[0] & -256) | ga;
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
         }
     }
     function ig() {
@@ -5007,17 +5007,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
+        Yf = regs[7];
         fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = gb();
-            gc(7, xa[0], ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            gc(7, regs[0], ga);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
                 if (!(za == 0))
                     return;
@@ -5030,8 +5030,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ;
         } else {
             ga = gb();
-            gc(7, xa[0], ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
+            gc(7, regs[0], ga);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
     function jg() {
@@ -5043,18 +5043,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
-        Zf = xa[2] & 0xffff;
+        Yf = regs[7];
+        Zf = regs[2] & 0xffff;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = cpu.ld16_port(Zf);
             fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
             ub(ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
@@ -5062,7 +5062,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ga = cpu.ld16_port(Zf);
             fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
             ub(ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
         }
     }
     function kg() {
@@ -5079,18 +5079,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Zf = xa[2] & 0xffff;
+        cg = regs[6];
+        Zf = regs[2] & 0xffff;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             ga = ib();
             cpu.st16_port(Zf, ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
@@ -5098,7 +5098,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             ga = ib();
             cpu.st16_port(Zf, ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
         }
     }
     function lg() {
@@ -5112,12 +5112,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Yf = xa[7];
+        cg = regs[6];
+        Yf = regs[7];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         eg = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
@@ -5125,9 +5125,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 ga = ib();
                 fa = eg;
                 ub(ga);
-                xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
-                xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
-                xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+                regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+                regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+                regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
                     Kb = Mb;
                 ;
@@ -5136,8 +5136,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ga = ib();
             fa = eg;
             ub(ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
         }
     }
     function mg() {
@@ -5146,24 +5146,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
+        Yf = regs[7];
         fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             {
-                ub(xa[0]);
-                xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
-                xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+                ub(regs[0]);
+                regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+                regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
                     Kb = Mb;
                 ;
             }
         } else {
-            ub(xa[0]);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            ub(regs[0]);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
         }
     }
     function ng() {
@@ -5177,12 +5177,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Yf = xa[7];
+        cg = regs[6];
+        Yf = regs[7];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         eg = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
@@ -5190,9 +5190,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = eg;
             Ha = ib();
             dc(7, ga, Ha);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
                 if (!(za == 0))
                     return;
@@ -5208,8 +5208,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = eg;
             Ha = ib();
             dc(7, ga, Ha);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
         }
     }
     function og() {
@@ -5223,24 +5223,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
+        cg = regs[6];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = ib();
-            xa[0] = (xa[0] & -65536) | ga;
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[0] = (regs[0] & -65536) | ga;
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
         } else {
             ga = ib();
-            xa[0] = (xa[0] & -65536) | ga;
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
+            regs[0] = (regs[0] & -65536) | ga;
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
         }
     }
     function pg() {
@@ -5249,17 +5249,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
+        Yf = regs[7];
         fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = ib();
-            dc(7, xa[0], ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            dc(7, regs[0], ga);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
                 if (!(za == 0))
                     return;
@@ -5272,8 +5272,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ;
         } else {
             ga = ib();
-            dc(7, xa[0], ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
+            dc(7, regs[0], ga);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
         }
     }
     function qg() {
@@ -5285,18 +5285,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
-        Zf = xa[2] & 0xffff;
+        Yf = regs[7];
+        Zf = regs[2] & 0xffff;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = cpu.ld32_port(Zf);
             fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
             wb(ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
@@ -5304,7 +5304,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ga = cpu.ld32_port(Zf);
             fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
             wb(ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
     function rg() {
@@ -5321,18 +5321,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Zf = xa[2] & 0xffff;
+        cg = regs[6];
+        Zf = regs[2] & 0xffff;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             ga = kb();
             cpu.st32_port(Zf, ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
@@ -5340,7 +5340,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             ga = kb();
             cpu.st32_port(Zf, ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
         }
     }
     function sg() {
@@ -5354,12 +5354,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Yf = xa[7];
+        cg = regs[6];
+        Yf = regs[7];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         eg = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
@@ -5379,18 +5379,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 ug >>= 2;
                 for (i = 0; i < tg; i++)
                     phys_mem32[vg + i] = phys_mem32[ug + i];
-                xa[6] = (cg + wg) >> 0;
-                xa[7] = (Yf + wg) >> 0;
-                xa[1] = ag = (ag - tg) >> 0;
+                regs[6] = (cg + wg) >> 0;
+                regs[7] = (Yf + wg) >> 0;
+                regs[1] = ag = (ag - tg) >> 0;
                 if (ag)
                     Kb = Mb;
             } else {
                 ga = kb();
                 fa = eg;
                 wb(ga);
-                xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
-                xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
-                xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+                regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+                regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+                regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
                     Kb = Mb;
                 ;
@@ -5399,8 +5399,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ga = kb();
             fa = eg;
             wb(ga);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
     function xg() {
@@ -5409,10 +5409,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
+        Yf = regs[7];
         fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
@@ -5422,27 +5422,27 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 l = (4096 - (fa & 0xfff)) >> 2;
                 if (tg > l)
                     tg = l;
-                vg = td(xa[7], 1);
-                ga = xa[0];
+                vg = td(regs[7], 1);
+                ga = regs[0];
                 vg >>= 2;
                 for (i = 0; i < tg; i++)
                     phys_mem32[vg + i] = ga;
                 wg = tg << 2;
-                xa[7] = (Yf + wg) >> 0;
-                xa[1] = ag = (ag - tg) >> 0;
+                regs[7] = (Yf + wg) >> 0;
+                regs[1] = ag = (ag - tg) >> 0;
                 if (ag)
                     Kb = Mb;
             } else {
-                wb(xa[0]);
-                xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
-                xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+                wb(regs[0]);
+                regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+                regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
                     Kb = Mb;
                 ;
             }
         } else {
-            wb(xa[0]);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            wb(regs[0]);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
     function yg() {
@@ -5456,12 +5456,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
-        Yf = xa[7];
+        cg = regs[6];
+        Yf = regs[7];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         eg = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
@@ -5469,9 +5469,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = eg;
             Ha = kb();
             Xb(7, ga, Ha);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
                 if (!(za == 0))
                     return;
@@ -5487,8 +5487,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = eg;
             Ha = kb();
             Xb(7, ga, Ha);
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
     function zg() {
@@ -5502,24 +5502,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Sb = 3;
         else
             Sb--;
-        cg = xa[6];
+        cg = regs[6];
         fa = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = kb();
-            xa[0] = ga;
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            regs[0] = ga;
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
                 Kb = Mb;
             ;
         } else {
             ga = kb();
-            xa[0] = ga;
-            xa[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
+            regs[0] = ga;
+            regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
         }
     }
     function Ag() {
@@ -5528,17 +5528,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             Xf = 0xffff;
         else
             Xf = -1;
-        Yf = xa[7];
+        Yf = regs[7];
         fa = ((Yf & Xf) + cpu.segs[0].base) >> 0;
         if (Da & (0x0010 | 0x0020)) {
-            ag = xa[1];
+            ag = regs[1];
             if ((ag & Xf) == 0)
                 return;
             ;
             ga = kb();
-            Xb(7, xa[0], ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
-            xa[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
+            Xb(7, regs[0], ga);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (Da & 0x0010) {
                 if (!(za == 0))
                     return;
@@ -5551,24 +5551,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ;
         } else {
             ga = kb();
-            Xb(7, xa[0], ga);
-            xa[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
+            Xb(7, regs[0], ga);
+            regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
     cpu = this;
     phys_mem8 = this.phys_mem8;
     phys_mem16 = this.phys_mem16;
     phys_mem32 = this.phys_mem32;
-    Za = this.tlb_read_user;
-    ab = this.tlb_write_user;
-    Xa = this.tlb_read_kernel;
-    Ya = this.tlb_write_kernel;
+    tlb_read_user = this.tlb_read_user;
+    tlb_write_user = this.tlb_write_user;
+    tlb_read_kernel = this.tlb_read_kernel;
+    tlb_write_kernel = this.tlb_write_kernel;
     if (cpu.cpl == 3) {
-        bb = Za;
-        cb = ab;
+        bb = tlb_read_user;
+        cb = tlb_write_user;
     } else {
-        bb = Xa;
-        cb = Ya;
+        bb = tlb_read_kernel;
+        cb = tlb_write_kernel;
     }
     if (cpu.halted) {
         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200)) {
@@ -5577,7 +5577,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             return 257;
         }
     }
-    xa = this.regs;
+    regs = this.regs;
     _src = this.cc_src;
     za = this.cc_dst;
     Aa = this.cc_op;
@@ -5717,7 +5717,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     b &= 7;
                     Ua = (b & 4) << 1;
-                    xa[b & 3] = (xa[b & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
+                    regs[b & 3] = (regs[b & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     break Fd;
                 case 0xb8:
                 case 0xb9:
@@ -5732,17 +5732,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Kb += 4;
                     }
                     ;
-                    xa[b & 7] = ga;
+                    regs[b & 7] = ga;
                     break Fd;
                 case 0x88:
                     Ea = phys_mem8[Kb++];
                     ;
                     Ga = (Ea >> 3) & 7;
-                    ga = (xa[Ga & 3] >> ((Ga & 4) << 1));
+                    ga = (regs[Ga & 3] >> ((Ga & 4) << 1));
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
                         Ua = (Fa & 4) << 1;
-                        xa[Fa & 3] = (xa[Fa & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
+                        regs[Fa & 3] = (regs[Fa & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     } else {
                         fa = Pb(Ea);
                         {
@@ -5759,9 +5759,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x89:
                     Ea = phys_mem8[Kb++];
                     ;
-                    ga = xa[(Ea >> 3) & 7];
+                    ga = regs[(Ea >> 3) & 7];
                     if ((Ea >> 6) == 3) {
-                        xa[Ea & 7] = ga;
+                        regs[Ea & 7] = ga;
                     } else {
                         fa = Pb(Ea);
                         {
@@ -5780,46 +5780,46 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                        ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                     } else {
                         fa = Pb(Ea);
                         ga = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
                     Ga = (Ea >> 3) & 7;
                     Ua = (Ga & 4) << 1;
-                    xa[Ga & 3] = (xa[Ga & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
+                    regs[Ga & 3] = (regs[Ga & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     break Fd;
                 case 0x8b:
                     Ea = phys_mem8[Kb++];
                     ;
                     if ((Ea >> 6) == 3) {
-                        ga = xa[Ea & 7];
+                        ga = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
                         ga = (((Ua = bb[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
                     }
-                    xa[(Ea >> 3) & 7] = ga;
+                    regs[(Ea >> 3) & 7] = ga;
                     break Fd;
                 case 0xa0:
                     fa = Ub();
                     ga = gb();
-                    xa[0] = (xa[0] & -256) | ga;
+                    regs[0] = (regs[0] & -256) | ga;
                     break Fd;
                 case 0xa1:
                     fa = Ub();
                     ga = kb();
-                    xa[0] = ga;
+                    regs[0] = ga;
                     break Fd;
                 case 0xa2:
                     fa = Ub();
-                    sb(xa[0]);
+                    sb(regs[0]);
                     break Fd;
                 case 0xa3:
                     fa = Ub();
-                    wb(xa[0]);
+                    wb(regs[0]);
                     break Fd;
                 case 0xd7:
-                    fa = (xa[3] + (xa[0] & 0xff)) >> 0;
+                    fa = (regs[3] + (regs[0] & 0xff)) >> 0;
                     if (Da & 0x0080)
                         fa &= 0xffff;
                     Ga = Da & 0x000f;
@@ -5854,7 +5854,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Kb += 4;
                         }
                         ;
-                        xa[Ea & 7] = ga;
+                        regs[Ea & 7] = ga;
                     } else {
                         fa = Pb(Ea);
                         {
@@ -5873,9 +5873,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x96:
                 case 0x97:
                     Ga = b & 7;
-                    ga = xa[0];
-                    xa[0] = xa[Ga];
-                    xa[Ga] = ga;
+                    ga = regs[0];
+                    regs[0] = regs[Ga];
+                    regs[Ga] = ga;
                     break Fd;
                 case 0x86:
                     Ea = phys_mem8[Kb++];
@@ -5883,12 +5883,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
-                        Vb(Fa, (xa[Ga & 3] >> ((Ga & 4) << 1)));
+                        ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
+                        Vb(Fa, (regs[Ga & 3] >> ((Ga & 4) << 1)));
                     } else {
                         fa = Pb(Ea);
                         ga = mb();
-                        sb((xa[Ga & 3] >> ((Ga & 4) << 1)));
+                        sb((regs[Ga & 3] >> ((Ga & 4) << 1)));
                     }
                     Vb(Ga, ga);
                     break Fd;
@@ -5898,14 +5898,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        ga = xa[Fa];
-                        xa[Fa] = xa[Ga];
+                        ga = regs[Fa];
+                        regs[Fa] = regs[Ga];
                     } else {
                         fa = Pb(Ea);
                         ga = qb();
-                        wb(xa[Ga]);
+                        wb(regs[Ga]);
                     }
-                    xa[Ga] = ga;
+                    regs[Ga] = ga;
                     break Fd;
                 case 0x8e:
                     Ea = phys_mem8[Kb++];
@@ -5914,7 +5914,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     if (Ga >= 6 || Ga == 1)
                         Dc(6);
                     if ((Ea >> 6) == 3) {
-                        ga = xa[Ea & 7] & 0xffff;
+                        ga = regs[Ea & 7] & 0xffff;
                     } else {
                         fa = Pb(Ea);
                         ga = ib();
@@ -5930,7 +5930,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ga = cpu.segs[Ga].selector;
                     if ((Ea >> 6) == 3) {
                         if ((((Da >> 8) & 1) ^ 1)) {
-                            xa[Ea & 7] = ga;
+                            regs[Ea & 7] = ga;
                         } else {
                             Wb(Ea & 7, ga);
                         }
@@ -5957,10 +5957,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     Ja = b >> 3;
                     Ga = (Ea >> 3) & 7;
-                    Ha = (xa[Ga & 3] >> ((Ga & 4) << 1));
+                    Ha = (regs[Ga & 3] >> ((Ga & 4) << 1));
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        Vb(Fa, gc(Ja, (xa[Fa & 3] >> ((Fa & 4) << 1)), Ha));
+                        Vb(Fa, gc(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
                         fa = Pb(Ea);
                         if (Ja != 7) {
@@ -5976,12 +5976,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x01:
                     Ea = phys_mem8[Kb++];
                     ;
-                    Ha = xa[(Ea >> 3) & 7];
+                    Ha = regs[(Ea >> 3) & 7];
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
                         {
                             _src = Ha;
-                            za = xa[Fa] = (xa[Fa] + _src) >> 0;
+                            za = regs[Fa] = (regs[Fa] + _src) >> 0;
                             Aa = 2;
                         }
                         ;
@@ -6006,10 +6006,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ea = phys_mem8[Kb++];
                     ;
                     Ja = b >> 3;
-                    Ha = xa[(Ea >> 3) & 7];
+                    Ha = regs[(Ea >> 3) & 7];
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        xa[Fa] = Xb(Ja, xa[Fa], Ha);
+                        regs[Fa] = Xb(Ja, regs[Fa], Ha);
                     } else {
                         fa = Pb(Ea);
                         ga = qb();
@@ -6021,12 +6021,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ea = phys_mem8[Kb++];
                     ;
                     Ja = b >> 3;
-                    Ha = xa[(Ea >> 3) & 7];
+                    Ha = regs[(Ea >> 3) & 7];
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
                         {
                             _src = Ha;
-                            za = (xa[Fa] - _src) >> 0;
+                            za = (regs[Fa] - _src) >> 0;
                             Aa = 8;
                         }
                         ;
@@ -6055,26 +6055,26 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        Ha = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                        Ha = (regs[Fa & 3] >> ((Fa & 4) << 1));
                     } else {
                         fa = Pb(Ea);
                         Ha = gb();
                     }
-                    Vb(Ga, gc(Ja, (xa[Ga & 3] >> ((Ga & 4) << 1)), Ha));
+                    Vb(Ga, gc(Ja, (regs[Ga & 3] >> ((Ga & 4) << 1)), Ha));
                     break Fd;
                 case 0x03:
                     Ea = phys_mem8[Kb++];
                     ;
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
-                        Ha = xa[Ea & 7];
+                        Ha = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
                         Ha = kb();
                     }
                     {
                         _src = Ha;
-                        za = xa[Ga] = (xa[Ga] + _src) >> 0;
+                        za = regs[Ga] = (regs[Ga] + _src) >> 0;
                         Aa = 2;
                     }
                     ;
@@ -6090,12 +6090,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ja = b >> 3;
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
-                        Ha = xa[Ea & 7];
+                        Ha = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
                         Ha = kb();
                     }
-                    xa[Ga] = Xb(Ja, xa[Ga], Ha);
+                    regs[Ga] = Xb(Ja, regs[Ga], Ha);
                     break Fd;
                 case 0x3b:
                     Ea = phys_mem8[Kb++];
@@ -6103,14 +6103,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ja = b >> 3;
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
-                        Ha = xa[Ea & 7];
+                        Ha = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
                         Ha = kb();
                     }
                     {
                         _src = Ha;
-                        za = (xa[Ga] - _src) >> 0;
+                        za = (regs[Ga] - _src) >> 0;
                         Aa = 8;
                     }
                     ;
@@ -6126,7 +6126,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ha = phys_mem8[Kb++];
                     ;
                     Ja = b >> 3;
-                    Vb(0, gc(Ja, xa[0] & 0xff, Ha));
+                    Vb(0, gc(Ja, regs[0] & 0xff, Ha));
                     break Fd;
                 case 0x05:
                     {
@@ -6136,7 +6136,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     {
                         _src = Ha;
-                        za = xa[0] = (xa[0] + _src) >> 0;
+                        za = regs[0] = (regs[0] + _src) >> 0;
                         Aa = 2;
                     }
                     ;
@@ -6152,7 +6152,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     Ja = b >> 3;
-                    xa[0] = Xb(Ja, xa[0], Ha);
+                    regs[0] = Xb(Ja, regs[0], Ha);
                     break Fd;
                 case 0x35:
                     {
@@ -6161,7 +6161,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     {
-                        za = xa[0] = xa[0] ^ Ha;
+                        za = regs[0] = regs[0] ^ Ha;
                         Aa = 14;
                     }
                     ;
@@ -6174,7 +6174,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     {
                         _src = Ha;
-                        za = (xa[0] - _src) >> 0;
+                        za = (regs[0] - _src) >> 0;
                         Aa = 8;
                     }
                     ;
@@ -6188,7 +6188,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Fa = Ea & 7;
                         Ha = phys_mem8[Kb++];
                         ;
-                        Vb(Fa, gc(Ja, (xa[Fa & 3] >> ((Fa & 4) << 1)), Ha));
+                        Vb(Fa, gc(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
                         fa = Pb(Ea);
                         Ha = phys_mem8[Kb++];
@@ -6209,7 +6209,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ja = (Ea >> 3) & 7;
                     if (Ja == 7) {
                         if ((Ea >> 6) == 3) {
-                            ga = xa[Ea & 7];
+                            ga = regs[Ea & 7];
                         } else {
                             fa = Pb(Ea);
                             ga = kb();
@@ -6233,7 +6233,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 Kb += 4;
                             }
                             ;
-                            xa[Fa] = Xb(Ja, xa[Fa], Ha);
+                            regs[Fa] = Xb(Ja, regs[Fa], Ha);
                         } else {
                             fa = Pb(Ea);
                             {
@@ -6253,7 +6253,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ja = (Ea >> 3) & 7;
                     if (Ja == 7) {
                         if ((Ea >> 6) == 3) {
-                            ga = xa[Ea & 7];
+                            ga = regs[Ea & 7];
                         } else {
                             fa = Pb(Ea);
                             ga = kb();
@@ -6271,7 +6271,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Fa = Ea & 7;
                             Ha = ((phys_mem8[Kb++] << 24) >> 24);
                             ;
-                            xa[Fa] = Xb(Ja, xa[Fa], Ha);
+                            regs[Fa] = Xb(Ja, regs[Fa], Ha);
                         } else {
                             fa = Pb(Ea);
                             Ha = ((phys_mem8[Kb++] << 24) >> 24);
@@ -6296,7 +6296,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ba = Aa;
                             Ca = za;
                         }
-                        xa[Ga] = za = (xa[Ga] + 1) >> 0;
+                        regs[Ga] = za = (regs[Ga] + 1) >> 0;
                         Aa = 27;
                     }
                     ;
@@ -6315,7 +6315,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ba = Aa;
                             Ca = za;
                         }
-                        xa[Ga] = za = (xa[Ga] - 1) >> 0;
+                        regs[Ga] = za = (regs[Ga] - 1) >> 0;
                         Aa = 30;
                     }
                     ;
@@ -6325,21 +6325,21 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
-                        Ha = xa[Ea & 7];
+                        Ha = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
                         Ha = kb();
                     }
                     Ia = ((phys_mem8[Kb++] << 24) >> 24);
                     ;
-                    xa[Ga] = Wc(Ha, Ia);
+                    regs[Ga] = Wc(Ha, Ia);
                     break Fd;
                 case 0x69:
                     Ea = phys_mem8[Kb++];
                     ;
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
-                        Ha = xa[Ea & 7];
+                        Ha = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
                         Ha = kb();
@@ -6349,20 +6349,20 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Kb += 4;
                     }
                     ;
-                    xa[Ga] = Wc(Ha, Ia);
+                    regs[Ga] = Wc(Ha, Ia);
                     break Fd;
                 case 0x84:
                     Ea = phys_mem8[Kb++];
                     ;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                        ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                     } else {
                         fa = Pb(Ea);
                         ga = gb();
                     }
                     Ga = (Ea >> 3) & 7;
-                    Ha = (xa[Ga & 3] >> ((Ga & 4) << 1));
+                    Ha = (regs[Ga & 3] >> ((Ga & 4) << 1));
                     {
                         za = (((ga & Ha) << 24) >> 24);
                         Aa = 12;
@@ -6373,12 +6373,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ea = phys_mem8[Kb++];
                     ;
                     if ((Ea >> 6) == 3) {
-                        ga = xa[Ea & 7];
+                        ga = regs[Ea & 7];
                     } else {
                         fa = Pb(Ea);
                         ga = kb();
                     }
-                    Ha = xa[(Ea >> 3) & 7];
+                    Ha = regs[(Ea >> 3) & 7];
                     {
                         za = ga & Ha;
                         Aa = 14;
@@ -6389,7 +6389,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ha = phys_mem8[Kb++];
                     ;
                     {
-                        za = (((xa[0] & Ha) << 24) >> 24);
+                        za = (((regs[0] & Ha) << 24) >> 24);
                         Aa = 12;
                     }
                     ;
@@ -6401,7 +6401,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     {
-                        za = xa[0] & Ha;
+                        za = regs[0] & Ha;
                         Aa = 14;
                     }
                     ;
@@ -6414,7 +6414,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
                                 fa = Pb(Ea);
                                 ga = gb();
@@ -6430,7 +6430,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 2:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                Vb(Fa, ~(xa[Fa & 3] >> ((Fa & 4) << 1)));
+                                Vb(Fa, ~(regs[Fa & 3] >> ((Fa & 4) << 1)));
                             } else {
                                 fa = Pb(Ea);
                                 ga = mb();
@@ -6441,7 +6441,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 3:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                Vb(Fa, gc(5, 0, (xa[Fa & 3] >> ((Fa & 4) << 1))));
+                                Vb(Fa, gc(5, 0, (regs[Fa & 3] >> ((Fa & 4) << 1))));
                             } else {
                                 fa = Pb(Ea);
                                 ga = mb();
@@ -6452,27 +6452,27 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 4:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
                                 fa = Pb(Ea);
                                 ga = gb();
                             }
-                            Wb(0, Oc(xa[0], ga));
+                            Wb(0, Oc(regs[0], ga));
                             break;
                         case 5:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
                                 fa = Pb(Ea);
                                 ga = gb();
                             }
-                            Wb(0, Pc(xa[0], ga));
+                            Wb(0, Pc(regs[0], ga));
                             break;
                         case 6:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
                                 fa = Pb(Ea);
                                 ga = gb();
@@ -6482,7 +6482,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 7:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
                                 fa = Pb(Ea);
                                 ga = gb();
@@ -6500,7 +6500,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     switch (Ja) {
                         case 0:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
@@ -6519,7 +6519,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 2:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                xa[Fa] = ~xa[Fa];
+                                regs[Fa] = ~regs[Fa];
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
@@ -6530,7 +6530,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 3:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                xa[Fa] = Xb(5, 0, xa[Fa]);
+                                regs[Fa] = Xb(5, 0, regs[Fa]);
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
@@ -6540,43 +6540,43 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break;
                         case 4:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
                             }
-                            xa[0] = Vc(xa[0], ga);
-                            xa[2] = Ma;
+                            regs[0] = Vc(regs[0], ga);
+                            regs[2] = Ma;
                             break;
                         case 5:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
                             }
-                            xa[0] = Wc(xa[0], ga);
-                            xa[2] = Ma;
+                            regs[0] = Wc(regs[0], ga);
+                            regs[2] = Ma;
                             break;
                         case 6:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
                             }
-                            xa[0] = Hc(xa[2], xa[0], ga);
-                            xa[2] = Ma;
+                            regs[0] = Hc(regs[2], regs[0], ga);
+                            regs[2] = Ma;
                             break;
                         case 7:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
                             }
-                            xa[0] = Lc(xa[2], xa[0], ga);
-                            xa[2] = Ma;
+                            regs[0] = Lc(regs[2], regs[0], ga);
+                            regs[2] = Ma;
                             break;
                         default:
                             Dc(6);
@@ -6590,7 +6590,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Ha = phys_mem8[Kb++];
                         ;
                         Fa = Ea & 7;
-                        Vb(Fa, jc(Ja, (xa[Fa & 3] >> ((Fa & 4) << 1)), Ha));
+                        Vb(Fa, jc(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
                         fa = Pb(Ea);
                         Ha = phys_mem8[Kb++];
@@ -6608,7 +6608,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Ha = phys_mem8[Kb++];
                         ;
                         Fa = Ea & 7;
-                        xa[Fa] = nc(Ja, xa[Fa], Ha);
+                        regs[Fa] = nc(Ja, regs[Fa], Ha);
                     } else {
                         fa = Pb(Ea);
                         Ha = phys_mem8[Kb++];
@@ -6624,7 +6624,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ja = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        Vb(Fa, jc(Ja, (xa[Fa & 3] >> ((Fa & 4) << 1)), 1));
+                        Vb(Fa, jc(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), 1));
                     } else {
                         fa = Pb(Ea);
                         ga = mb();
@@ -6638,7 +6638,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ja = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        xa[Fa] = nc(Ja, xa[Fa], 1);
+                        regs[Fa] = nc(Ja, regs[Fa], 1);
                     } else {
                         fa = Pb(Ea);
                         ga = qb();
@@ -6650,10 +6650,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ea = phys_mem8[Kb++];
                     ;
                     Ja = (Ea >> 3) & 7;
-                    Ha = xa[1] & 0xff;
+                    Ha = regs[1] & 0xff;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        Vb(Fa, jc(Ja, (xa[Fa & 3] >> ((Fa & 4) << 1)), Ha));
+                        Vb(Fa, jc(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
                         fa = Pb(Ea);
                         ga = mb();
@@ -6665,10 +6665,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ea = phys_mem8[Kb++];
                     ;
                     Ja = (Ea >> 3) & 7;
-                    Ha = xa[1] & 0xff;
+                    Ha = regs[1] & 0xff;
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
-                        xa[Fa] = nc(Ja, xa[Fa], Ha);
+                        regs[Fa] = nc(Ja, regs[Fa], Ha);
                     } else {
                         fa = Pb(Ea);
                         ga = qb();
@@ -6677,10 +6677,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x98:
-                    xa[0] = (xa[0] << 16) >> 16;
+                    regs[0] = (regs[0] << 16) >> 16;
                     break Fd;
                 case 0x99:
-                    xa[2] = xa[0] >> 31;
+                    regs[2] = regs[0] >> 31;
                     break Fd;
                 case 0x50:
                 case 0x51:
@@ -6690,9 +6690,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x55:
                 case 0x56:
                 case 0x57:
-                    ga = xa[b & 7];
+                    ga = regs[b & 7];
                     if (Qa) {
-                        fa = (xa[4] - 4) >> 0;
+                        fa = (regs[4] - 4) >> 0;
                         {
                             Ua = cb[fa >>> 12];
                             if ((Ua | fa) & 3) {
@@ -6702,7 +6702,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                         }
                         ;
-                        xa[4] = fa;
+                        regs[4] = fa;
                     } else {
                         xd(ga);
                     }
@@ -6716,14 +6716,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x5e:
                 case 0x5f:
                     if (Qa) {
-                        fa = xa[4];
+                        fa = regs[4];
                         ga = (((Ua = bb[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
-                        xa[4] = (fa + 4) >> 0;
+                        regs[4] = (fa + 4) >> 0;
                     } else {
                         ga = Ad();
                         Bd();
                     }
-                    xa[b & 7] = ga;
+                    regs[b & 7] = ga;
                     break Fd;
                 case 0x60:
                     Kf();
@@ -6737,16 +6737,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     if ((Ea >> 6) == 3) {
                         ga = Ad();
                         Bd();
-                        xa[Ea & 7] = ga;
+                        regs[Ea & 7] = ga;
                     } else {
                         ga = Ad();
-                        Ha = xa[4];
+                        Ha = regs[4];
                         Bd();
-                        Ia = xa[4];
+                        Ia = regs[4];
                         fa = Pb(Ea);
-                        xa[4] = Ha;
+                        regs[4] = Ha;
                         wb(ga);
-                        xa[4] = Ia;
+                        regs[4] = Ia;
                     }
                     break Fd;
                 case 0x68:
@@ -6756,9 +6756,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     ;
                     if (Qa) {
-                        fa = (xa[4] - 4) >> 0;
+                        fa = (regs[4] - 4) >> 0;
                         wb(ga);
-                        xa[4] = fa;
+                        regs[4] = fa;
                     } else {
                         xd(ga);
                     }
@@ -6767,9 +6767,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ga = ((phys_mem8[Kb++] << 24) >> 24);
                     ;
                     if (Qa) {
-                        fa = (xa[4] - 4) >> 0;
+                        fa = (regs[4] - 4) >> 0;
                         wb(ga);
-                        xa[4] = fa;
+                        regs[4] = fa;
                     } else {
                         xd(ga);
                     }
@@ -6779,10 +6779,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 case 0xc9:
                     if (Qa) {
-                        fa = xa[5];
+                        fa = regs[5];
                         ga = kb();
-                        xa[5] = ga;
-                        xa[4] = (fa + 4) >> 0;
+                        regs[5] = ga;
+                        regs[4] = (fa + 4) >> 0;
                     } else {
                         Of();
                     }
@@ -6843,7 +6843,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     if ((Ea >> 6) == 3)
                         Dc(6);
                     Da = (Da & ~0x000f) | (6 + 1);
-                    xa[(Ea >> 3) & 7] = Pb(Ea);
+                    regs[(Ea >> 3) & 7] = Pb(Ea);
                     break Fd;
                 case 0xfe:
                     Ea = phys_mem8[Kb++];
@@ -6853,7 +6853,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                Vb(Fa, hc((xa[Fa & 3] >> ((Fa & 4) << 1))));
+                                Vb(Fa, hc((regs[Fa & 3] >> ((Fa & 4) << 1))));
                             } else {
                                 fa = Pb(Ea);
                                 ga = mb();
@@ -6864,7 +6864,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 1:
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                Vb(Fa, ic((xa[Fa & 3] >> ((Fa & 4) << 1))));
+                                Vb(Fa, ic((regs[Fa & 3] >> ((Fa & 4) << 1))));
                             } else {
                                 fa = Pb(Ea);
                                 ga = mb();
@@ -6889,7 +6889,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         Ba = Aa;
                                         Ca = za;
                                     }
-                                    xa[Fa] = za = (xa[Fa] + 1) >> 0;
+                                    regs[Fa] = za = (regs[Fa] + 1) >> 0;
                                     Aa = 27;
                                 }
                                 ;
@@ -6916,7 +6916,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         Ba = Aa;
                                         Ca = za;
                                     }
-                                    xa[Fa] = za = (xa[Fa] - 1) >> 0;
+                                    regs[Fa] = za = (regs[Fa] - 1) >> 0;
                                     Aa = 30;
                                 }
                                 ;
@@ -6937,16 +6937,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break;
                         case 2:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
                             }
                             Ha = (Jb + Kb - Mb);
                             if (Qa) {
-                                fa = (xa[4] - 4) >> 0;
+                                fa = (regs[4] - 4) >> 0;
                                 wb(Ha);
-                                xa[4] = fa;
+                                regs[4] = fa;
                             } else {
                                 xd(Ha);
                             }
@@ -6954,7 +6954,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break;
                         case 4:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
@@ -6963,15 +6963,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break;
                         case 6:
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
                             }
                             if (Qa) {
-                                fa = (xa[4] - 4) >> 0;
+                                fa = (regs[4] - 4) >> 0;
                                 wb(ga);
-                                xa[4] = fa;
+                                regs[4] = fa;
                             } else {
                                 xd(ga);
                             }
@@ -7172,8 +7172,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Ja = 0xffff;
                     else
                         Ja = -1;
-                    Ha = (xa[1] - 1) & Ja;
-                    xa[1] = (xa[1] & ~Ja) | Ha;
+                    Ha = (regs[1] - 1) & Ja;
+                    regs[1] = (regs[1] & ~Ja) | Ha;
                     b &= 3;
                     if (b == 0)
                         Ia = !(za == 0);
@@ -7196,7 +7196,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Ja = 0xffff;
                     else
                         Ja = -1;
-                    if ((xa[1] & Ja) == 0) {
+                    if ((regs[1] & Ja) == 0) {
                         if (Da & 0x0100) {
                             Jb = (Jb + Kb - Mb + ga) & 0xffff, Kb = Mb = 0;
                         } else {
@@ -7207,14 +7207,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xc2:
                     Ha = (Ob() << 16) >> 16;
                     ga = Ad();
-                    xa[4] = (xa[4] & ~Pa) | ((xa[4] + 4 + Ha) & Pa);
+                    regs[4] = (regs[4] & ~Pa) | ((regs[4] + 4 + Ha) & Pa);
                     Jb = ga, Kb = Mb = 0;
                     break Fd;
                 case 0xc3:
                     if (Qa) {
-                        fa = xa[4];
+                        fa = regs[4];
                         ga = kb();
-                        xa[4] = (xa[4] + 4) >> 0;
+                        regs[4] = (regs[4] + 4) >> 0;
                     } else {
                         ga = Ad();
                         Bd();
@@ -7229,9 +7229,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     Ha = (Jb + Kb - Mb);
                     if (Qa) {
-                        fa = (xa[4] - 4) >> 0;
+                        fa = (regs[4] - 4) >> 0;
                         wb(Ha);
-                        xa[4] = fa;
+                        regs[4] = fa;
                     } else {
                         xd(Ha);
                     }
@@ -7343,7 +7343,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ;
                     break Fd;
                 case 0x9e:
-                    _src = ((xa[0] >> 8) & (0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001)) | (Zc() << 11);
+                    _src = ((regs[0] >> 8) & (0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001)) | (Zc() << 11);
                     za = ((_src >> 6) & 1) ^ 1;
                     Aa = 24;
                     break Fd;
@@ -7462,7 +7462,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Dc(13);
                     ga = phys_mem8[Kb++];
                     ;
-                    xa[0] = cpu.ld32_port(ga);
+                    regs[0] = cpu.ld32_port(ga);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7475,7 +7475,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Dc(13);
                     ga = phys_mem8[Kb++];
                     ;
-                    cpu.st8_port(ga, xa[0] & 0xff);
+                    cpu.st8_port(ga, regs[0] & 0xff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7488,7 +7488,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Dc(13);
                     ga = phys_mem8[Kb++];
                     ;
-                    cpu.st32_port(ga, xa[0]);
+                    cpu.st32_port(ga, regs[0]);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7499,7 +7499,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
                         Dc(13);
-                    Vb(0, cpu.ld8_port(xa[2] & 0xffff));
+                    Vb(0, cpu.ld8_port(regs[2] & 0xffff));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7510,7 +7510,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
                         Dc(13);
-                    xa[0] = cpu.ld32_port(xa[2] & 0xffff);
+                    regs[0] = cpu.ld32_port(regs[2] & 0xffff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7521,7 +7521,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
                         Dc(13);
-                    cpu.st8_port(xa[2] & 0xffff, xa[0] & 0xff);
+                    cpu.st8_port(regs[2] & 0xffff, regs[0] & 0xff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7532,7 +7532,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Sa = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > Sa)
                         Dc(13);
-                    cpu.st32_port(xa[2] & 0xffff, xa[0]);
+                    cpu.st32_port(regs[2] & 0xffff, regs[0]);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7641,13 +7641,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ea = phys_mem8[Kb++];
                             ;
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = kb();
                             }
                             if (fd(b & 0xf))
-                                xa[(Ea >> 3) & 7] = ga;
+                                regs[(Ea >> 3) & 7] = ga;
                             break Fd;
                         case 0xb6:
                             Ea = phys_mem8[Kb++];
@@ -7655,24 +7655,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1)) & 0xff;
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1)) & 0xff;
                             } else {
                                 fa = Pb(Ea);
                                 ga = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                             }
-                            xa[Ga] = ga;
+                            regs[Ga] = ga;
                             break Fd;
                         case 0xb7:
                             Ea = phys_mem8[Kb++];
                             ;
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7] & 0xffff;
+                                ga = regs[Ea & 7] & 0xffff;
                             } else {
                                 fa = Pb(Ea);
                                 ga = ib();
                             }
-                            xa[Ga] = ga;
+                            regs[Ga] = ga;
                             break Fd;
                         case 0xbe:
                             Ea = phys_mem8[Kb++];
@@ -7680,24 +7680,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
                                 fa = Pb(Ea);
                                 ga = (((Ua = bb[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                             }
-                            xa[Ga] = (((ga) << 24) >> 24);
+                            regs[Ga] = (((ga) << 24) >> 24);
                             break Fd;
                         case 0xbf:
                             Ea = phys_mem8[Kb++];
                             ;
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = ib();
                             }
-                            xa[Ga] = (((ga) << 16) >> 16);
+                            regs[Ga] = (((ga) << 16) >> 16);
                             break Fd;
                         case 0x00:
                             if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
@@ -7724,7 +7724,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     if (cpu.cpl != 0)
                                         Dc(13);
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7] & 0xffff;
+                                        ga = regs[Ea & 7] & 0xffff;
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -7737,7 +7737,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 4:
                                 case 5:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7] & 0xffff;
+                                        ga = regs[Ea & 7] & 0xffff;
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -7811,7 +7811,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 default:
                                     Dc(6);
                             }
-                            xa[Ea & 7] = ga;
+                            regs[Ea & 7] = ga;
                             break Fd;
                         case 0x22:
                             if (cpu.cpl != 0)
@@ -7821,7 +7821,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((Ea >> 6) != 3)
                                 Dc(6);
                             Ga = (Ea >> 3) & 7;
-                            ga = xa[Ea & 7];
+                            ga = regs[Ea & 7];
                             switch (Ga) {
                                 case 0:
                                     Pd(ga);
@@ -7852,7 +7852,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((Ea >> 6) != 3)
                                 Dc(6);
                             Ga = (Ea >> 3) & 7;
-                            ga = xa[Ea & 7];
+                            ga = regs[Ea & 7];
                             if (Ga == 4 || Ga == 5)
                                 Dc(6);
                             break Fd;
@@ -7867,12 +7867,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xa4:
                             Ea = phys_mem8[Kb++];
                             ;
-                            Ha = xa[(Ea >> 3) & 7];
+                            Ha = regs[(Ea >> 3) & 7];
                             if ((Ea >> 6) == 3) {
                                 Ia = phys_mem8[Kb++];
                                 ;
                                 Fa = Ea & 7;
-                                xa[Fa] = rc(xa[Fa], Ha, Ia);
+                                regs[Fa] = rc(regs[Fa], Ha, Ia);
                             } else {
                                 fa = Pb(Ea);
                                 Ia = phys_mem8[Kb++];
@@ -7885,11 +7885,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xa5:
                             Ea = phys_mem8[Kb++];
                             ;
-                            Ha = xa[(Ea >> 3) & 7];
-                            Ia = xa[1];
+                            Ha = regs[(Ea >> 3) & 7];
+                            Ia = regs[1];
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                xa[Fa] = rc(xa[Fa], Ha, Ia);
+                                regs[Fa] = rc(regs[Fa], Ha, Ia);
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
@@ -7900,12 +7900,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xac:
                             Ea = phys_mem8[Kb++];
                             ;
-                            Ha = xa[(Ea >> 3) & 7];
+                            Ha = regs[(Ea >> 3) & 7];
                             if ((Ea >> 6) == 3) {
                                 Ia = phys_mem8[Kb++];
                                 ;
                                 Fa = Ea & 7;
-                                xa[Fa] = sc(xa[Fa], Ha, Ia);
+                                regs[Fa] = sc(regs[Fa], Ha, Ia);
                             } else {
                                 fa = Pb(Ea);
                                 Ia = phys_mem8[Kb++];
@@ -7918,11 +7918,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xad:
                             Ea = phys_mem8[Kb++];
                             ;
-                            Ha = xa[(Ea >> 3) & 7];
-                            Ia = xa[1];
+                            Ha = regs[(Ea >> 3) & 7];
+                            Ia = regs[1];
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                xa[Fa] = sc(xa[Fa], Ha, Ia);
+                                regs[Fa] = sc(regs[Fa], Ha, Ia);
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
@@ -7937,7 +7937,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             switch (Ja) {
                                 case 4:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                         Ha = phys_mem8[Kb++];
                                         ;
                                     } else {
@@ -7955,7 +7955,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         Fa = Ea & 7;
                                         Ha = phys_mem8[Kb++];
                                         ;
-                                        xa[Fa] = xc(Ja & 3, xa[Fa], Ha);
+                                        regs[Fa] = xc(Ja & 3, regs[Fa], Ha);
                                     } else {
                                         fa = Pb(Ea);
                                         Ha = phys_mem8[Kb++];
@@ -7972,9 +7972,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xa3:
                             Ea = phys_mem8[Kb++];
                             ;
-                            Ha = xa[(Ea >> 3) & 7];
+                            Ha = regs[(Ea >> 3) & 7];
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 fa = (fa + ((Ha >> 5) << 2)) >> 0;
@@ -7987,11 +7987,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xbb:
                             Ea = phys_mem8[Kb++];
                             ;
-                            Ha = xa[(Ea >> 3) & 7];
+                            Ha = regs[(Ea >> 3) & 7];
                             Ja = (b >> 3) & 3;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                xa[Fa] = xc(Ja, xa[Fa], Ha);
+                                regs[Fa] = xc(Ja, regs[Fa], Ha);
                             } else {
                                 fa = Pb(Ea);
                                 fa = (fa + ((Ha >> 5) << 2)) >> 0;
@@ -8006,34 +8006,34 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             ;
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
-                                Ha = xa[Ea & 7];
+                                Ha = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 Ha = kb();
                             }
                             if (b & 1)
-                                xa[Ga] = Bc(xa[Ga], Ha);
+                                regs[Ga] = Bc(regs[Ga], Ha);
                             else
-                                xa[Ga] = zc(xa[Ga], Ha);
+                                regs[Ga] = zc(regs[Ga], Ha);
                             break Fd;
                         case 0xaf:
                             Ea = phys_mem8[Kb++];
                             ;
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
-                                Ha = xa[Ea & 7];
+                                Ha = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 Ha = kb();
                             }
-                            xa[Ga] = Wc(xa[Ga], Ha);
+                            regs[Ga] = Wc(regs[Ga], Ha);
                             break Fd;
                         case 0x31:
                             if ((cpu.cr4 & (1 << 2)) && cpu.cpl != 0)
                                 Dc(13);
                             ga = md();
-                            xa[0] = ga >>> 0;
-                            xa[2] = (ga / 0x100000000) >>> 0;
+                            regs[0] = ga >>> 0;
+                            regs[2] = (ga / 0x100000000) >>> 0;
                             break Fd;
                         case 0xc0:
                             Ea = phys_mem8[Kb++];
@@ -8041,14 +8041,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
-                                Ha = gc(0, ga, (xa[Ga & 3] >> ((Ga & 4) << 1)));
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
+                                Ha = gc(0, ga, (regs[Ga & 3] >> ((Ga & 4) << 1)));
                                 Vb(Ga, ga);
                                 Vb(Fa, Ha);
                             } else {
                                 fa = Pb(Ea);
                                 ga = mb();
-                                Ha = gc(0, ga, (xa[Ga & 3] >> ((Ga & 4) << 1)));
+                                Ha = gc(0, ga, (regs[Ga & 3] >> ((Ga & 4) << 1)));
                                 sb(Ha);
                                 Vb(Ga, ga);
                             }
@@ -8059,16 +8059,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = xa[Fa];
-                                Ha = Xb(0, ga, xa[Ga]);
-                                xa[Ga] = ga;
-                                xa[Fa] = Ha;
+                                ga = regs[Fa];
+                                Ha = Xb(0, ga, regs[Ga]);
+                                regs[Ga] = ga;
+                                regs[Fa] = Ha;
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
-                                Ha = Xb(0, ga, xa[Ga]);
+                                Ha = Xb(0, ga, regs[Ga]);
                                 wb(Ha);
-                                xa[Ga] = ga;
+                                regs[Ga] = ga;
                             }
                             break Fd;
                         case 0xb0:
@@ -8077,19 +8077,19 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
-                                Ha = gc(5, xa[0], ga);
+                                ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
+                                Ha = gc(5, regs[0], ga);
                                 if (Ha == 0) {
-                                    Vb(Fa, (xa[Ga & 3] >> ((Ga & 4) << 1)));
+                                    Vb(Fa, (regs[Ga & 3] >> ((Ga & 4) << 1)));
                                 } else {
                                     Vb(0, ga);
                                 }
                             } else {
                                 fa = Pb(Ea);
                                 ga = mb();
-                                Ha = gc(5, xa[0], ga);
+                                Ha = gc(5, regs[0], ga);
                                 if (Ha == 0) {
-                                    sb((xa[Ga & 3] >> ((Ga & 4) << 1)));
+                                    sb((regs[Ga & 3] >> ((Ga & 4) << 1)));
                                 } else {
                                     Vb(0, ga);
                                 }
@@ -8101,21 +8101,21 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = xa[Fa];
-                                Ha = Xb(5, xa[0], ga);
+                                ga = regs[Fa];
+                                Ha = Xb(5, regs[0], ga);
                                 if (Ha == 0) {
-                                    xa[Fa] = xa[Ga];
+                                    regs[Fa] = regs[Ga];
                                 } else {
-                                    xa[0] = ga;
+                                    regs[0] = ga;
                                 }
                             } else {
                                 fa = Pb(Ea);
                                 ga = qb();
-                                Ha = Xb(5, xa[0], ga);
+                                Ha = Xb(5, regs[0], ga);
                                 if (Ha == 0) {
-                                    wb(xa[Ga]);
+                                    wb(regs[Ga]);
                                 } else {
-                                    xa[0] = ga;
+                                    regs[0] = ga;
                                 }
                             }
                             break Fd;
@@ -8137,9 +8137,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xce:
                         case 0xcf:
                             Ga = b & 7;
-                            ga = xa[Ga];
+                            ga = regs[Ga];
                             ga = (ga >>> 24) | ((ga >> 8) & 0x0000ff00) | ((ga << 8) & 0x00ff0000) | (ga << 24);
-                            xa[Ga] = ga;
+                            regs[Ga] = ga;
                             break Fd;
                         case 0x04:
                         case 0x05:
@@ -8313,7 +8313,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x189:
                             Ea = phys_mem8[Kb++];
                             ;
-                            ga = xa[(Ea >> 3) & 7];
+                            ga = regs[(Ea >> 3) & 7];
                             if ((Ea >> 6) == 3) {
                                 Wb(Ea & 7, ga);
                             } else {
@@ -8325,7 +8325,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ea = phys_mem8[Kb++];
                             ;
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = ib();
@@ -8349,7 +8349,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break Fd;
                         case 0x1a3:
                             fa = Ub();
-                            ub(xa[0]);
+                            ub(regs[0]);
                             break Fd;
                         case 0x1c7:
                             Ea = phys_mem8[Kb++];
@@ -8371,8 +8371,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x196:
                         case 0x197:
                             Ga = b & 7;
-                            ga = xa[0];
-                            Wb(0, xa[Ga]);
+                            ga = regs[0];
+                            Wb(0, regs[Ga]);
                             Wb(Ga, ga);
                             break Fd;
                         case 0x187:
@@ -8381,12 +8381,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                ga = xa[Fa];
-                                Wb(Fa, xa[Ga]);
+                                ga = regs[Fa];
+                                Wb(Fa, regs[Ga]);
                             } else {
                                 fa = Pb(Ea);
                                 ga = ob();
-                                ub(xa[Ga]);
+                                ub(regs[Ga]);
                             }
                             Wb(Ga, ga);
                             break Fd;
@@ -8407,10 +8407,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ea = phys_mem8[Kb++];
                             ;
                             Ja = (b >> 3) & 7;
-                            Ha = xa[(Ea >> 3) & 7];
+                            Ha = regs[(Ea >> 3) & 7];
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                Wb(Fa, dc(Ja, xa[Fa], Ha));
+                                Wb(Fa, dc(Ja, regs[Fa], Ha));
                             } else {
                                 fa = Pb(Ea);
                                 if (Ja != 7) {
@@ -8436,12 +8436,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ja = (b >> 3) & 7;
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
-                                Ha = xa[Ea & 7];
+                                Ha = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 Ha = ib();
                             }
-                            Wb(Ga, dc(Ja, xa[Ga], Ha));
+                            Wb(Ga, dc(Ja, regs[Ga], Ha));
                             break Fd;
                         case 0x105:
                         case 0x10d:
@@ -8453,7 +8453,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x13d:
                             Ha = Ob();
                             Ja = (b >> 3) & 7;
-                            Wb(0, dc(Ja, xa[0], Ha));
+                            Wb(0, dc(Ja, regs[0], Ha));
                             break Fd;
                         case 0x181:
                             Ea = phys_mem8[Kb++];
@@ -8462,7 +8462,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
                                 Ha = Ob();
-                                xa[Fa] = dc(Ja, xa[Fa], Ha);
+                                regs[Fa] = dc(Ja, regs[Fa], Ha);
                             } else {
                                 fa = Pb(Ea);
                                 Ha = Ob();
@@ -8484,7 +8484,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 Fa = Ea & 7;
                                 Ha = ((phys_mem8[Kb++] << 24) >> 24);
                                 ;
-                                Wb(Fa, dc(Ja, xa[Fa], Ha));
+                                Wb(Fa, dc(Ja, regs[Fa], Ha));
                             } else {
                                 fa = Pb(Ea);
                                 Ha = ((phys_mem8[Kb++] << 24) >> 24);
@@ -8508,7 +8508,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x146:
                         case 0x147:
                             Ga = b & 7;
-                            Wb(Ga, ec(xa[Ga]));
+                            Wb(Ga, ec(regs[Ga]));
                             break Fd;
                         case 0x148:
                         case 0x149:
@@ -8519,14 +8519,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x14e:
                         case 0x14f:
                             Ga = b & 7;
-                            Wb(Ga, fc(xa[Ga]));
+                            Wb(Ga, fc(regs[Ga]));
                             break Fd;
                         case 0x16b:
                             Ea = phys_mem8[Kb++];
                             ;
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
-                                Ha = xa[Ea & 7];
+                                Ha = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 Ha = ib();
@@ -8540,7 +8540,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             ;
                             Ga = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
-                                Ha = xa[Ea & 7];
+                                Ha = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 Ha = ib();
@@ -8552,12 +8552,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ea = phys_mem8[Kb++];
                             ;
                             if ((Ea >> 6) == 3) {
-                                ga = xa[Ea & 7];
+                                ga = regs[Ea & 7];
                             } else {
                                 fa = Pb(Ea);
                                 ga = ib();
                             }
-                            Ha = xa[(Ea >> 3) & 7];
+                            Ha = regs[(Ea >> 3) & 7];
                             {
                                 za = (((ga & Ha) << 16) >> 16);
                                 Aa = 13;
@@ -8567,7 +8567,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x1a9:
                             Ha = Ob();
                             {
-                                za = (((xa[0] & Ha) << 16) >> 16);
+                                za = (((regs[0] & Ha) << 16) >> 16);
                                 Aa = 13;
                             }
                             ;
@@ -8579,7 +8579,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             switch (Ja) {
                                 case 0:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -8594,7 +8594,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 2:
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        Wb(Fa, ~xa[Fa]);
+                                        Wb(Fa, ~regs[Fa]);
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ob();
@@ -8605,7 +8605,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 3:
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        Wb(Fa, dc(5, 0, xa[Fa]));
+                                        Wb(Fa, dc(5, 0, regs[Fa]));
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ob();
@@ -8615,29 +8615,29 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                                 case 4:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
                                     }
-                                    ga = Qc(xa[0], ga);
+                                    ga = Qc(regs[0], ga);
                                     Wb(0, ga);
                                     Wb(2, ga >> 16);
                                     break;
                                 case 5:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
                                     }
-                                    ga = Rc(xa[0], ga);
+                                    ga = Rc(regs[0], ga);
                                     Wb(0, ga);
                                     Wb(2, ga >> 16);
                                     break;
                                 case 6:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -8646,7 +8646,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                                 case 7:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -8665,7 +8665,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 Ha = phys_mem8[Kb++];
                                 ;
                                 Fa = Ea & 7;
-                                Wb(Fa, mc(Ja, xa[Fa], Ha));
+                                Wb(Fa, mc(Ja, regs[Fa], Ha));
                             } else {
                                 fa = Pb(Ea);
                                 Ha = phys_mem8[Kb++];
@@ -8681,7 +8681,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ja = (Ea >> 3) & 7;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                Wb(Fa, mc(Ja, xa[Fa], 1));
+                                Wb(Fa, mc(Ja, regs[Fa], 1));
                             } else {
                                 fa = Pb(Ea);
                                 ga = ob();
@@ -8693,10 +8693,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Ea = phys_mem8[Kb++];
                             ;
                             Ja = (Ea >> 3) & 7;
-                            Ha = xa[1] & 0xff;
+                            Ha = regs[1] & 0xff;
                             if ((Ea >> 6) == 3) {
                                 Fa = Ea & 7;
-                                Wb(Fa, mc(Ja, xa[Fa], Ha));
+                                Wb(Fa, mc(Ja, regs[Fa], Ha));
                             } else {
                                 fa = Pb(Ea);
                                 ga = ob();
@@ -8705,10 +8705,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0x198:
-                            Wb(0, (xa[0] << 24) >> 24);
+                            Wb(0, (regs[0] << 24) >> 24);
                             break Fd;
                         case 0x199:
-                            Wb(2, (xa[0] << 16) >> 31);
+                            Wb(2, (regs[0] << 16) >> 31);
                             break Fd;
                         case 0x190:
                             break Fd;
@@ -8720,7 +8720,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x155:
                         case 0x156:
                         case 0x157:
-                            vd(xa[b & 7]);
+                            vd(regs[b & 7]);
                             break Fd;
                         case 0x158:
                         case 0x159:
@@ -8749,13 +8749,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 Wb(Ea & 7, ga);
                             } else {
                                 ga = yd();
-                                Ha = xa[4];
+                                Ha = regs[4];
                                 zd();
-                                Ia = xa[4];
+                                Ia = regs[4];
                                 fa = Pb(Ea);
-                                xa[4] = Ha;
+                                regs[4] = Ha;
                                 ub(ga);
-                                xa[4] = Ia;
+                                regs[4] = Ia;
                             }
                             break Fd;
                         case 0x168:
@@ -8801,7 +8801,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0:
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        Wb(Fa, ec(xa[Fa]));
+                                        Wb(Fa, ec(regs[Fa]));
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ob();
@@ -8812,7 +8812,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 1:
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        Wb(Fa, fc(xa[Fa]));
+                                        Wb(Fa, fc(regs[Fa]));
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ob();
@@ -8822,7 +8822,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                                 case 2:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7] & 0xffff;
+                                        ga = regs[Ea & 7] & 0xffff;
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -8832,7 +8832,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                                 case 4:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7] & 0xffff;
+                                        ga = regs[Ea & 7] & 0xffff;
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -8841,7 +8841,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                                 case 6:
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -8899,7 +8899,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x1c2:
                             Ha = (Ob() << 16) >> 16;
                             ga = yd();
-                            xa[4] = (xa[4] & ~Pa) | ((xa[4] + 2 + Ha) & Pa);
+                            regs[4] = (regs[4] & ~Pa) | ((regs[4] + 2 + Ha) & Pa);
                             Jb = ga, Kb = Mb = 0;
                             break Fd;
                         case 0x1c3:
@@ -8965,7 +8965,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 Dc(13);
                             ga = phys_mem8[Kb++];
                             ;
-                            cpu.st16_port(ga, xa[0] & 0xffff);
+                            cpu.st16_port(ga, regs[0] & 0xffff);
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                                     break Bg;
@@ -8976,7 +8976,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Sa = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > Sa)
                                 Dc(13);
-                            Wb(0, cpu.ld16_port(xa[2] & 0xffff));
+                            Wb(0, cpu.ld16_port(regs[2] & 0xffff));
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                                     break Bg;
@@ -8987,7 +8987,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Sa = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > Sa)
                                 Dc(13);
-                            cpu.st16_port(xa[2] & 0xffff, xa[0] & 0xffff);
+                            cpu.st16_port(regs[2] & 0xffff, regs[0] & 0xffff);
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                                     break Bg;
@@ -9156,7 +9156,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     Ea = phys_mem8[Kb++];
                                     ;
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ib();
@@ -9170,7 +9170,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     Ga = (Ea >> 3) & 7;
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        ga = (xa[Fa & 3] >> ((Fa & 4) << 1)) & 0xff;
+                                        ga = (regs[Fa & 3] >> ((Fa & 4) << 1)) & 0xff;
                                     } else {
                                         fa = Pb(Ea);
                                         ga = gb();
@@ -9183,7 +9183,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     Ga = (Ea >> 3) & 7;
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        ga = (xa[Fa & 3] >> ((Fa & 4) << 1));
+                                        ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                                     } else {
                                         fa = Pb(Ea);
                                         ga = gb();
@@ -9195,12 +9195,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     ;
                                     Ga = (Ea >> 3) & 7;
                                     if ((Ea >> 6) == 3) {
-                                        Ha = xa[Ea & 7];
+                                        Ha = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         Ha = ib();
                                     }
-                                    Wb(Ga, Rc(xa[Ga], Ha));
+                                    Wb(Ga, Rc(regs[Ga], Ha));
                                     break Fd;
                                 case 0x1c1:
                                     Ea = phys_mem8[Kb++];
@@ -9208,14 +9208,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     Ga = (Ea >> 3) & 7;
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        ga = xa[Fa];
-                                        Ha = dc(0, ga, xa[Ga]);
+                                        ga = regs[Fa];
+                                        Ha = dc(0, ga, regs[Ga]);
                                         Wb(Ga, ga);
                                         Wb(Fa, Ha);
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ob();
-                                        Ha = dc(0, ga, xa[Ga]);
+                                        Ha = dc(0, ga, regs[Ga]);
                                         ub(Ha);
                                         Wb(Ga, ga);
                                     }
@@ -9238,13 +9238,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x1ac:
                                     Ea = phys_mem8[Kb++];
                                     ;
-                                    Ha = xa[(Ea >> 3) & 7];
+                                    Ha = regs[(Ea >> 3) & 7];
                                     Ja = (b >> 3) & 1;
                                     if ((Ea >> 6) == 3) {
                                         Ia = phys_mem8[Kb++];
                                         ;
                                         Fa = Ea & 7;
-                                        Wb(Fa, oc(Ja, xa[Fa], Ha, Ia));
+                                        Wb(Fa, oc(Ja, regs[Fa], Ha, Ia));
                                     } else {
                                         fa = Pb(Ea);
                                         Ia = phys_mem8[Kb++];
@@ -9258,12 +9258,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x1ad:
                                     Ea = phys_mem8[Kb++];
                                     ;
-                                    Ha = xa[(Ea >> 3) & 7];
-                                    Ia = xa[1];
+                                    Ha = regs[(Ea >> 3) & 7];
+                                    Ia = regs[1];
                                     Ja = (b >> 3) & 1;
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        Wb(Fa, oc(Ja, xa[Fa], Ha, Ia));
+                                        Wb(Fa, oc(Ja, regs[Fa], Ha, Ia));
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ob();
@@ -9278,7 +9278,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     switch (Ja) {
                                         case 4:
                                             if ((Ea >> 6) == 3) {
-                                                ga = xa[Ea & 7];
+                                                ga = regs[Ea & 7];
                                                 Ha = phys_mem8[Kb++];
                                                 ;
                                             } else {
@@ -9296,7 +9296,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                                 Fa = Ea & 7;
                                                 Ha = phys_mem8[Kb++];
                                                 ;
-                                                xa[Fa] = vc(Ja & 3, xa[Fa], Ha);
+                                                regs[Fa] = vc(Ja & 3, regs[Fa], Ha);
                                             } else {
                                                 fa = Pb(Ea);
                                                 Ha = phys_mem8[Kb++];
@@ -9313,9 +9313,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x1a3:
                                     Ea = phys_mem8[Kb++];
                                     ;
-                                    Ha = xa[(Ea >> 3) & 7];
+                                    Ha = regs[(Ea >> 3) & 7];
                                     if ((Ea >> 6) == 3) {
-                                        ga = xa[Ea & 7];
+                                        ga = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         fa = (fa + (((Ha & 0xffff) >> 4) << 1)) >> 0;
@@ -9328,11 +9328,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x1bb:
                                     Ea = phys_mem8[Kb++];
                                     ;
-                                    Ha = xa[(Ea >> 3) & 7];
+                                    Ha = regs[(Ea >> 3) & 7];
                                     Ja = (b >> 3) & 3;
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        Wb(Fa, vc(Ja, xa[Fa], Ha));
+                                        Wb(Fa, vc(Ja, regs[Fa], Ha));
                                     } else {
                                         fa = Pb(Ea);
                                         fa = (fa + (((Ha & 0xffff) >> 4) << 1)) >> 0;
@@ -9347,12 +9347,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     ;
                                     Ga = (Ea >> 3) & 7;
                                     if ((Ea >> 6) == 3) {
-                                        Ha = xa[Ea & 7];
+                                        Ha = regs[Ea & 7];
                                     } else {
                                         fa = Pb(Ea);
                                         Ha = ib();
                                     }
-                                    ga = xa[Ga];
+                                    ga = regs[Ga];
                                     if (b & 1)
                                         ga = Ac(ga, Ha);
                                     else
@@ -9365,19 +9365,19 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     Ga = (Ea >> 3) & 7;
                                     if ((Ea >> 6) == 3) {
                                         Fa = Ea & 7;
-                                        ga = xa[Fa];
-                                        Ha = dc(5, xa[0], ga);
+                                        ga = regs[Fa];
+                                        Ha = dc(5, regs[0], ga);
                                         if (Ha == 0) {
-                                            Wb(Fa, xa[Ga]);
+                                            Wb(Fa, regs[Ga]);
                                         } else {
                                             Wb(0, ga);
                                         }
                                     } else {
                                         fa = Pb(Ea);
                                         ga = ob();
-                                        Ha = dc(5, xa[0], ga);
+                                        Ha = dc(5, regs[0], ga);
                                         if (Ha == 0) {
-                                            ub(xa[Ga]);
+                                            ub(regs[Ga]);
                                         } else {
                                             Wb(0, ga);
                                         }
