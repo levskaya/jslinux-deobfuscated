@@ -1,3 +1,9 @@
+/*
+
+Opcode ref
+http://ref.x86asm.net/coder32.html#xC4
+
+*/
 var aa = [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
 
 var ba = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -6,40 +12,113 @@ var ca = [0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5
 
 function CPU_X86() {
     var i, tlb_size;
-    this.regs = new Array();
+    /*
+      AX/EAX/RAX: Accumulator
+      BX/EBX/RBX: Base index (for use with arrays)
+      CX/ECX/RCX: Counter
+      DX/EDX/RDX: Data/general
+      SI/ESI/RSI: Source index for string operations.
+      DI/EDI/RDI: Destination index for string operations.
+      SP/ESP/RSP: Stack pointer for top address of the stack.
+      BP/EBP/RBP: Stack base pointer for holding the address of the current stack frame.
+      IP/EIP/RIP: Instruction pointer. Holds the program counter, the current instruction address.
+      Segment registers:
+      CS: Code
+      DS: Data
+      SS: Stack
+      ES: Extra
+      FS
+      GS
+    */
+    this.regs = new Array(); //   [" ES", " CS", " SS", " DS", " FS", " GS", "LDT", " TR"]
     for (i = 0; i < 8; i++) {
         this.regs[i] = 0;
     }
-    this.eip         = 0;
-    this.cc_op       = 0;
-    this.cc_dst      = 0;
-    this.cc_src      = 0;
-    this.cc_op2      = 0;
-    this.cc_dst2     = 0;
+    this.eip         = 0; //instruction pointer
+    this.cc_op       = 0; // current op
+    this.cc_dst      = 0; // current dest
+    this.cc_src      = 0; // current src
+    this.cc_op2      = 0; // current op, byte2
+    this.cc_dst2     = 0; // current dest, byte2
     this.df          = 1;
-    this.eflags      = 0x2;
+    this.eflags      = 0x2; // EFLAG register
     this.cycle_count = 0;
     this.hard_irq    = 0;
     this.hard_intno  = -1;
-    this.cpl         = 0;
-    this.cr0         = (1 << 0);
-    this.cr2         = 0;
-    this.cr3         = 0;
-    this.cr4         = 0;
-    this.idt         = {base: 0,limit: 0};
-    this.gdt         = {base: 0,limit: 0};
+    this.cpl         = 0; //cpu privilege level
+
+    /* Control Registers ========================================================================================== */
+    /*
+      31	PG	Paging	If 1, enable paging and use the CR3 register, else disable paging
+      30	CD	Cache disable	Globally enables/disable the memory cache
+      29	NW	Not-write through	Globally enables/disable write-back caching
+      18	AM	Alignment mask	Alignment check enabled if AM set, AC flag (in EFLAGS register) set, and privilege level is 3
+      16	WP	Write protect	Determines whether the CPU can write to pages marked read-only
+      5	NE	Numeric error	Enable internal x87 floating point error reporting when set, else enables PC style x87 error detection
+      4	ET	Extension type	On the 386, it allowed to specify whether the external math coprocessor was an 80287 or 80387
+      3	TS	Task switched	Allows saving x87 task context only after x87 instruction used after task switch
+      2	EM	Emulation	If set, no x87 floating point unit present, if clear, x87 FPU present
+      1	MP	Monitor co-processor	Controls interaction of WAIT/FWAIT instructions with TS flag in CR0
+      0	PE	Protected Mode Enable	If 1, system is in protected mode, else system is in real mode    */
+    this.cr0         = (1 << 0); //control register 0:
+
+    /* CR2
+       Page Fault Linear Address (PFLA)
+       When a page fault occurs, the address the program attempted to access is stored in the CR2 register. */
+    this.cr2         = 0; // control register 2
+
+    /* CR3
+      Used when virtual addressing is enabled, hence when the PG bit is set in CR0.
+      CR3 enables the processor to translate virtual addresses into physical addresses by locating the
+      page directory and page tables for the current task. Typically, the upper 20 bits of CR3 become
+      the page directory base register (PDBR), which stores the physical address of the first page
+      directory entry.     */
+    this.cr3         = 0; // control register 3:
+
+    /* CR4
+       Used in protected mode to control operations such as virtual-8086 support, enabling I/O breakpoints,
+       page size extension and machine check exceptions.
+       Bit	Name	Full Name	Description
+       18	OSXSAVE	XSAVE and Processor Extended States Enable
+       17	PCIDE	PCID Enable	If set, enables process-context identifiers (PCIDs).
+       14	SMXE	SMX Enable
+       13	VMXE	VMX Enable
+       10	OSXMMEXCPT	Operating System Support for Unmasked SIMD Floating-Point Exceptions	If set, enables unmasked SSE exceptions.
+       9	OSFXSR	Operating system support for FXSAVE and FXSTOR instructions	If set, enables SSE instructions and fast FPU save & restore
+       8	PCE	Performance-Monitoring Counter enable
+              If set, RDPMC can be executed at any privilege level, else RDPMC can only be used in ring 0.
+       7	PGE	Page Global Enabled	If set, address translations (PDE or PTE records) may be shared between address spaces.
+       6	MCE	Machine Check Exception	If set, enables machine check interrupts to occur.
+       5	PAE	Physical Address Extension
+              If set, changes page table layout to translate 32-bit virtual addresses into extended 36-bit physical addresses.
+       4	PSE	Page Size Extensions	If unset, page size is 4 KB, else page size is increased to 4 MB (ignored with PAE set).
+       3	DE	Debugging Extensions
+       2	TSD	Time Stamp Disable
+              If set, RDTSC instruction can only be executed when in ring 0, otherwise RDTSC can be used at any privilege level.
+       1	PVI	Protected-mode Virtual Interrupts	If set, enables support for the virtual interrupt flag (VIF) in protected mode.
+       0	VME	Virtual 8086 Mode Extensions	If set, enables support for the virtual interrupt flag (VIF) in virtual-8086 mode.
+     */
+    this.cr4         = 0; // control register 4
 
     this.segs = new Array();
-    for (i = 0; i < 7; i++) {this.segs[i] = {selector: 0, base: 0, limit: 0, flags: 0}; }
+    for (i = 0; i < 7; i++) {
+        this.segs[i] = {selector: 0, base: 0, limit: 0, flags: 0};
+    }
     this.segs[2].flags = (1 << 22);
     this.segs[1].flags = (1 << 22);
 
-    this.tr = {selector: 0,base: 0,limit: 0,flags: 0};
+    // descriptor registers (GDTR, LDTR, IDTR) ?
+    this.idt         = {base: 0, limit: 0};
+    this.gdt         = {base: 0, limit: 0};
     this.ldt = {selector: 0,base: 0,limit: 0,flags: 0};
+
+    //task register?
+    this.tr = {selector: 0,base: 0,limit: 0,flags: 0};
+
     this.halted = 0;
     this.phys_mem = null;
 
-    tlb_size = 0x100000;
+    tlb_size = 0x100000; //1MB total adressable memory region?
     this.tlb_read_kernel  = new Int32Array(tlb_size);
     this.tlb_write_kernel = new Int32Array(tlb_size);
     this.tlb_read_user    = new Int32Array(tlb_size);
@@ -57,17 +136,16 @@ function CPU_X86() {
 CPU_X86.prototype.phys_mem_resize = function(new_mem_size) {
     this.mem_size = new_mem_size;
     new_mem_size += ((15 + 3) & ~3);
-    this.phys_mem = new ArrayBuffer(new_mem_size);
-    this.phys_mem8 = new Uint8Array(this.phys_mem, 0, new_mem_size);
+    this.phys_mem   = new ArrayBuffer(new_mem_size);
+    this.phys_mem8  = new Uint8Array(this.phys_mem, 0, new_mem_size);
     this.phys_mem16 = new Uint16Array(this.phys_mem, 0, new_mem_size / 2);
     this.phys_mem32 = new Int32Array(this.phys_mem, 0, new_mem_size / 4);
 };
 
-CPU_X
-86.prototype.ld8_phys = function(fa) {    return this.phys_mem8[fa]; };
-CPU_X86.prototype.st8_phys = function(fa, ga) {    this.phys_mem8[fa] = ga; };
-CPU_X86.prototype.ld32_phys = function(fa) {    return this.phys_mem32[fa >> 2]; };
-CPU_X86.prototype.st32_phys = function(fa, ga) {    this.phys_mem32[fa >> 2] = ga; };
+CPU_X86.prototype.ld8_phys = function(fa) {      return this.phys_mem8[fa]; };
+CPU_X86.prototype.st8_phys = function(fa, ga) {         this.phys_mem8[fa] = ga; };
+CPU_X86.prototype.ld32_phys = function(fa) {     return this.phys_mem32[fa >> 2]; };
+CPU_X86.prototype.st32_phys = function(fa, ga) {        this.phys_mem32[fa >> 2] = ga; };
 
 CPU_X86.prototype.tlb_set_page = function(fa, ha, ia, ja) {
     var i, ga, j;
@@ -1929,7 +2007,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         cpu.cc_dst2 = _dst2;
         cpu.dump_short();
     }
-    function qd(intno, error_code) {
+
+    /* Oh Noes! */
+    function blow_up(intno, error_code) {
         cpu.cycle_count += (ua - Ka);
         cpu.eip = eip;
         cpu.cc_src = _src;
@@ -1937,11 +2017,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         cpu.cc_op = _op;
         cpu.cc_op2 = _op2;
         cpu.cc_dst2 = _dst2;
-        throw {intno: intno,error_code: error_code};
+        throw {intno: intno, error_code: error_code};
     }
     function Dc(intno) {
-        qd(intno, 0);
+        blow_up(intno, 0);
     }
+
     function rd(sd) {
         cpu.cpl = sd;
         if (cpu.cpl == 3) {
@@ -3081,7 +3162,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function fb(Gd, Hd, ja) {
         var Id, Jd, error_code, Kd, Ld, Md, Nd, ud, Od;
-        if (!(cpu.cr0 & (1 << 31))) {
+        if (!(cpu.cr0 & (1 << 31))) { //CR0: bit31 PG Paging If 1, enable paging and use the CR3 register, else disable paging
             cpu.tlb_set_page(Gd & -4096, Gd & -4096, 1);
         } else {
             Id = (cpu.cr3 & -4096) + ((Gd >> 20) & 0xffc);
@@ -3126,7 +3207,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             if (ja)
                 error_code |= 0x04;
             cpu.cr2 = Gd;
-            qd(14, error_code);
+            blow_up(14, error_code);
         }
     }
     function Pd(Qd) {
@@ -3212,7 +3293,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         je = ie >> 3;
         Rb = (he * 4 + 2) << je;
         if (Rb + (4 << je) - 1 > cpu.tr.limit)
-            qd(10, cpu.tr.selector & 0xfffc);
+            blow_up(10, cpu.tr.selector & 0xfffc);
         fa = (cpu.tr.base + Rb) & -1;
         if (je == 0) {
             le = Ab();
@@ -3249,7 +3330,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             ye = eip;
         sa = cpu.idt;
         if (intno * 8 + 7 > sa.limit)
-            qd(13, intno * 8 + 2);
+            blow_up(13, intno * 8 + 2);
         fa = (sa.base + intno * 8) & -1;
         Yd = Cb();
         fa += 4;
@@ -3264,64 +3345,64 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             case 15:
                 break;
             default:
-                qd(13, intno * 8 + 2);
+                blow_up(13, intno * 8 + 2);
                 break;
         }
         he = (Wd >> 13) & 3;
         se = cpu.cpl;
         if (ne && he < se)
-            qd(13, intno * 8 + 2);
+            blow_up(13, intno * 8 + 2);
         if (!(Wd & (1 << 15)))
-            qd(11, intno * 8 + 2);
+            blow_up(11, intno * 8 + 2);
         selector = Yd >> 16;
         ve = (Wd & -65536) | (Yd & 0x0000ffff);
         if ((selector & 0xfffc) == 0)
-            qd(13, 0);
+            blow_up(13, 0);
         e = Xd(selector);
         if (!e)
-            qd(13, selector & 0xfffc);
+            blow_up(13, selector & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         if (!(Wd & (1 << 12)) || !(Wd & ((1 << 11))))
-            qd(13, selector & 0xfffc);
+            blow_up(13, selector & 0xfffc);
         he = (Wd >> 13) & 3;
         if (he > se)
-            qd(13, selector & 0xfffc);
+            blow_up(13, selector & 0xfffc);
         if (!(Wd & (1 << 15)))
-            qd(11, selector & 0xfffc);
+            blow_up(11, selector & 0xfffc);
         if (!(Wd & (1 << 10)) && he < se) {
             e = ge(he);
             ke = e[0];
             le = e[1];
             if ((ke & 0xfffc) == 0)
-                qd(10, ke & 0xfffc);
+                blow_up(10, ke & 0xfffc);
             if ((ke & 3) != he)
-                qd(10, ke & 0xfffc);
+                blow_up(10, ke & 0xfffc);
             e = Xd(ke);
             if (!e)
-                qd(10, ke & 0xfffc);
+                blow_up(10, ke & 0xfffc);
             we = e[0];
             xe = e[1];
             re = (xe >> 13) & 3;
             if (re != he)
-                qd(10, ke & 0xfffc);
+                blow_up(10, ke & 0xfffc);
             if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
-                qd(10, ke & 0xfffc);
+                blow_up(10, ke & 0xfffc);
             if (!(xe & (1 << 15)))
-                qd(10, ke & 0xfffc);
+                blow_up(10, ke & 0xfffc);
             ue = 1;
             Pa = Vd(xe);
             qe = ae(we, xe);
         } else if ((Wd & (1 << 10)) || he == se) {
             if (cpu.eflags & 0x00020000)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             ue = 0;
             Pa = Vd(cpu.segs[2].flags);
             qe = cpu.segs[2].base;
             le = regs[4];
             he = se;
         } else {
-            qd(13, selector & 0xfffc);
+            blow_up(13, selector & 0xfffc);
             ue = 0;
             Pa = 0;
             qe = 0;
@@ -3467,7 +3548,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var sa, qe, selector, ve, le, ye;
         sa = cpu.idt;
         if (intno * 4 + 3 > sa.limit)
-            qd(13, intno * 8 + 2);
+            blow_up(13, intno * 8 + 2);
         fa = (sa.base + (intno << 2)) >> 0;
         ve = Ab();
         fa = (fa + 2) >> 0;
@@ -3535,20 +3616,20 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             cpu.ldt.limit = 0;
         } else {
             if (selector & 0x4)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             sa = cpu.gdt;
             Rb = selector & ~7;
             De = 7;
             if ((Rb + De) > sa.limit)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             fa = (sa.base + Rb) & -1;
             Yd = Cb();
             fa += 4;
             Wd = Cb();
             if ((Wd & (1 << 12)) || ((Wd >> 8) & 0xf) != 2)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
-                qd(11, selector & 0xfffc);
+                blow_up(11, selector & 0xfffc);
             be(cpu.ldt, Yd, Wd);
         }
         cpu.ldt.selector = selector;
@@ -3562,21 +3643,21 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             cpu.tr.flags = 0;
         } else {
             if (selector & 0x4)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             sa = cpu.gdt;
             Rb = selector & ~7;
             De = 7;
             if ((Rb + De) > sa.limit)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             fa = (sa.base + Rb) & -1;
             Yd = Cb();
             fa += 4;
             Wd = Cb();
             ie = (Wd >> 8) & 0xf;
             if ((Wd & (1 << 12)) || (ie != 1 && ie != 9))
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
-                qd(11, selector & 0xfffc);
+                blow_up(11, selector & 0xfffc);
             be(cpu.tr, Yd, Wd);
             Wd |= (1 << 9);
             Ib(Wd);
@@ -3588,7 +3669,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         se = cpu.cpl;
         if ((selector & 0xfffc) == 0) {
             if (Ge == 2)
-                qd(13, 0);
+                blow_up(13, 0);
             de(Ge, selector, 0, 0, 0);
         } else {
             if (selector & 0x4)
@@ -3597,33 +3678,33 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 sa = cpu.gdt;
             Rb = selector & ~7;
             if ((Rb + 7) > sa.limit)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             fa = (sa.base + Rb) & -1;
             Yd = Cb();
             fa += 4;
             Wd = Cb();
             if (!(Wd & (1 << 12)))
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             He = selector & 3;
             he = (Wd >> 13) & 3;
             if (Ge == 2) {
                 if ((Wd & (1 << 11)) || !(Wd & (1 << 9)))
-                    qd(13, selector & 0xfffc);
+                    blow_up(13, selector & 0xfffc);
                 if (He != se || he != se)
-                    qd(13, selector & 0xfffc);
+                    blow_up(13, selector & 0xfffc);
             } else {
                 if ((Wd & ((1 << 11) | (1 << 9))) == (1 << 11))
-                    qd(13, selector & 0xfffc);
+                    blow_up(13, selector & 0xfffc);
                 if (!(Wd & (1 << 11)) || !(Wd & (1 << 10))) {
                     if (he < se || he < He)
-                        qd(13, selector & 0xfffc);
+                        blow_up(13, selector & 0xfffc);
                 }
             }
             if (!(Wd & (1 << 15))) {
                 if (Ge == 2)
-                    qd(12, selector & 0xfffc);
+                    blow_up(12, selector & 0xfffc);
                 else
-                    qd(11, selector & 0xfffc);
+                    blow_up(11, selector & 0xfffc);
             }
             if (!(Wd & (1 << 8))) {
                 Wd |= (1 << 8);
@@ -3654,32 +3735,32 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function Me(Ke, Le) {
         var Ne, ie, Yd, Wd, se, he, He, limit, e;
         if ((Ke & 0xfffc) == 0)
-            qd(13, 0);
+            blow_up(13, 0);
         e = Xd(Ke);
         if (!e)
-            qd(13, Ke & 0xfffc);
+            blow_up(13, Ke & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         se = cpu.cpl;
         if (Wd & (1 << 12)) {
             if (!(Wd & (1 << 11)))
-                qd(13, Ke & 0xfffc);
+                blow_up(13, Ke & 0xfffc);
             he = (Wd >> 13) & 3;
             if (Wd & (1 << 10)) {
                 if (he > se)
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
             } else {
                 He = Ke & 3;
                 if (He > se)
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
                 if (he != se)
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
             }
             if (!(Wd & (1 << 15)))
-                qd(11, Ke & 0xfffc);
+                blow_up(11, Ke & 0xfffc);
             limit = Zd(Yd, Wd);
             if ((Le >>> 0) > (limit >>> 0))
-                qd(13, Ke & 0xfffc);
+                blow_up(13, Ke & 0xfffc);
             de(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
             eip = Le, Kb = Mb = 0;
         } else {
@@ -3744,30 +3825,30 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var ga, limit, Ue;
         var qe, Ve, We;
         if ((Ke & 0xfffc) == 0)
-            qd(13, 0);
+            blow_up(13, 0);
         e = Xd(Ke);
         if (!e)
-            qd(13, Ke & 0xfffc);
+            blow_up(13, Ke & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         se = cpu.cpl;
         We = regs[4];
         if (Wd & (1 << 12)) {
             if (!(Wd & (1 << 11)))
-                qd(13, Ke & 0xfffc);
+                blow_up(13, Ke & 0xfffc);
             he = (Wd >> 13) & 3;
             if (Wd & (1 << 10)) {
                 if (he > se)
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
             } else {
                 He = Ke & 3;
                 if (He > se)
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
                 if (he != se)
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
             }
             if (!(Wd & (1 << 15)))
-                qd(11, Ke & 0xfffc);
+                blow_up(11, Ke & 0xfffc);
             {
                 Te = We;
                 Pa = Vd(cpu.segs[2].flags);
@@ -3797,7 +3878,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 }
                 limit = Zd(Yd, Wd);
                 if (Le > limit)
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
                 regs[4] = (regs[4] & ~Pa) | ((Te) & Pa);
                 de(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
                 eip = Le, Kb = Mb = 0;
@@ -3816,51 +3897,51 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 12:
                     break;
                 default:
-                    qd(13, Ke & 0xfffc);
+                    blow_up(13, Ke & 0xfffc);
                     break;
             }
             je = ie >> 3;
             if (he < se || he < He)
-                qd(13, Ke & 0xfffc);
+                blow_up(13, Ke & 0xfffc);
             if (!(Wd & (1 << 15)))
-                qd(11, Ke & 0xfffc);
+                blow_up(11, Ke & 0xfffc);
             selector = Yd >> 16;
             ve = (Wd & 0xffff0000) | (Yd & 0x0000ffff);
             Se = Wd & 0x1f;
             if ((selector & 0xfffc) == 0)
-                qd(13, 0);
+                blow_up(13, 0);
             e = Xd(selector);
             if (!e)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             Yd = e[0];
             Wd = e[1];
             if (!(Wd & (1 << 12)) || !(Wd & ((1 << 11))))
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             he = (Wd >> 13) & 3;
             if (he > se)
-                qd(13, selector & 0xfffc);
+                blow_up(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
-                qd(11, selector & 0xfffc);
+                blow_up(11, selector & 0xfffc);
             if (!(Wd & (1 << 10)) && he < se) {
                 e = ge(he);
                 ke = e[0];
                 Te = e[1];
                 if ((ke & 0xfffc) == 0)
-                    qd(10, ke & 0xfffc);
+                    blow_up(10, ke & 0xfffc);
                 if ((ke & 3) != he)
-                    qd(10, ke & 0xfffc);
+                    blow_up(10, ke & 0xfffc);
                 e = Xd(ke);
                 if (!e)
-                    qd(10, ke & 0xfffc);
+                    blow_up(10, ke & 0xfffc);
                 we = e[0];
                 xe = e[1];
                 re = (xe >> 13) & 3;
                 if (re != he)
-                    qd(10, ke & 0xfffc);
+                    blow_up(10, ke & 0xfffc);
                 if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
-                    qd(10, ke & 0xfffc);
+                    blow_up(10, ke & 0xfffc);
                 if (!(xe & (1 << 15)))
-                    qd(10, ke & 0xfffc);
+                    blow_up(10, ke & 0xfffc);
                 Ue = Vd(cpu.segs[2].flags);
                 Ve = cpu.segs[2].base;
                 Pa = Vd(xe);
@@ -4096,28 +4177,28 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             }
         }
         if ((Ke & 0xfffc) == 0)
-            qd(13, Ke & 0xfffc);
+            blow_up(13, Ke & 0xfffc);
         e = Xd(Ke);
         if (!e)
-            qd(13, Ke & 0xfffc);
+            blow_up(13, Ke & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         if (!(Wd & (1 << 12)) || !(Wd & (1 << 11)))
-            qd(13, Ke & 0xfffc);
+            blow_up(13, Ke & 0xfffc);
         se = cpu.cpl;
         He = Ke & 3;
         if (He < se)
-            qd(13, Ke & 0xfffc);
+            blow_up(13, Ke & 0xfffc);
         he = (Wd >> 13) & 3;
         if (Wd & (1 << 10)) {
             if (he > He)
-                qd(13, Ke & 0xfffc);
+                blow_up(13, Ke & 0xfffc);
         } else {
             if (he != He)
-                qd(13, Ke & 0xfffc);
+                blow_up(13, Ke & 0xfffc);
         }
         if (!(Wd & (1 << 15)))
-            qd(11, Ke & 0xfffc);
+            blow_up(11, Ke & 0xfffc);
         Te = (Te + cf) & -1;
         if (He == se) {
             de(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
@@ -4147,22 +4228,22 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 }
             }
             if ((gf & 0xfffc) == 0) {
-                qd(13, 0);
+                blow_up(13, 0);
             } else {
                 if ((gf & 3) != He)
-                    qd(13, gf & 0xfffc);
+                    blow_up(13, gf & 0xfffc);
                 e = Xd(gf);
                 if (!e)
-                    qd(13, gf & 0xfffc);
+                    blow_up(13, gf & 0xfffc);
                 we = e[0];
                 xe = e[1];
                 if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
-                    qd(13, gf & 0xfffc);
+                    blow_up(13, gf & 0xfffc);
                 he = (xe >> 13) & 3;
                 if (he != He)
-                    qd(13, gf & 0xfffc);
+                    blow_up(13, gf & 0xfffc);
                 if (!(xe & (1 << 15)))
-                    qd(11, gf & 0xfffc);
+                    blow_up(11, gf & 0xfffc);
                 de(2, gf, ae(we, xe), Zd(we, xe), xe);
             }
             de(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
@@ -5510,25 +5591,25 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     b = phys_mem8[Kb++];
                     b |= (Da & 0x0100);
                     break;
-                case 0x26:
-                case 0x2e:
-                case 0x36:
-                case 0x3e:
+                case 0x26://ES  ES segment override prefix
+                case 0x2e://CS  CS segment override prefix
+                case 0x36://SS  SS segment override prefix
+                case 0x3e://DS  DS segment override prefix
                     if (Da == Ra)
                         Cd(Nb, b);
                     Da = (Da & ~0x000f) | (((b >> 3) & 3) + 1);
                     b = phys_mem8[Kb++];
                     b |= (Da & 0x0100);
                     break;
-                case 0x64:
-                case 0x65:
+                case 0x64://FS  FS segment override prefix
+                case 0x65://GS  GS segment override prefix
                     if (Da == Ra)
                         Cd(Nb, b);
                     Da = (Da & ~0x000f) | ((b & 7) + 1);
                     b = phys_mem8[Kb++];
                     b |= (Da & 0x0100);
                     break;
-                case 0xb0:
+                case 0xb0://op = B0+r  MOV  r8  imm8
                 case 0xb1:
                 case 0xb2:
                 case 0xb3:
@@ -5536,12 +5617,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xb5:
                 case 0xb6:
                 case 0xb7:
-                    ga = phys_mem8[Kb++];
-                    b &= 7;
+                    ga = phys_mem8[Kb++]; //r8
+                    b &= 7; //last bits
                     Ua = (b & 4) << 1;
                     regs[b & 3] = (regs[b & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     break Fd;
-                case 0xb8:
+                case 0xb8://op = B8+r  MOV  r16/32	imm16/32
                 case 0xb9:
                 case 0xba:
                 case 0xbb:
@@ -5555,7 +5636,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     regs[b & 7] = ga;
                     break Fd;
-                case 0x88:
+                case 0x88://MOV  r/m8   r8
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
                     ga = (regs[Ga & 3] >> ((Ga & 4) << 1));
@@ -5575,7 +5656,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         }
                     }
                     break Fd;
-                case 0x89:
+                case 0x89://MOV	 r/m16/32  r16/32
                     Ea = phys_mem8[Kb++];
                     ga = regs[(Ea >> 3) & 7];
                     if ((Ea >> 6) == 3) {
@@ -5592,7 +5673,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         }
                     }
                     break Fd;
-                case 0x8a:
+                case 0x8a://MOV	r8	r/m8
                     Ea = phys_mem8[Kb++];
                     if ((Ea >> 6) == 3) {
                         Fa = Ea & 7;
@@ -5605,7 +5686,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ua = (Ga & 4) << 1;
                     regs[Ga & 3] = (regs[Ga & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     break Fd;
-                case 0x8b:
+                case 0x8b://MOV	r16/32	r/m16/32
                     Ea = phys_mem8[Kb++];
                     if ((Ea >> 6) == 3) {
                         ga = regs[Ea & 7];
@@ -5615,25 +5696,25 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     regs[(Ea >> 3) & 7] = ga;
                     break Fd;
-                case 0xa0:
+                case 0xa0://MOV	AL	moffs8
                     fa = Ub();
                     ga = gb();
                     regs[0] = (regs[0] & -256) | ga;
                     break Fd;
-                case 0xa1:
+                case 0xa1://MOV	eAX	moffs16/32
                     fa = Ub();
                     ga = kb();
                     regs[0] = ga;
                     break Fd;
-                case 0xa2:
+                case 0xa2://MOV	moffs8	AL
                     fa = Ub();
                     sb(regs[0]);
                     break Fd;
-                case 0xa3:
+                case 0xa3://MOV	moffs16/32	eAX
                     fa = Ub();
                     wb(regs[0]);
                     break Fd;
-                case 0xd7:
+                case 0xd7://XLAT	AL	m8    Table Look-up Translation
                     fa = (regs[3] + (regs[0] & 0xff)) >> 0;
                     if (Da & 0x0080)
                         fa &= 0xffff;
@@ -5646,7 +5727,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ga = gb();
                     Vb(0, ga);
                     break Fd;
-                case 0xc6:
+                case 0xc6://MOV	r/m8	imm8
                     Ea = phys_mem8[Kb++];
                     if ((Ea >> 6) == 3) {
                         ga = phys_mem8[Kb++];
@@ -5657,7 +5738,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         sb(ga);
                     }
                     break Fd;
-                case 0xc7:
+                case 0xc7://MOV	r/m16/32	imm16/32
                     Ea = phys_mem8[Kb++];
                     if ((Ea >> 6) == 3) {
                         {
@@ -5674,7 +5755,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         wb(ga);
                     }
                     break Fd;
-                case 0x91:
+                case 0x91://(90+r)  XCHG  r16/32  eAX     Exchange Register/Memory with Register
                 case 0x92:
                 case 0x93:
                 case 0x94:
@@ -5686,7 +5767,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     regs[0] = regs[Ga];
                     regs[Ga] = ga;
                     break Fd;
-                case 0x86:
+                case 0x86://XCHG	r8	r/m8    Exchange Register/Memory with Register
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
@@ -5700,7 +5781,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     Vb(Ga, ga);
                     break Fd;
-                case 0x87:
+                case 0x87://XCHG	r16/32	r/m16/32	Exchange Register/Memory with Register
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
                     if ((Ea >> 6) == 3) {
@@ -5714,7 +5795,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     regs[Ga] = ga;
                     break Fd;
-                case 0x8e:
+                case 0x8e://MOV	Sreg	r/m16    Move
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
                     if (Ga >= 6 || Ga == 1)
@@ -5727,7 +5808,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     Ie(Ga, ga);
                     break Fd;
-                case 0x8c:
+                case 0x8c://MOV	m16	Sreg   OR  MOV	r16/32	Sreg      Move
                     Ea = phys_mem8[Kb++];
                     Ga = (Ea >> 3) & 7;
                     if (Ga >= 6)
@@ -5744,12 +5825,21 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ub(ga);
                     }
                     break Fd;
-                case 0xc4:
+                case 0xc4:// LES	ES	r16/32	m16:16/32								Load Far Pointer
                     Uf(0);
                     break Fd;
+                //	C5		r	LDS	DS	r16/32	m16:16/32								Load Far Pointer
                 case 0xc5:
                     Uf(3);
                     break Fd;
+                // 00	r		L	ADD	r/m8	r8					o..szapc	o..szapc			Add
+                // 08	r		L	OR	r/m8	r8					o..szapc	o..sz.pc	.....a..	o......c	Logical Inclusive OR
+                // 10		r					L	ADC	r/m8	r8				.......c	o..szapc	o..szapc			Add with Carry
+                // 18		r					L	SBB	r/m8	r8				.......c	o..szapc	o..szapc			Integer Subtraction with Borrow
+                // 20		r					L	AND	r/m8	r8					o..szapc	o..sz.pc	.....a..	o......c	Logical AND
+                // 28		r					L	SUB	r/m8	r8					o..szapc	o..szapc			Subtract
+                // 30		r					L	XOR	r/m8	r8					o..szapc	o..sz.pc	.....a..	o......c	Logical Exclusive OR
+                // 38		r						CMP	r/m8	r8					o..szapc	o..szapc			Compare Two Operands
                 case 0x00:
                 case 0x08:
                 case 0x10:
@@ -6332,6 +6422,19 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Dc(6);
                     }
                     break Fd;
+                //Rotate and Shift ops
+                /*
+                  C0		0	01+					ROL	r/m8	imm8					o..szapc	o..szapc	o.......		Rotate
+                  C0		1	01+					ROR	r/m8	imm8					o..szapc	o..szapc	o.......		Rotate
+                  C0		2	01+					RCL	r/m8	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
+                  C0		3	01+					RCR	r/m8	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
+                  C0		4	01+					SHL	r/m8	imm8					o..szapc	o..sz.pc	o....a.c		Shift
+                  SAL	r/m8	imm8
+                  C0		5	01+					SHR	r/m8	imm8					o..szapc	o..sz.pc	o....a.c		Shift
+                  C0		6	01+	U2				SAL	r/m8	imm8					o..szapc	o..sz.pc	o....a.c		Shift
+                  SHL	r/m8	imm8
+                  C0		7	01+					SAR	r/m8	imm8					o..szapc	o..sz.pc	o....a..		Shift
+                */
                 case 0xc0:
                     Ea = phys_mem8[Kb++];
                     Ja = (Ea >> 3) & 7;
@@ -6347,6 +6450,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         sb(ga);
                     }
                     break Fd;
+                /*
+                  C1		0	01+					ROL	r/m16/32	imm8					o..szapc	o..szapc	o.......		Rotate
+                  C1		1	01+					ROR	r/m16/32	imm8					o..szapc	o..szapc	o.......		Rotate
+                  C1		2	01+					RCL	r/m16/32	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
+                  C1		3	01+					RCR	r/m16/32	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
+                  C1		4	01+					SHL	r/m16/32	imm8					o..szapc	o..sz.pc	o....a.c		Shift
+                  SAL	r/m16/32	imm8
+                  C1		5	01+					SHR	r/m16/32	imm8					o..szapc	o..sz.pc	o....a.c		Shift
+                  C1		6	01+	U2				SAL	r/m16/32	imm8					o..szapc	o..sz.pc	o....a.c		Shift
+                  SHL	r/m16/32	imm8
+                  C1		7	01+					SAR	r/m16/32	imm8					o..szapc	o..sz.pc	o....a..		Shift
+                */
                 case 0xc1:
                     Ea = phys_mem8[Kb++];
                     Ja = (Ea >> 3) & 7;
@@ -6362,6 +6477,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         wb(ga);
                     }
                     break Fd;
+                /*
+                  D0		0						ROL	r/m8	1					o..szapc	o..szapc			Rotate
+                  D0		1						ROR	r/m8	1					o..szapc	o..szapc			Rotate
+                  D0		2						RCL	r/m8	1				.......c	o..szapc	o..szapc			Rotate
+                  D0		3						RCR	r/m8	1				.......c	o..szapc	o..szapc			Rotate
+                  D0		4						SHL	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
+                  SAL	r/m8	1
+                  D0		5						SHR	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
+                  D0		6		U2				SAL	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
+                  SHL	r/m8	1
+                  D0		7						SAR	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
+                */
                 case 0xd0:
                     Ea = phys_mem8[Kb++];
                     Ja = (Ea >> 3) & 7;
@@ -6375,6 +6502,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         sb(ga);
                     }
                     break Fd;
+                /*
+                  D1		0						ROL	r/m16/32	1					o..szapc	o..szapc			Rotate
+                  D1		1						ROR	r/m16/32	1					o..szapc	o..szapc			Rotate
+                  D1		2						RCL	r/m16/32	1				.......c	o..szapc	o..szapc			Rotate
+                  D1		3						RCR	r/m16/32	1				.......c	o..szapc	o..szapc			Rotate
+                  D1		4						SHL	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
+                  SAL	r/m16/32	1
+                  D1		5						SHR	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
+                  D1		6		U2				SAL	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
+                  SHL	r/m16/32	1
+                  D1		7						SAR	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
+                */
                 case 0xd1:
                     Ea = phys_mem8[Kb++];
                     Ja = (Ea >> 3) & 7;
@@ -6388,6 +6527,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         wb(ga);
                     }
                     break Fd;
+                /*
+                  D2		0						ROL	r/m8	CL					o..szapc	o..szapc	o.......		Rotate
+                  D2		1						ROR	r/m8	CL					o..szapc	o..szapc	o.......		Rotate
+                  D2		2						RCL	r/m8	CL				.......c	o..szapc	o..szapc	o.......		Rotate
+                  D2		3						RCR	r/m8	CL				.......c	o..szapc	o..szapc	o.......		Rotate
+                  D2		4						SHL	r/m8	CL					o..szapc	o..sz.pc	o....a.c		Shift
+                  SAL	r/m8	CL
+                  D2		5						SHR	r/m8	CL					o..szapc	o..sz.pc	o....a.c		Shift
+                  D2		6		U2				SAL	r/m8	CL					o..szapc	o..sz.pc	o....a.c		Shift
+                  SHL	r/m8	CL
+                  D2		7						SAR	r/m8	CL					o..szapc	o..sz.pc	o....a..		Shift
+                */
                 case 0xd2:
                     Ea = phys_mem8[Kb++];
                     Ja = (Ea >> 3) & 7;
@@ -6402,6 +6553,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         sb(ga);
                     }
                     break Fd;
+                /*
+		          D3		0						ROL	r/m16/32	CL					o..szapc	o..szapc	o.......		Rotate
+                  D3		1						ROR	r/m16/32	CL					o..szapc	o..szapc	o.......		Rotate
+                  D3		2						RCL	r/m16/32	CL				.......c	o..szapc	o..szapc	o.......		Rotate
+                  D3		3						RCR	r/m16/32	CL				.......c	o..szapc	o..szapc	o.......		Rotate
+                  D3		4						SHL	r/m16/32	CL					o..szapc	o..sz.pc	o....a.c		Shift
+                  SAL	r/m16/32	CL
+                  D3		5						SHR	r/m16/32	CL					o..szapc	o..sz.pc	o....a.c		Shift
+                  D3		6		U2				SAL	r/m16/32	CL					o..szapc	o..sz.pc	o....a.c		Shift
+                  SHL	r/m16/32	CL
+                  D3		7						SAR	r/m16/32	CL					o..szapc	o..sz.pc	.....a..		Shift
+                */
                 case 0xd3:
                     Ea = phys_mem8[Kb++];
                     Ja = (Ea >> 3) & 7;
@@ -6416,12 +6579,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         wb(ga);
                     }
                     break Fd;
+                //98								CBW	AX	AL									Convert Byte to Word
                 case 0x98:
                     regs[0] = (regs[0] << 16) >> 16;
                     break Fd;
+                //99								CWD	DX	AX									Convert Word to Doubleword
                 case 0x99:
                     regs[2] = regs[0] >> 31;
                     break Fd;
+                //50+r							PUSH	r16/32										Push Word, Doubleword or Quadword Onto the Stack
                 case 0x50:
                 case 0x51:
                 case 0x52:
@@ -6446,6 +6612,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         xd(ga);
                     }
                     break Fd;
+                //58+r							POP	r16/32										Pop a Value from the Stack
                 case 0x58:
                 case 0x59:
                 case 0x5a:
@@ -6464,12 +6631,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     regs[b & 7] = ga;
                     break Fd;
+                //60			01+					PUSHA	AX	CX	DX	...							Push All General-Purpose Registers
                 case 0x60:
                     Kf();
                     break Fd;
+               //61			01+					POPA	DI	SI	BP	...							Pop All General-Purpose Registers
                 case 0x61:
                     Mf();
                     break Fd;
+                //8F		0						POP	r/m16/32										Pop a Value from the Stack
                 case 0x8f:
                     Ea = phys_mem8[Kb++];
                     if ((Ea >> 6) == 3) {
@@ -6487,6 +6657,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         regs[4] = Ia;
                     }
                     break Fd;
+                //68			01+					PUSH	imm16/32										Push Word, Doubleword or Quadword Onto the Stack
                 case 0x68:
                     {
                         ga = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
@@ -6500,6 +6671,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         xd(ga);
                     }
                     break Fd;
+                //6A			01+					PUSH	imm8										Push Word, Doubleword or Quadword Onto the Stack
                 case 0x6a:
                     ga = ((phys_mem8[Kb++] << 24) >> 24);
                     if (Qa) {
@@ -6510,9 +6682,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         xd(ga);
                     }
                     break Fd;
+                //C8			01+					ENTER	eBP	imm16	imm8								Make Stack Frame for Procedure Parameters
                 case 0xc8:
                     Tf();
                     break Fd;
+                //C9			01+					LEAVE	eBP										High Level Procedure Exit
                 case 0xc9:
                     if (Qa) {
                         fa = regs[5];
@@ -6523,6 +6697,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Of();
                     }
                     break Fd;
+                /*
+                  9C								PUSHF	Flags										Push FLAGS Register onto the Stack
+                  9C			03+					PUSHFD	EFlags										Push eFLAGS Register onto the Stack
+                */
                 case 0x9c:
                     Sa = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && Sa != 3)
@@ -6534,6 +6712,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         vd(ga);
                     }
                     break Fd;
+                /*
+                  9D								POPF	Flags										Pop Stack into FLAGS Register
+                  9D			03+					POPFD	EFlags										Pop Stack into eFLAGS Register
+                */
                 case 0x9d:
                     Sa = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && Sa != 3)
@@ -7248,6 +7430,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0xf1:
                     Dc(6);
                     break;
+                /* TWO BYTE CODE INSTRUCTIONS BEGIN WITH 0F :  0F xx */
                 case 0x0f:
                     b = phys_mem8[Kb++];
                     switch (b) {
