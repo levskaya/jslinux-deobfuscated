@@ -849,14 +849,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 _op = 14;
                 break;
             case 2:
-                ac = bc();
+                ac = check_carry();
                 _src = Zb;
                 Yb = (Yb + Zb + ac) >> 0;
                 _dst = Yb;
                 _op = ac ? 5 : 2;
                 break;
             case 3:
-                ac = bc();
+                ac = check_carry();
                 _src = Zb;
                 Yb = (Yb - Zb - ac) >> 0;
                 _dst = Yb;
@@ -903,14 +903,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 _op = 13;
                 break;
             case 2:
-                ac = bc();
+                ac = check_carry();
                 _src = Zb;
                 Yb = (((Yb + Zb + ac) << 16) >> 16);
                 _dst = Yb;
                 _op = ac ? 4 : 1;
                 break;
             case 3:
-                ac = bc();
+                ac = check_carry();
                 _src = Zb;
                 Yb = (((Yb - Zb - ac) << 16) >> 16);
                 _dst = Yb;
@@ -975,14 +975,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 _op = 12;
                 break;
             case 2:
-                ac = bc();
+                ac = check_carry();
                 _src = Zb;
                 Yb = (((Yb + Zb + ac) << 24) >> 24);
                 _dst = Yb;
                 _op = ac ? 3 : 0;
                 break;
             case 3:
-                ac = bc();
+                ac = check_carry();
                 _src = Zb;
                 Yb = (((Yb - Zb - ac) << 24) >> 24);
                 _dst = Yb;
@@ -1064,7 +1064,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb &= 0xff;
                     kc = Yb;
-                    ac = bc();
+                    ac = check_carry();
                     Yb = (Yb << Zb) | (ac << (Zb - 1));
                     if (Zb > 1)
                         Yb |= kc >>> (9 - Zb);
@@ -1079,7 +1079,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb &= 0xff;
                     kc = Yb;
-                    ac = bc();
+                    ac = check_carry();
                     Yb = (Yb >>> Zb) | (ac << (8 - Zb));
                     if (Zb > 1)
                         Yb |= kc << (9 - Zb);
@@ -1153,7 +1153,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb &= 0xffff;
                     kc = Yb;
-                    ac = bc();
+                    ac = check_carry();
                     Yb = (Yb << Zb) | (ac << (Zb - 1));
                     if (Zb > 1)
                         Yb |= kc >>> (17 - Zb);
@@ -1168,7 +1168,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Zb) {
                     Yb &= 0xffff;
                     kc = Yb;
-                    ac = bc();
+                    ac = check_carry();
                     Yb = (Yb >>> Zb) | (ac << (16 - Zb));
                     if (Zb > 1)
                         Yb |= kc << (17 - Zb);
@@ -1239,7 +1239,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Zb &= 0x1f;
                 if (Zb) {
                     kc = Yb;
-                    ac = bc();
+                    ac = check_carry();
                     Yb = (Yb << Zb) | (ac << (Zb - 1));
                     if (Zb > 1)
                         Yb |= kc >>> (33 - Zb);
@@ -1253,7 +1253,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Zb &= 0x1f;
                 if (Zb) {
                     kc = Yb;
-                    ac = bc();
+                    ac = check_carry();
                     Yb = (Yb >>> Zb) | (ac << (32 - Zb));
                     if (Zb > 1)
                         Yb |= kc << (33 - Zb);
@@ -1651,7 +1651,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         _op = 23;
         return r;
     }
-    function bc() {
+    function check_carry() {
         var Yb, qc, Xc, Yc;
         if (_op >= 25) {
             Xc = _op2;
@@ -1732,7 +1732,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         }
         return qc;
     }
-    function Zc() {
+    function check_overflow() {
         var qc, Yb;
         switch (_op) {
             case 0:
@@ -1847,7 +1847,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc = (_src & (0x0040 | 0x0001)) != 0;
                 break;
             default:
-                qc = bc() | (_dst == 0);
+                qc = check_carry() | (_dst == 0);
                 break;
         }
         return qc;
@@ -1886,7 +1886,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc = ((_src >> 7) ^ (_src >> 11)) & 1;
                 break;
             default:
-                qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ Zc();
+                qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ check_overflow();
                 break;
         }
         return qc;
@@ -1918,7 +1918,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc = (((_src >> 7) ^ (_src >> 11)) | (_src >> 6)) & 1;
                 break;
             default:
-                qc = ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ Zc()) | (_dst == 0);
+                qc = ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ check_overflow()) | (_dst == 0);
                 break;
         }
         return qc;
@@ -1988,10 +1988,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         var qc;
         switch (gd >> 1) {
             case 0:
-                qc = Zc();
+                qc = check_overflow();
                 break;
             case 1:
-                qc = bc();
+                qc = check_carry();
                 break;
             case 2:
                 qc = (_dst == 0);
@@ -2020,7 +2020,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         return (bd() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | ed();
     }
     function hd() {
-        return (bc() << 0) | (bd() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | (Zc() << 11) | ed();
+        return (check_carry() << 0) | (bd() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | (check_overflow() << 11) | ed();
     }
     function id() {
         var jd;
@@ -2042,7 +2042,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function nd(na) {
         throw "CPU abort: " + na;
     }
-    function od() {
+    function cpu_dump() {
         cpu.eip = eip;
         cpu.cc_src = _src;
         cpu.cc_dst = _dst;
@@ -2051,7 +2051,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         cpu.cc_dst2 = _dst2;
         cpu.dump();
     }
-    function pd() {
+    function cpu_dump_short() {
         cpu.eip = eip;
         cpu.cc_src = _src;
         cpu.cc_dst = _dst;
@@ -6981,7 +6981,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Oe(Ha, ga);
                     break Fd;
                 case 0x70:
-                    if (Zc()) {
+                    if (check_overflow()) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         Kb = (Kb + ga) >> 0;
                     } else {
@@ -6989,7 +6989,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x71:
-                    if (!Zc()) {
+                    if (!check_overflow()) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         Kb = (Kb + ga) >> 0;
                     } else {
@@ -6997,7 +6997,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x72:
-                    if (bc()) {
+                    if (check_carry()) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         Kb = (Kb + ga) >> 0;
                     } else {
@@ -7005,7 +7005,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x73:
-                    if (!bc()) {
+                    if (!check_carry()) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         Kb = (Kb + ga) >> 0;
                     } else {
@@ -7232,7 +7232,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ae(ga, 1, 0, Ha, 0);
                     break Fd;
                 case 0xce:
-                    if (Zc()) {
+                    if (check_overflow()) {
                         Ha = (eip + Kb - Mb);
                         Ae(4, 1, 0, Ha, 0);
                     }
@@ -7278,7 +7278,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x9e:
-                    _src = ((regs[0] >> 8) & (0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001)) | (Zc() << 11);
+                    _src = ((regs[0] >> 8) & (0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001)) | (check_overflow() << 11);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
@@ -10365,6 +10365,10 @@ PCEmulator.prototype.register_ioport_write = function(start, tg, cc, Ch) {
 
 PCEmulator.prototype.ioport80_write = function(fa, Ig) {};
 PCEmulator.prototype.reset = function() { this.request_request = 1; };
+
+
+
+
 
 
 
