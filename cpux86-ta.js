@@ -2039,7 +2039,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function md() {
         return cpu.cycle_count + (ua - Ka);
     }
-    function nd(na) {
+    function cpu_abort(na) {
         throw "CPU abort: " + na;
     }
     function cpu_dump() {
@@ -3265,7 +3265,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     }
     function set_CR0(Qd) {
         if (!(Qd & (1 << 0)))  //0th bit protected or real, only real supported!
-            nd("real mode not supported");
+            cpu_abort("real mode not supported");
         //if changing flags 31, 16, or 0 must flush tlb
         if ((Qd & ((1 << 31) | (1 << 16) | (1 << 0))) != (cpu.cr0 & ((1 << 31) | (1 << 16) | (1 << 0)))) {
             cpu.tlb_flush_all();
@@ -3340,10 +3340,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
     function ge(he) {
         var ie, Rb, je, ke, le;
         if (!(cpu.tr.flags & (1 << 15)))
-            nd("invalid tss");
+            cpu_abort("invalid tss");
         ie = (cpu.tr.flags >> 8) & 0xf;
         if ((ie & 7) != 1)
-            nd("invalid tss type");
+            cpu_abort("invalid tss type");
         je = ie >> 3;
         Rb = (he * 4 + 2) << je;
         if (Rb + (4 << je) - 1 > cpu.tr.limit)
@@ -3818,7 +3818,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             de(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
             eip = Le, Kb = Mb = 0;
         } else {
-            nd("unsupported jump to call or task gate");
+            cpu_abort("unsupported jump to call or task gate");
         }
     }
     function Oe(Ke, Le) {
@@ -10365,6 +10365,7 @@ PCEmulator.prototype.register_ioport_write = function(start, tg, cc, Ch) {
 
 PCEmulator.prototype.ioport80_write = function(fa, Ig) {};
 PCEmulator.prototype.reset = function() { this.request_request = 1; };
+
 
 
 
