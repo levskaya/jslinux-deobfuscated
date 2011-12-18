@@ -329,7 +329,7 @@ CPU_X86.prototype.dump = function() {
 CPU_X86.prototype.exec_internal = function(ua, va) {
     var cpu, fa, regs;
     var _src, _dst, _op, _op2, _dst2;
-    var Da, Ea, Fa, OPbyte, Ga, ga, Ha, Ia, Ja, Ka, La, Ma;
+    var Da, mem8, Fa, OPbyte, Ga, ga, Ha, Ia, Ja, Ka, La, Ma;
     var Na, Oa, Pa, Qa, Ra, Sa;
     var phys_mem8, Ua;
     var phys_mem16, phys_mem32;
@@ -559,10 +559,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Ha = phys_mem8[Kb++];
         return ga | (Ha << 8);
     }
-    function Pb(Ea) {
+    function Pb(mem8) {
         var base, fa, Qb, Rb, Sb, Tb;
         if (Qa && (Da & (0x000f | 0x0080)) == 0) {
-            switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+            switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                 case 0x04:
                     Qb = phys_mem8[Kb++];
                     base = Qb & 7;
@@ -614,7 +614,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x03:
                 case 0x06:
                 case 0x07:
-                    base = Ea & 7;
+                    base = mem8 & 7;
                     fa = regs[base];
                     break;
                 case 0x08:
@@ -625,7 +625,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x0e:
                 case 0x0f:
                     fa = ((phys_mem8[Kb++] << 24) >> 24);
-                    base = Ea & 7;
+                    base = mem8 & 7;
                     fa = (fa + regs[base]) >> 0;
                     break;
                 case 0x10:
@@ -640,17 +640,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         fa = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
                         Kb += 4;
                     }
-                    base = Ea & 7;
+                    base = mem8 & 7;
                     fa = (fa + regs[base]) >> 0;
                     break;
             }
             return fa;
         } else if (Da & 0x0080) {
-            if ((Ea & 0xc7) == 0x06) {
+            if ((mem8 & 0xc7) == 0x06) {
                 fa = Ob();
                 Tb = 3;
             } else {
-                switch (Ea >> 6) {
+                switch (mem8 >> 6) {
                     case 0:
                         fa = 0;
                         break;
@@ -661,7 +661,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         fa = Ob();
                         break;
                 }
-                switch (Ea & 7) {
+                switch (mem8 & 7) {
                     case 0:
                         fa = (fa + regs[3] + regs[6]) & 0xffff;
                         Tb = 3;
@@ -706,7 +706,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             fa = (fa + cpu.segs[Sb].base) >> 0;
             return fa;
         } else {
-            switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+            switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                 case 0x04:
                     Qb = phys_mem8[Kb++];
                     base = Qb & 7;
@@ -760,7 +760,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x03:
                 case 0x06:
                 case 0x07:
-                    base = Ea & 7;
+                    base = mem8 & 7;
                     fa = regs[base];
                     break;
                 case 0x08:
@@ -771,7 +771,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x0e:
                 case 0x0f:
                     fa = ((phys_mem8[Kb++] << 24) >> 24);
-                    base = Ea & 7;
+                    base = mem8 & 7;
                     fa = (fa + regs[base]) >> 0;
                     break;
                 case 0x10:
@@ -786,7 +786,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         fa = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
                         Kb += 4;
                     }
-                    base = Ea & 7;
+                    base = mem8 & 7;
                     fa = (fa + regs[base]) >> 0;
                     break;
             }
@@ -2132,7 +2132,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         regs[4] = (regs[4] & ~Pa) | ((regs[4] + 4) & Pa);
     }
     function Cd(Nb, OPbyte) {
-        var n, Da, l, Ea, Dd, base, Ja, Ed;
+        var n, Da, l, mem8, Dd, base, Ja, Ed;
         n = 1;
         Da = Ra;
         if (Da & 0x0100)
@@ -2413,12 +2413,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            mem8 = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
-                            switch (Ea >> 6) {
+                            switch (mem8 >> 6) {
                                 case 0:
-                                    if ((Ea & 7) == 6)
+                                    if ((mem8 & 7) == 6)
                                         n += 2;
                                     break;
                                 case 1:
@@ -2429,7 +2429,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                             }
                         } else {
-                            switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+                            switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
@@ -2504,12 +2504,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            mem8 = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
-                            switch (Ea >> 6) {
+                            switch (mem8 >> 6) {
                                 case 0:
-                                    if ((Ea & 7) == 6)
+                                    if ((mem8 & 7) == 6)
                                         n += 2;
                                     break;
                                 case 1:
@@ -2520,7 +2520,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                             }
                         } else {
-                            switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+                            switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
@@ -2583,12 +2583,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            mem8 = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
-                            switch (Ea >> 6) {
+                            switch (mem8 >> 6) {
                                 case 0:
-                                    if ((Ea & 7) == 6)
+                                    if ((mem8 & 7) == 6)
                                         n += 2;
                                     break;
                                 case 1:
@@ -2599,7 +2599,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                             }
                         } else {
-                            switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+                            switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
@@ -2660,12 +2660,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            mem8 = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
-                            switch (Ea >> 6) {
+                            switch (mem8 >> 6) {
                                 case 0:
-                                    if ((Ea & 7) == 6)
+                                    if ((mem8 & 7) == 6)
                                         n += 2;
                                     break;
                                 case 1:
@@ -2676,7 +2676,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                             }
                         } else {
-                            switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+                            switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
@@ -2727,7 +2727,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         if (n > 15)
                             blow_up_errcode0(6);
                     }
-                    Ja = (Ea >> 3) & 7;
+                    Ja = (mem8 >> 3) & 7;
                     if (Ja == 0) {
                         n++;
                         if (n > 15)
@@ -2740,12 +2740,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             if ((n + 1) > 15)
                                 blow_up_errcode0(6);
                             fa = (Nb + (n++)) >> 0;
-                            Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                            mem8 = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                         }
                         if (Da & 0x0080) {
-                            switch (Ea >> 6) {
+                            switch (mem8 >> 6) {
                                 case 0:
-                                    if ((Ea & 7) == 6)
+                                    if ((mem8 & 7) == 6)
                                         n += 2;
                                     break;
                                 case 1:
@@ -2756,7 +2756,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                             }
                         } else {
-                            switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+                            switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
@@ -2807,7 +2807,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         if (n > 15)
                             blow_up_errcode0(6);
                     }
-                    Ja = (Ea >> 3) & 7;
+                    Ja = (mem8 >> 3) & 7;
                     if (Ja == 0) {
                         n += Ed;
                         if (n > 15)
@@ -2943,12 +2943,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     if ((n + 1) > 15)
                                         blow_up_errcode0(6);
                                     fa = (Nb + (n++)) >> 0;
-                                    Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                    mem8 = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                 }
                                 if (Da & 0x0080) {
-                                    switch (Ea >> 6) {
+                                    switch (mem8 >> 6) {
                                         case 0:
-                                            if ((Ea & 7) == 6)
+                                            if ((mem8 & 7) == 6)
                                                 n += 2;
                                             break;
                                         case 1:
@@ -2959,7 +2959,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                             break;
                                     }
                                 } else {
-                                    switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+                                    switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                                         case 0x04:
                                             {
                                                 if ((n + 1) > 15)
@@ -3019,12 +3019,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     if ((n + 1) > 15)
                                         blow_up_errcode0(6);
                                     fa = (Nb + (n++)) >> 0;
-                                    Ea = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
+                                    mem8 = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                                 }
                                 if (Da & 0x0080) {
-                                    switch (Ea >> 6) {
+                                    switch (mem8 >> 6) {
                                         case 0:
-                                            if ((Ea & 7) == 6)
+                                            if ((mem8 & 7) == 6)
                                                 n += 2;
                                             break;
                                         case 1:
@@ -3035,7 +3035,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                             break;
                                     }
                                 } else {
-                                    switch ((Ea & 7) | ((Ea >> 3) & 0x18)) {
+                                    switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                                         case 0x04:
                                             {
                                                 if ((n + 1) > 15)
@@ -3302,6 +3302,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         Wd = Cb();
         return [Yd, Wd];
     }
+
+
     function Zd(Yd, Wd) {
         var limit;
         limit = (Yd & 0xffff) | (Wd & 0x000f0000);
@@ -3317,6 +3319,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         sa.limit = Zd(Yd, Wd);
         sa.flags = Wd;
     }
+
+
     function ce() {
         Na = cpu.segs[1].base;
         Oa = cpu.segs[2].base;
@@ -3330,12 +3334,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         else
             Ra = 0x0100 | 0x0080;
     }
-    function de(ee, selector, base, limit, flags) {
+    function set_segment_vars(ee, selector, base, limit, flags) {
         cpu.segs[ee] = {selector: selector,base: base,limit: limit,flags: flags};
         ce();
     }
     function fe(Sb, selector) {
-        de(Sb, selector, (selector << 4), 0xffff, (1 << 15) | (3 << 13) | (1 << 12) | (1 << 8) | (1 << 12) | (1 << 9));
+        set_segment_vars(Sb, selector, (selector << 4), 0xffff, (1 << 15) | (3 << 13) | (1 << 12) | (1 << 8) | (1 << 12) | (1 << 9));
     }
     function ge(he) {
         var ie, Rb, je, ke, le;
@@ -3580,17 +3584,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         }
         if (ue) {
             if (cpu.eflags & 0x00020000) {
-                de(0, 0, 0, 0, 0);
-                de(3, 0, 0, 0, 0);
-                de(4, 0, 0, 0, 0);
-                de(5, 0, 0, 0, 0);
+                set_segment_vars(0, 0, 0, 0, 0);
+                set_segment_vars(3, 0, 0, 0, 0);
+                set_segment_vars(4, 0, 0, 0, 0);
+                set_segment_vars(5, 0, 0, 0, 0);
             }
             ke = (ke & ~3) | he;
-            de(2, ke, qe, Zd(we, xe), xe);
+            set_segment_vars(2, ke, qe, Zd(we, xe), xe);
         }
         regs[4] = (regs[4] & ~Pa) | ((le) & Pa);
         selector = (selector & ~3) | he;
-        de(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+        set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
         rd(he);
         eip = ve, Kb = Mb = 0;
         if ((ie & 1) == 0) {
@@ -3724,7 +3728,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         if ((selector & 0xfffc) == 0) {
             if (Ge == 2)
                 blow_up(13, 0);
-            de(Ge, selector, 0, 0, 0);
+            set_segment_vars(Ge, selector, 0, 0, 0);
         } else {
             if (selector & 0x4)
                 sa = cpu.ldt;
@@ -3764,7 +3768,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 Wd |= (1 << 8);
                 Ib(Wd);
             }
-            de(Ge, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(Ge, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
         }
     }
     function Ie(Ge, selector) {
@@ -3815,7 +3819,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             limit = Zd(Yd, Wd);
             if ((Le >>> 0) > (limit >>> 0))
                 blow_up(13, Ke & 0xfffc);
-            de(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
+            set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
             eip = Le, Kb = Mb = 0;
         } else {
             cpu_abort("unsupported jump to call or task gate");
@@ -3836,7 +3840,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         he = (Wd >> 13) & 3;
         if (!(Wd & (1 << 11)) || !(Wd & (1 << 10))) {
             if (he < se) {
-                de(Ge, 0, 0, 0, 0);
+                set_segment_vars(Ge, 0, 0, 0, 0);
             }
         }
     }
@@ -3934,7 +3938,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 if (Le > limit)
                     blow_up(13, Ke & 0xfffc);
                 regs[4] = (regs[4] & ~Pa) | ((Te) & Pa);
-                de(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
+                set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
                 eip = Le, Kb = Mb = 0;
             }
         } else {
@@ -4071,10 +4075,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             }
             if (ue) {
                 ke = (ke & ~3) | he;
-                de(2, ke, qe, Zd(we, xe), xe);
+                set_segment_vars(2, ke, qe, Zd(we, xe), xe);
             }
             selector = (selector & ~3) | he;
-            de(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
             rd(he);
             regs[4] = (regs[4] & ~Pa) | ((Te) & Pa);
             eip = ve, Kb = Mb = 0;
@@ -4255,7 +4259,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             blow_up(11, Ke & 0xfffc);
         Te = (Te + cf) & -1;
         if (He == se) {
-            de(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
         } else {
             if (je == 1) {
                 {
@@ -4298,9 +4302,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     blow_up(13, gf & 0xfffc);
                 if (!(xe & (1 << 15)))
                     blow_up(11, gf & 0xfffc);
-                de(2, gf, ae(we, xe), Zd(we, xe), xe);
+                set_segment_vars(2, gf, ae(we, xe), Zd(we, xe), xe);
             }
-            de(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
             rd(He);
             Te = wd;
             Pa = Vd(xe);
@@ -4394,15 +4398,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         }
     }
     function qf(je, pf) {
-        var ga, Ea, Ga, selector;
+        var ga, mem8, Ga, selector;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
             blow_up_errcode0(6);
-        Ea = phys_mem8[Kb++];
-        Ga = (Ea >> 3) & 7;
-        if ((Ea >> 6) == 3) {
-            selector = regs[Ea & 7] & 0xffff;
+        mem8 = phys_mem8[Kb++];
+        Ga = (mem8 >> 3) & 7;
+        if ((mem8 >> 6) == 3) {
+            selector = regs[mem8 & 7] & 0xffff;
         } else {
-            fa = Pb(Ea);
+            fa = Pb(mem8);
             selector = ib();
         }
         ga = of(selector, pf);
@@ -4464,22 +4468,22 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         _op = 24;
     }
     function tf() {
-        var Ea, ga, Ha, Fa;
+        var mem8, ga, Ha, Fa;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
             blow_up_errcode0(6);
-        Ea = phys_mem8[Kb++];
-        if ((Ea >> 6) == 3) {
-            Fa = Ea & 7;
+        mem8 = phys_mem8[Kb++];
+        if ((mem8 >> 6) == 3) {
+            Fa = mem8 & 7;
             ga = regs[Fa] & 0xffff;
         } else {
-            fa = Pb(Ea);
+            fa = Pb(mem8);
             ga = ob();
         }
-        Ha = regs[(Ea >> 3) & 7];
+        Ha = regs[(mem8 >> 3) & 7];
         _src = hd();
         if ((ga & 3) < (Ha & 3)) {
             ga = (ga & ~3) | (Ha & 3);
-            if ((Ea >> 6) == 3) {
+            if ((mem8 >> 6) == 3) {
                 set_lower_two_bytes_of_register(Fa, ga);
             } else {
                 ub(ga);
@@ -4620,29 +4624,29 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         _op = 24;
     }
     function Hf() {
-        var Ea, ga, Ha, Ia;
-        Ea = phys_mem8[Kb++];
-        if ((Ea >> 3) == 3)
+        var mem8, ga, Ha, Ia;
+        mem8 = phys_mem8[Kb++];
+        if ((mem8 >> 3) == 3)
             blow_up_errcode0(6);
-        fa = Pb(Ea);
+        fa = Pb(mem8);
         ga = kb();
         fa = (fa + 4) & -1;
         Ha = kb();
-        Ga = (Ea >> 3) & 7;
+        Ga = (mem8 >> 3) & 7;
         Ia = regs[Ga];
         if (Ia < ga || Ia > Ha)
             blow_up_errcode0(5);
     }
     function If() {
-        var Ea, ga, Ha, Ia;
-        Ea = phys_mem8[Kb++];
-        if ((Ea >> 3) == 3)
+        var mem8, ga, Ha, Ia;
+        mem8 = phys_mem8[Kb++];
+        if ((mem8 >> 3) == 3)
             blow_up_errcode0(6);
-        fa = Pb(Ea);
+        fa = Pb(mem8);
         ga = (ib() << 16) >> 16;
         fa = (fa + 2) & -1;
         Ha = (ib() << 16) >> 16;
-        Ga = (Ea >> 3) & 7;
+        Ga = (mem8 >> 3) & 7;
         Ia = (regs[Ga] << 16) >> 16;
         if (Ia < ga || Ia > Ha)
             blow_up_errcode0(5);
@@ -4782,28 +4786,28 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         regs[4] = (regs[4] & ~Pa) | ((le) & Pa);
     }
     function Uf(Sb) {
-        var ga, Ha, Ea;
-        Ea = phys_mem8[Kb++];
-        if ((Ea >> 3) == 3)
+        var ga, Ha, mem8;
+        mem8 = phys_mem8[Kb++];
+        if ((mem8 >> 3) == 3)
             blow_up_errcode0(6);
-        fa = Pb(Ea);
+        fa = Pb(mem8);
         ga = kb();
         fa += 4;
         Ha = ib();
         Ie(Sb, Ha);
-        regs[(Ea >> 3) & 7] = ga;
+        regs[(mem8 >> 3) & 7] = ga;
     }
     function Vf(Sb) {
-        var ga, Ha, Ea;
-        Ea = phys_mem8[Kb++];
-        if ((Ea >> 3) == 3)
+        var ga, Ha, mem8;
+        mem8 = phys_mem8[Kb++];
+        if ((mem8 >> 3) == 3)
             blow_up_errcode0(6);
-        fa = Pb(Ea);
+        fa = Pb(mem8);
         ga = ib();
         fa += 2;
         Ha = ib();
         Ie(Sb, Ha);
-        set_lower_two_bytes_of_register((Ea >> 3) & 7, ga);
+        set_lower_two_bytes_of_register((mem8 >> 3) & 7, ga);
     }
     function Wf() {
         var Xf, Yf, Zf, ag, Sa, ga;
@@ -5691,15 +5695,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     regs[OPbyte & 7] = ga;
                     break Fd;
                 case 0x88://MOV  r/m8   r8
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
                     ga = (regs[Ga & 3] >> ((Ga & 4) << 1));
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         Ua = (Fa & 4) << 1;
                         regs[Fa & 3] = (regs[Fa & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         {
                             Ua = _tlb_write_[fa >>> 12];
                             if (Ua == -1) {
@@ -5711,12 +5715,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x89://MOV	 r/m16/32  r16/32
-                    Ea = phys_mem8[Kb++];
-                    ga = regs[(Ea >> 3) & 7];
-                    if ((Ea >> 6) == 3) {
-                        regs[Ea & 7] = ga;
+                    mem8 = phys_mem8[Kb++];
+                    ga = regs[(mem8 >> 3) & 7];
+                    if ((mem8 >> 6) == 3) {
+                        regs[mem8 & 7] = ga;
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         {
                             Ua = _tlb_write_[fa >>> 12];
                             if ((Ua | fa) & 3) {
@@ -5728,27 +5732,27 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x8a://MOV	r8	r/m8
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                     }
-                    Ga = (Ea >> 3) & 7;
+                    Ga = (mem8 >> 3) & 7;
                     Ua = (Ga & 4) << 1;
                     regs[Ga & 3] = (regs[Ga & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     break Fd;
                 case 0x8b://MOV	r16/32	r/m16/32
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3) {
-                        ga = regs[Ea & 7];
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3) {
+                        ga = regs[mem8 & 7];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = (((Ua = _tlb_read_[fa >>> 12]) | fa) & 3 ? jb() : phys_mem32[(fa ^ Ua) >> 2]);
                     }
-                    regs[(Ea >> 3) & 7] = ga;
+                    regs[(mem8 >> 3) & 7] = ga;
                     break Fd;
                 case 0xa0://MOV	AL	moffs8
                     fa = Ub();
@@ -5782,26 +5786,26 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     set_either_two_bytes_of_reg_ABCD(0, ga);
                     break Fd;
                 case 0xc6://MOV	r/m8	imm8
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3) {
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3) {
                         ga = phys_mem8[Kb++];
-                        set_either_two_bytes_of_reg_ABCD(Ea & 7, ga);
+                        set_either_two_bytes_of_reg_ABCD(mem8 & 7, ga);
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = phys_mem8[Kb++];
                         sb(ga);
                     }
                     break Fd;
                 case 0xc7://MOV	r/m16/32	imm16/32
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3) {
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3) {
                         {
                             ga = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
                             Kb += 4;
                         }
-                        regs[Ea & 7] = ga;
+                        regs[mem8 & 7] = ga;
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         {
                             ga = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
                             Kb += 4;
@@ -5822,60 +5826,60 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     regs[Ga] = ga;
                     break Fd;
                 case 0x86://XCHG	r8	r/m8    Exchange Register/Memory with Register
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                         set_either_two_bytes_of_reg_ABCD(Fa, (regs[Ga & 3] >> ((Ga & 4) << 1)));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = mb();
                         sb((regs[Ga & 3] >> ((Ga & 4) << 1)));
                     }
                     set_either_two_bytes_of_reg_ABCD(Ga, ga);
                     break Fd;
                 case 0x87://XCHG	r16/32	r/m16/32	Exchange Register/Memory with Register
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         ga = regs[Fa];
                         regs[Fa] = regs[Ga];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = qb();
                         wb(regs[Ga]);
                     }
                     regs[Ga] = ga;
                     break Fd;
                 case 0x8e://MOV	Sreg	r/m16    Move
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
                     if (Ga >= 6 || Ga == 1)
                         blow_up_errcode0(6);
-                    if ((Ea >> 6) == 3) {
-                        ga = regs[Ea & 7] & 0xffff;
+                    if ((mem8 >> 6) == 3) {
+                        ga = regs[mem8 & 7] & 0xffff;
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = ib();
                     }
                     Ie(Ga, ga);
                     break Fd;
                 case 0x8c://MOV	m16	Sreg   OR  MOV	r16/32	Sreg      Move
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
                     if (Ga >= 6)
                         blow_up_errcode0(6);
                     ga = cpu.segs[Ga].selector;
-                    if ((Ea >> 6) == 3) {
+                    if ((mem8 >> 6) == 3) {
                         if ((((Da >> 8) & 1) ^ 1)) {
-                            regs[Ea & 7] = ga;
+                            regs[mem8 & 7] = ga;
                         } else {
-                            set_lower_two_bytes_of_register(Ea & 7, ga);
+                            set_lower_two_bytes_of_register(mem8 & 7, ga);
                         }
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ub(ga);
                     }
                     break Fd;
@@ -5902,15 +5906,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x28:
                 case 0x30:
                 case 0x38:
-                    Ea = phys_mem8[Kb++];
+                    mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
-                    Ga = (Ea >> 3) & 7;
+                    Ga = (mem8 >> 3) & 7;
                     Ha = (regs[Ga & 3] >> ((Ga & 4) << 1));
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         set_either_two_bytes_of_reg_ABCD(Fa, do_8bit_math(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         if (Ja != 7) {
                             ga = mb();
                             ga = do_8bit_math(Ja, ga, Ha);
@@ -5922,17 +5926,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x01:
-                    Ea = phys_mem8[Kb++];
-                    Ha = regs[(Ea >> 3) & 7];
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ha = regs[(mem8 >> 3) & 7];
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         {
                             _src = Ha;
                             _dst = regs[Fa] = (regs[Fa] + _src) >> 0;
                             _op = 2;
                         }
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = qb();
                         {
                             _src = Ha;
@@ -5948,32 +5952,32 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x21:
                 case 0x29:
                 case 0x31:
-                    Ea = phys_mem8[Kb++];
+                    mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
-                    Ha = regs[(Ea >> 3) & 7];
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    Ha = regs[(mem8 >> 3) & 7];
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         regs[Fa] = do_32bit_math(Ja, regs[Fa], Ha);
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = qb();
                         ga = do_32bit_math(Ja, ga, Ha);
                         wb(ga);
                     }
                     break Fd;
                 case 0x39:
-                    Ea = phys_mem8[Kb++];
+                    mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
-                    Ha = regs[(Ea >> 3) & 7];
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    Ha = regs[(mem8 >> 3) & 7];
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         {
                             _src = Ha;
                             _dst = (regs[Fa] - _src) >> 0;
                             _op = 8;
                         }
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = kb();
                         {
                             _src = Ha;
@@ -5990,25 +5994,25 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x2a:
                 case 0x32:
                 case 0x3a:
-                    Ea = phys_mem8[Kb++];
+                    mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         Ha = (regs[Fa & 3] >> ((Fa & 4) << 1));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = gb();
                     }
                     set_either_two_bytes_of_reg_ABCD(Ga, do_8bit_math(Ja, (regs[Ga & 3] >> ((Ga & 4) << 1)), Ha));
                     break Fd;
                 case 0x03:
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Ha = regs[Ea & 7];
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Ha = regs[mem8 & 7];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = kb();
                     }
                     {
@@ -6023,25 +6027,25 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x23:
                 case 0x2b:
                 case 0x33:
-                    Ea = phys_mem8[Kb++];
+                    mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Ha = regs[Ea & 7];
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Ha = regs[mem8 & 7];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = kb();
                     }
                     regs[Ga] = do_32bit_math(Ja, regs[Ga], Ha);
                     break Fd;
                 case 0x3b:
-                    Ea = phys_mem8[Kb++];
+                    mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Ha = regs[Ea & 7];
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Ha = regs[mem8 & 7];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = kb();
                     }
                     {
@@ -6108,14 +6112,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 case 0x80:
                 case 0x82:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         Ha = phys_mem8[Kb++];
                         set_either_two_bytes_of_reg_ABCD(Fa, do_8bit_math(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = phys_mem8[Kb++];
                         if (Ja != 7) {
                             ga = mb();
@@ -6128,13 +6132,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x81:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     if (Ja == 7) {
-                        if ((Ea >> 6) == 3) {
-                            ga = regs[Ea & 7];
+                        if ((mem8 >> 6) == 3) {
+                            ga = regs[mem8 & 7];
                         } else {
-                            fa = Pb(Ea);
+                            fa = Pb(mem8);
                             ga = kb();
                         }
                         {
@@ -6147,15 +6151,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             _op = 8;
                         }
                     } else {
-                        if ((Ea >> 6) == 3) {
-                            Fa = Ea & 7;
+                        if ((mem8 >> 6) == 3) {
+                            Fa = mem8 & 7;
                             {
                                 Ha = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
                                 Kb += 4;
                             }
                             regs[Fa] = do_32bit_math(Ja, regs[Fa], Ha);
                         } else {
-                            fa = Pb(Ea);
+                            fa = Pb(mem8);
                             {
                                 Ha = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
                                 Kb += 4;
@@ -6167,13 +6171,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x83:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     if (Ja == 7) {
-                        if ((Ea >> 6) == 3) {
-                            ga = regs[Ea & 7];
+                        if ((mem8 >> 6) == 3) {
+                            ga = regs[mem8 & 7];
                         } else {
-                            fa = Pb(Ea);
+                            fa = Pb(mem8);
                             ga = kb();
                         }
                         Ha = ((phys_mem8[Kb++] << 24) >> 24);
@@ -6183,12 +6187,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             _op = 8;
                         }
                     } else {
-                        if ((Ea >> 6) == 3) {
-                            Fa = Ea & 7;
+                        if ((mem8 >> 6) == 3) {
+                            Fa = mem8 & 7;
                             Ha = ((phys_mem8[Kb++] << 24) >> 24);
                             regs[Fa] = do_32bit_math(Ja, regs[Fa], Ha);
                         } else {
-                            fa = Pb(Ea);
+                            fa = Pb(mem8);
                             Ha = ((phys_mem8[Kb++] << 24) >> 24);
                             ga = qb();
                             ga = do_32bit_math(Ja, ga, Ha);
@@ -6233,24 +6237,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x6b:
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Ha = regs[Ea & 7];
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Ha = regs[mem8 & 7];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = kb();
                     }
                     Ia = ((phys_mem8[Kb++] << 24) >> 24);
                     regs[Ga] = Wc(Ha, Ia);
                     break Fd;
                 case 0x69:
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Ha = regs[Ea & 7];
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Ha = regs[mem8 & 7];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = kb();
                     }
                     {
@@ -6260,15 +6264,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     regs[Ga] = Wc(Ha, Ia);
                     break Fd;
                 case 0x84:
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = gb();
                     }
-                    Ga = (Ea >> 3) & 7;
+                    Ga = (mem8 >> 3) & 7;
                     Ha = (regs[Ga & 3] >> ((Ga & 4) << 1));
                     {
                         _dst = (((ga & Ha) << 24) >> 24);
@@ -6276,14 +6280,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x85:
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3) {
-                        ga = regs[Ea & 7];
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3) {
+                        ga = regs[mem8 & 7];
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = kb();
                     }
-                    Ha = regs[(Ea >> 3) & 7];
+                    Ha = regs[(mem8 >> 3) & 7];
                     {
                         _dst = ga & Ha;
                         _op = 14;
@@ -6307,15 +6311,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0xf6:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     switch (Ja) {
                         case 0:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = gb();
                             }
                             Ha = phys_mem8[Kb++];
@@ -6325,63 +6329,63 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break;
                         case 2:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 set_either_two_bytes_of_reg_ABCD(Fa, ~(regs[Fa & 3] >> ((Fa & 4) << 1)));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = mb();
                                 ga = ~ga;
                                 sb(ga);
                             }
                             break;
                         case 3:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 set_either_two_bytes_of_reg_ABCD(Fa, do_8bit_math(5, 0, (regs[Fa & 3] >> ((Fa & 4) << 1))));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = mb();
                                 ga = do_8bit_math(5, 0, ga);
                                 sb(ga);
                             }
                             break;
                         case 4:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = gb();
                             }
                             set_lower_two_bytes_of_register(0, Oc(regs[0], ga));
                             break;
                         case 5:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = gb();
                             }
                             set_lower_two_bytes_of_register(0, Pc(regs[0], ga));
                             break;
                         case 6:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = gb();
                             }
                             Cc(ga);
                             break;
                         case 7:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = gb();
                             }
                             Ec(ga);
@@ -6391,14 +6395,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0xf7:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     switch (Ja) {
                         case 0:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             {
@@ -6411,62 +6415,62 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break;
                         case 2:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 regs[Fa] = ~regs[Fa];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 ga = ~ga;
                                 wb(ga);
                             }
                             break;
                         case 3:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 regs[Fa] = do_32bit_math(5, 0, regs[Fa]);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 ga = do_32bit_math(5, 0, ga);
                                 wb(ga);
                             }
                             break;
                         case 4:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             regs[0] = Vc(regs[0], ga);
                             regs[2] = Ma;
                             break;
                         case 5:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             regs[0] = Wc(regs[0], ga);
                             regs[2] = Ma;
                             break;
                         case 6:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             regs[0] = Hc(regs[2], regs[0], ga);
                             regs[2] = Ma;
                             break;
                         case 7:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             regs[0] = Lc(regs[2], regs[0], ga);
@@ -6490,14 +6494,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                   C0		7	01+					SAR	r/m8	imm8					o..szapc	o..sz.pc	o....a..		Shift
                 */
                 case 0xc0:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
                         Ha = phys_mem8[Kb++];
-                        Fa = Ea & 7;
+                        Fa = mem8 & 7;
                         set_either_two_bytes_of_reg_ABCD(Fa, shift8(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = phys_mem8[Kb++];
                         ga = mb();
                         ga = shift8(Ja, ga, Ha);
@@ -6517,14 +6521,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                   C1		7	01+					SAR	r/m16/32	imm8					o..szapc	o..sz.pc	o....a..		Shift
                 */
                 case 0xc1:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
                         Ha = phys_mem8[Kb++];
-                        Fa = Ea & 7;
+                        Fa = mem8 & 7;
                         regs[Fa] = nc(Ja, regs[Fa], Ha);
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         Ha = phys_mem8[Kb++];
                         ga = qb();
                         ga = nc(Ja, ga, Ha);
@@ -6544,13 +6548,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                   D0		7						SAR	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
                 */
                 case 0xd0:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         set_either_two_bytes_of_reg_ABCD(Fa, shift8(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), 1));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = mb();
                         ga = shift8(Ja, ga, 1);
                         sb(ga);
@@ -6569,13 +6573,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                   D1		7						SAR	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
                 */
                 case 0xd1:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         regs[Fa] = nc(Ja, regs[Fa], 1);
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = qb();
                         ga = nc(Ja, ga, 1);
                         wb(ga);
@@ -6594,14 +6598,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                   D2		7						SAR	r/m8	CL					o..szapc	o..sz.pc	o....a..		Shift
                 */
                 case 0xd2:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     Ha = regs[1] & 0xff;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         set_either_two_bytes_of_reg_ABCD(Fa, shift8(Ja, (regs[Fa & 3] >> ((Fa & 4) << 1)), Ha));
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = mb();
                         ga = shift8(Ja, ga, Ha);
                         sb(ga);
@@ -6620,14 +6624,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                   D3		7						SAR	r/m16/32	CL					o..szapc	o..sz.pc	.....a..		Shift
                 */
                 case 0xd3:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     Ha = regs[1] & 0xff;
-                    if ((Ea >> 6) == 3) {
-                        Fa = Ea & 7;
+                    if ((mem8 >> 6) == 3) {
+                        Fa = mem8 & 7;
                         regs[Fa] = nc(Ja, regs[Fa], Ha);
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         ga = qb();
                         ga = nc(Ja, ga, Ha);
                         wb(ga);
@@ -6695,17 +6699,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 //8F		0						POP	r/m16/32										Pop a Value from the Stack
                 case 0x8f:
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3) {
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3) {
                         ga = Ad();
                         Bd();
-                        regs[Ea & 7] = ga;
+                        regs[mem8 & 7] = ga;
                     } else {
                         ga = Ad();
                         Ha = regs[4];
                         Bd();
                         Ia = regs[4];
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                         regs[4] = Ha;
                         wb(ga);
                         regs[4] = Ia;
@@ -6809,33 +6813,33 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Bd();
                     break Fd;
                 case 0x8d:
-                    Ea = phys_mem8[Kb++];
-                    if ((Ea >> 6) == 3)
+                    mem8 = phys_mem8[Kb++];
+                    if ((mem8 >> 6) == 3)
                         blow_up_errcode0(6);
                     Da = (Da & ~0x000f) | (6 + 1);
-                    regs[(Ea >> 3) & 7] = Pb(Ea);
+                    regs[(mem8 >> 3) & 7] = Pb(mem8);
                     break Fd;
                 case 0xfe:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     switch (Ja) {
                         case 0:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 set_either_two_bytes_of_reg_ABCD(Fa, hc((regs[Fa & 3] >> ((Fa & 4) << 1))));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = mb();
                                 ga = hc(ga);
                                 sb(ga);
                             }
                             break;
                         case 1:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 set_either_two_bytes_of_reg_ABCD(Fa, ic((regs[Fa & 3] >> ((Fa & 4) << 1))));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = mb();
                                 ga = ic(ga);
                                 sb(ga);
@@ -6846,12 +6850,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0xff:
-                    Ea = phys_mem8[Kb++];
-                    Ja = (Ea >> 3) & 7;
+                    mem8 = phys_mem8[Kb++];
+                    Ja = (mem8 >> 3) & 7;
                     switch (Ja) {
                         case 0:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 {
                                     if (_op < 25) {
                                         _op2 = _op;
@@ -6861,7 +6865,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     _op = 27;
                                 }
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 {
                                     if (_op < 25) {
@@ -6875,8 +6879,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break;
                         case 1:
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 {
                                     if (_op < 25) {
                                         _op2 = _op;
@@ -6886,7 +6890,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     _op = 30;
                                 }
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 {
                                     if (_op < 25) {
@@ -6900,10 +6904,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break;
                         case 2:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             Ha = (eip + Kb - Mb);
@@ -6917,19 +6921,19 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             eip = ga, Kb = Mb = 0;
                             break;
                         case 4:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             eip = ga, Kb = Mb = 0;
                             break;
                         case 6:
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             if (Qa) {
@@ -6942,9 +6946,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break;
                         case 3:
                         case 5:
-                            if ((Ea >> 6) == 3)
+                            if ((mem8 >> 6) == 3)
                                 blow_up_errcode0(6);
-                            fa = Pb(Ea);
+                            fa = Pb(mem8);
                             ga = kb();
                             fa = (fa + 4) >> 0;
                             Ha = ib();
@@ -7361,14 +7365,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     if (cpu.cr0 & ((1 << 2) | (1 << 3))) {
                         blow_up_errcode0(7);
                     }
-                    Ea = phys_mem8[Kb++];
-                    Ga = (Ea >> 3) & 7;
-                    Fa = Ea & 7;
-                    Ja = ((OPbyte & 7) << 3) | ((Ea >> 3) & 7);
+                    mem8 = phys_mem8[Kb++];
+                    Ga = (mem8 >> 3) & 7;
+                    Fa = mem8 & 7;
+                    Ja = ((OPbyte & 7) << 3) | ((mem8 >> 3) & 7);
                     set_lower_two_bytes_of_register(0, 0xffff);
-                    if ((Ea >> 6) == 3) {
+                    if ((mem8 >> 6) == 3) {
                     } else {
-                        fa = Pb(Ea);
+                        fa = Pb(mem8);
                     }
                     break Fd;
                 case 0x9b:
@@ -7531,12 +7535,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x9d:
                         case 0x9e:
                         case 0x9f:
-                            Ea = phys_mem8[Kb++];
+                            mem8 = phys_mem8[Kb++];
                             ga = fd(OPbyte & 0xf);
-                            if ((Ea >> 6) == 3) {
-                                set_either_two_bytes_of_reg_ABCD(Ea & 7, ga);
+                            if ((mem8 >> 6) == 3) {
+                                set_either_two_bytes_of_reg_ABCD(mem8 & 7, ga);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 sb(ga);
                             }
                             break Fd;
@@ -7556,58 +7560,58 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x4d:
                         case 0x4e:
                         case 0x4f:
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = kb();
                             }
                             if (fd(OPbyte & 0xf))
-                                regs[(Ea >> 3) & 7] = ga;
+                                regs[(mem8 >> 3) & 7] = ga;
                             break Fd;
                         case 0xb6:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1)) & 0xff;
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                             }
                             regs[Ga] = ga;
                             break Fd;
                         case 0xb7:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7] & 0xffff;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7] & 0xffff;
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = ib();
                             }
                             regs[Ga] = ga;
                             break Fd;
                         case 0xbe:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = (((Ua = _tlb_read_[fa >>> 12]) == -1) ? db() : phys_mem8[fa ^ Ua]);
                             }
                             regs[Ga] = (((ga) << 24) >> 24);
                             break Fd;
                         case 0xbf:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = ib();
                             }
                             regs[Ga] = (((ga) << 16) >> 16);
@@ -7615,8 +7619,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x00:
                             if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
                                 blow_up_errcode0(6);
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
                             switch (Ja) {
                                 case 0:
                                 case 1:
@@ -7624,10 +7628,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         ga = cpu.ldt.selector;
                                     else
                                         ga = cpu.tr.selector;
-                                    if ((Ea >> 6) == 3) {
-                                        set_lower_two_bytes_of_register(Ea & 7, ga);
+                                    if ((mem8 >> 6) == 3) {
+                                        set_lower_two_bytes_of_register(mem8 & 7, ga);
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ub(ga);
                                     }
                                     break;
@@ -7635,10 +7639,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 3:
                                     if (cpu.cpl != 0)
                                         blow_up_errcode0(13);
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7] & 0xffff;
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     if (Ja == 2)
@@ -7648,10 +7652,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break;
                                 case 4:
                                 case 5:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7] & 0xffff;
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     sf(ga, Ja & 1);
@@ -7661,16 +7665,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0x01:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
                             switch (Ja) {
                                 case 2:
                                 case 3:
-                                    if ((Ea >> 6) == 3)
+                                    if ((mem8 >> 6) == 3)
                                         blow_up_errcode0(6);
                                     if (this.cpl != 0)
                                         blow_up_errcode0(13);
-                                    fa = Pb(Ea);
+                                    fa = Pb(mem8);
                                     ga = ib();
                                     fa += 2;
                                     Ha = kb();
@@ -7685,9 +7689,9 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 7:
                                     if (this.cpl != 0)
                                         blow_up_errcode0(13);
-                                    if ((Ea >> 6) == 3)
+                                    if ((mem8 >> 6) == 3)
                                         blow_up_errcode0(6);
-                                    fa = Pb(Ea);
+                                    fa = Pb(mem8);
                                     cpu.tlb_flush_page(fa & -4096);
                                     break;
                                 default:
@@ -7701,10 +7705,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x20:
                             if (cpu.cpl != 0)
                                 blow_up_errcode0(13);
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) != 3)
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) != 3)
                                 blow_up_errcode0(6);
-                            Ga = (Ea >> 3) & 7;
+                            Ga = (mem8 >> 3) & 7;
                             switch (Ga) {
                                 case 0:
                                     ga = cpu.cr0;
@@ -7721,17 +7725,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 default:
                                     blow_up_errcode0(6);
                             }
-                            regs[Ea & 7] = ga;
+                            regs[mem8 & 7] = ga;
                             break Fd;
                         //	0F	22		r	03+			0		MOV	CRn	r32					o..szapc		o..szapc		Move to/from Control Registers
                         case 0x22:
                             if (cpu.cpl != 0)
                                 blow_up_errcode0(13);
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) != 3)
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) != 3)
                                 blow_up_errcode0(6);
-                            Ga = (Ea >> 3) & 7;
-                            ga = regs[Ea & 7];
+                            Ga = (mem8 >> 3) & 7;
+                            ga = regs[mem8 & 7];
                             switch (Ga) {
                                 case 0:
                                     set_CR0(ga);
@@ -7758,11 +7762,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x23:
                             if (cpu.cpl != 0)
                                 blow_up_errcode0(13);
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) != 3)
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) != 3)
                                 blow_up_errcode0(6);
-                            Ga = (Ea >> 3) & 7;
-                            ga = regs[Ea & 7];
+                            Ga = (mem8 >> 3) & 7;
+                            ga = regs[mem8 & 7];
                             if (Ga == 4 || Ga == 5)
                                 blow_up_errcode0(6);
                             break Fd;
@@ -7775,14 +7779,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             uf();
                             break Fd;
                         case 0xa4:
-                            Ea = phys_mem8[Kb++];
-                            Ha = regs[(Ea >> 3) & 7];
-                            if ((Ea >> 6) == 3) {
+                            mem8 = phys_mem8[Kb++];
+                            Ha = regs[(mem8 >> 3) & 7];
+                            if ((mem8 >> 6) == 3) {
                                 Ia = phys_mem8[Kb++];
-                                Fa = Ea & 7;
+                                Fa = mem8 & 7;
                                 regs[Fa] = rc(regs[Fa], Ha, Ia);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ia = phys_mem8[Kb++];
                                 ga = qb();
                                 ga = rc(ga, Ha, Ia);
@@ -7790,28 +7794,28 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0xa5:
-                            Ea = phys_mem8[Kb++];
-                            Ha = regs[(Ea >> 3) & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ha = regs[(mem8 >> 3) & 7];
                             Ia = regs[1];
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 regs[Fa] = rc(regs[Fa], Ha, Ia);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 ga = rc(ga, Ha, Ia);
                                 wb(ga);
                             }
                             break Fd;
                         case 0xac:
-                            Ea = phys_mem8[Kb++];
-                            Ha = regs[(Ea >> 3) & 7];
-                            if ((Ea >> 6) == 3) {
+                            mem8 = phys_mem8[Kb++];
+                            Ha = regs[(mem8 >> 3) & 7];
+                            if ((mem8 >> 6) == 3) {
                                 Ia = phys_mem8[Kb++];
-                                Fa = Ea & 7;
+                                Fa = mem8 & 7;
                                 regs[Fa] = sc(regs[Fa], Ha, Ia);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ia = phys_mem8[Kb++];
                                 ga = qb();
                                 ga = sc(ga, Ha, Ia);
@@ -7819,29 +7823,29 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0xad:
-                            Ea = phys_mem8[Kb++];
-                            Ha = regs[(Ea >> 3) & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ha = regs[(mem8 >> 3) & 7];
                             Ia = regs[1];
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 regs[Fa] = sc(regs[Fa], Ha, Ia);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 ga = sc(ga, Ha, Ia);
                                 wb(ga);
                             }
                             break Fd;
                         case 0xba:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
                             switch (Ja) {
                                 case 4:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                         Ha = phys_mem8[Kb++];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         Ha = phys_mem8[Kb++];
                                         ga = kb();
                                     }
@@ -7850,12 +7854,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 5:
                                 case 6:
                                 case 7:
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         Ha = phys_mem8[Kb++];
                                         regs[Fa] = xc(Ja & 3, regs[Fa], Ha);
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         Ha = phys_mem8[Kb++];
                                         ga = qb();
                                         ga = xc(Ja & 3, ga, Ha);
@@ -7867,12 +7871,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0xa3:
-                            Ea = phys_mem8[Kb++];
-                            Ha = regs[(Ea >> 3) & 7];
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ha = regs[(mem8 >> 3) & 7];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 fa = (fa + ((Ha >> 5) << 2)) >> 0;
                                 ga = kb();
                             }
@@ -7881,14 +7885,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0xab:
                         case 0xb3:
                         case 0xbb:
-                            Ea = phys_mem8[Kb++];
-                            Ha = regs[(Ea >> 3) & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ha = regs[(mem8 >> 3) & 7];
                             Ja = (OPbyte >> 3) & 3;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 regs[Fa] = xc(Ja, regs[Fa], Ha);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 fa = (fa + ((Ha >> 5) << 2)) >> 0;
                                 ga = qb();
                                 ga = xc(Ja, ga, Ha);
@@ -7897,12 +7901,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             break Fd;
                         case 0xbc:
                         case 0xbd:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Ha = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Ha = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = kb();
                             }
                             if (OPbyte & 1)
@@ -7911,12 +7915,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 regs[Ga] = zc(regs[Ga], Ha);
                             break Fd;
                         case 0xaf:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Ha = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Ha = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = kb();
                             }
                             regs[Ga] = Wc(regs[Ga], Ha);
@@ -7929,16 +7933,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             regs[2] = (ga / 0x100000000) >>> 0;
                             break Fd;
                         case 0xc0:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                                 Ha = do_8bit_math(0, ga, (regs[Ga & 3] >> ((Ga & 4) << 1)));
                                 set_either_two_bytes_of_reg_ABCD(Ga, ga);
                                 set_either_two_bytes_of_reg_ABCD(Fa, Ha);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = mb();
                                 Ha = do_8bit_math(0, ga, (regs[Ga & 3] >> ((Ga & 4) << 1)));
                                 sb(Ha);
@@ -7946,16 +7950,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0xc1:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = regs[Fa];
                                 Ha = do_32bit_math(0, ga, regs[Ga]);
                                 regs[Ga] = ga;
                                 regs[Fa] = Ha;
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 Ha = do_32bit_math(0, ga, regs[Ga]);
                                 wb(Ha);
@@ -7963,10 +7967,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0xb0:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                                 Ha = do_8bit_math(5, regs[0], ga);
                                 if (Ha == 0) {
@@ -7975,7 +7979,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     set_either_two_bytes_of_reg_ABCD(0, ga);
                                 }
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = mb();
                                 Ha = do_8bit_math(5, regs[0], ga);
                                 if (Ha == 0) {
@@ -7986,10 +7990,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0xb1:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = regs[Fa];
                                 Ha = do_32bit_math(5, regs[0], ga);
                                 if (Ha == 0) {
@@ -7998,7 +8002,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     regs[0] = ga;
                                 }
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = qb();
                                 Ha = do_32bit_math(5, regs[0], ga);
                                 if (Ha == 0) {
@@ -8200,24 +8204,24 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 default:
                     switch (OPbyte) {
                         case 0x189:
-                            Ea = phys_mem8[Kb++];
-                            ga = regs[(Ea >> 3) & 7];
-                            if ((Ea >> 6) == 3) {
-                                set_lower_two_bytes_of_register(Ea & 7, ga);
+                            mem8 = phys_mem8[Kb++];
+                            ga = regs[(mem8 >> 3) & 7];
+                            if ((mem8 >> 6) == 3) {
+                                set_lower_two_bytes_of_register(mem8 & 7, ga);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ub(ga);
                             }
                             break Fd;
                         case 0x18b:
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = ib();
                             }
-                            set_lower_two_bytes_of_register((Ea >> 3) & 7, ga);
+                            set_lower_two_bytes_of_register((mem8 >> 3) & 7, ga);
                             break Fd;
                         case 0x1b8:
                         case 0x1b9:
@@ -8239,12 +8243,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             ub(regs[0]);
                             break Fd;
                         case 0x1c7:
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) == 3) {
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) == 3) {
                                 ga = Ob();
-                                set_lower_two_bytes_of_register(Ea & 7, ga);
+                                set_lower_two_bytes_of_register(mem8 & 7, ga);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = Ob();
                                 ub(ga);
                             }
@@ -8262,14 +8266,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             set_lower_two_bytes_of_register(Ga, ga);
                             break Fd;
                         case 0x187:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 ga = regs[Fa];
                                 set_lower_two_bytes_of_register(Fa, regs[Ga]);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = ob();
                                 ub(regs[Ga]);
                             }
@@ -8289,14 +8293,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x129:
                         case 0x131:
                         case 0x139:
-                            Ea = phys_mem8[Kb++];
+                            mem8 = phys_mem8[Kb++];
                             Ja = (OPbyte >> 3) & 7;
-                            Ha = regs[(Ea >> 3) & 7];
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            Ha = regs[(mem8 >> 3) & 7];
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 set_lower_two_bytes_of_register(Fa, do_16bit_math(Ja, regs[Fa], Ha));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 if (Ja != 7) {
                                     ga = ob();
                                     ga = do_16bit_math(Ja, ga, Ha);
@@ -8315,13 +8319,13 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x12b:
                         case 0x133:
                         case 0x13b:
-                            Ea = phys_mem8[Kb++];
+                            mem8 = phys_mem8[Kb++];
                             Ja = (OPbyte >> 3) & 7;
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Ha = regs[Ea & 7];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Ha = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = ib();
                             }
                             set_lower_two_bytes_of_register(Ga, do_16bit_math(Ja, regs[Ga], Ha));
@@ -8339,14 +8343,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             set_lower_two_bytes_of_register(0, do_16bit_math(Ja, regs[0], Ha));
                             break Fd;
                         case 0x181:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 Ha = Ob();
                                 regs[Fa] = do_16bit_math(Ja, regs[Fa], Ha);
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = Ob();
                                 if (Ja != 7) {
                                     ga = ob();
@@ -8359,14 +8363,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0x183:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 Ha = ((phys_mem8[Kb++] << 24) >> 24);
                                 set_lower_two_bytes_of_register(Fa, do_16bit_math(Ja, regs[Fa], Ha));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = ((phys_mem8[Kb++] << 24) >> 24);
                                 if (Ja != 7) {
                                     ga = ob();
@@ -8401,38 +8405,38 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             set_lower_two_bytes_of_register(Ga, fc(regs[Ga]));
                             break Fd;
                         case 0x16b:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Ha = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Ha = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = ib();
                             }
                             Ia = ((phys_mem8[Kb++] << 24) >> 24);
                             set_lower_two_bytes_of_register(Ga, Rc(Ha, Ia));
                             break Fd;
                         case 0x169:
-                            Ea = phys_mem8[Kb++];
-                            Ga = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Ha = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            Ga = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Ha = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = ib();
                             }
                             Ia = Ob();
                             set_lower_two_bytes_of_register(Ga, Rc(Ha, Ia));
                             break Fd;
                         case 0x185:
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) == 3) {
-                                ga = regs[Ea & 7];
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) == 3) {
+                                ga = regs[mem8 & 7];
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = ib();
                             }
-                            Ha = regs[(Ea >> 3) & 7];
+                            Ha = regs[(mem8 >> 3) & 7];
                             {
                                 _dst = (((ga & Ha) << 16) >> 16);
                                 _op = 13;
@@ -8446,14 +8450,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0x1f7:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
                             switch (Ja) {
                                 case 0:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     Ha = Ob();
@@ -8463,32 +8467,32 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     }
                                     break;
                                 case 2:
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         set_lower_two_bytes_of_register(Fa, ~regs[Fa]);
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ob();
                                         ga = ~ga;
                                         ub(ga);
                                     }
                                     break;
                                 case 3:
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         set_lower_two_bytes_of_register(Fa, do_16bit_math(5, 0, regs[Fa]));
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ob();
                                         ga = do_16bit_math(5, 0, ga);
                                         ub(ga);
                                     }
                                     break;
                                 case 4:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     ga = Qc(regs[0], ga);
@@ -8496,10 +8500,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     set_lower_two_bytes_of_register(2, ga >> 16);
                                     break;
                                 case 5:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     ga = Rc(regs[0], ga);
@@ -8507,19 +8511,19 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     set_lower_two_bytes_of_register(2, ga >> 16);
                                     break;
                                 case 6:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     Fc(ga);
                                     break;
                                 case 7:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     Gc(ga);
@@ -8529,14 +8533,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0x1c1:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
                                 Ha = phys_mem8[Kb++];
-                                Fa = Ea & 7;
+                                Fa = mem8 & 7;
                                 set_lower_two_bytes_of_register(Fa, shift16(Ja, regs[Fa], Ha));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 Ha = phys_mem8[Kb++];
                                 ga = ob();
                                 ga = shift16(Ja, ga, Ha);
@@ -8544,27 +8548,27 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             break Fd;
                         case 0x1d1:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 set_lower_two_bytes_of_register(Fa, shift16(Ja, regs[Fa], 1));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = ob();
                                 ga = shift16(Ja, ga, 1);
                                 ub(ga);
                             }
                             break Fd;
                         case 0x1d3:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
                             Ha = regs[1] & 0xff;
-                            if ((Ea >> 6) == 3) {
-                                Fa = Ea & 7;
+                            if ((mem8 >> 6) == 3) {
+                                Fa = mem8 & 7;
                                 set_lower_two_bytes_of_register(Fa, shift16(Ja, regs[Fa], Ha));
                             } else {
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 ga = ob();
                                 ga = shift16(Ja, ga, Ha);
                                 ub(ga);
@@ -8607,17 +8611,17 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             Lf();
                             break Fd;
                         case 0x18f:
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) == 3) {
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) == 3) {
                                 ga = yd();
                                 zd();
-                                set_lower_two_bytes_of_register(Ea & 7, ga);
+                                set_lower_two_bytes_of_register(mem8 & 7, ga);
                             } else {
                                 ga = yd();
                                 Ha = regs[4];
                                 zd();
                                 Ia = regs[4];
-                                fa = Pb(Ea);
+                                fa = Pb(mem8);
                                 regs[4] = Ha;
                                 ub(ga);
                                 regs[4] = Ia;
@@ -8650,71 +8654,71 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             zd();
                             break Fd;
                         case 0x18d:
-                            Ea = phys_mem8[Kb++];
-                            if ((Ea >> 6) == 3)
+                            mem8 = phys_mem8[Kb++];
+                            if ((mem8 >> 6) == 3)
                                 blow_up_errcode0(6);
                             Da = (Da & ~0x000f) | (6 + 1);
-                            set_lower_two_bytes_of_register((Ea >> 3) & 7, Pb(Ea));
+                            set_lower_two_bytes_of_register((mem8 >> 3) & 7, Pb(mem8));
                             break Fd;
                         case 0x1ff:
-                            Ea = phys_mem8[Kb++];
-                            Ja = (Ea >> 3) & 7;
+                            mem8 = phys_mem8[Kb++];
+                            Ja = (mem8 >> 3) & 7;
                             switch (Ja) {
                                 case 0:
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         set_lower_two_bytes_of_register(Fa, ec(regs[Fa]));
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ob();
                                         ga = ec(ga);
                                         ub(ga);
                                     }
                                     break;
                                 case 1:
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         set_lower_two_bytes_of_register(Fa, fc(regs[Fa]));
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ob();
                                         ga = fc(ga);
                                         ub(ga);
                                     }
                                     break;
                                 case 2:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7] & 0xffff;
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     vd((eip + Kb - Mb));
                                     eip = ga, Kb = Mb = 0;
                                     break;
                                 case 4:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7] & 0xffff;
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     eip = ga, Kb = Mb = 0;
                                     break;
                                 case 6:
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     vd(ga);
                                     break;
                                 case 3:
                                 case 5:
-                                    if ((Ea >> 6) == 3)
+                                    if ((mem8 >> 6) == 3)
                                         blow_up_errcode0(6);
-                                    fa = Pb(Ea);
+                                    fa = Pb(mem8);
                                     ga = ib();
                                     fa = (fa + 2) >> 0;
                                     Ha = ib();
@@ -9004,62 +9008,62 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x14d:
                                 case 0x14e:
                                 case 0x14f:
-                                    Ea = phys_mem8[Kb++];
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    mem8 = phys_mem8[Kb++];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ib();
                                     }
                                     if (fd(OPbyte & 0xf))
-                                        set_lower_two_bytes_of_register((Ea >> 3) & 7, ga);
+                                        set_lower_two_bytes_of_register((mem8 >> 3) & 7, ga);
                                     break Fd;
                                 case 0x1b6:
-                                    Ea = phys_mem8[Kb++];
-                                    Ga = (Ea >> 3) & 7;
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    mem8 = phys_mem8[Kb++];
+                                    Ga = (mem8 >> 3) & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         ga = (regs[Fa & 3] >> ((Fa & 4) << 1)) & 0xff;
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = gb();
                                     }
                                     set_lower_two_bytes_of_register(Ga, ga);
                                     break Fd;
                                 case 0x1be:
-                                    Ea = phys_mem8[Kb++];
-                                    Ga = (Ea >> 3) & 7;
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    mem8 = phys_mem8[Kb++];
+                                    Ga = (mem8 >> 3) & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         ga = (regs[Fa & 3] >> ((Fa & 4) << 1));
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = gb();
                                     }
                                     set_lower_two_bytes_of_register(Ga, (((ga) << 24) >> 24));
                                     break Fd;
                                 case 0x1af:
-                                    Ea = phys_mem8[Kb++];
-                                    Ga = (Ea >> 3) & 7;
-                                    if ((Ea >> 6) == 3) {
-                                        Ha = regs[Ea & 7];
+                                    mem8 = phys_mem8[Kb++];
+                                    Ga = (mem8 >> 3) & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Ha = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         Ha = ib();
                                     }
                                     set_lower_two_bytes_of_register(Ga, Rc(regs[Ga], Ha));
                                     break Fd;
                                 case 0x1c1:
-                                    Ea = phys_mem8[Kb++];
-                                    Ga = (Ea >> 3) & 7;
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    mem8 = phys_mem8[Kb++];
+                                    Ga = (mem8 >> 3) & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         ga = regs[Fa];
                                         Ha = do_16bit_math(0, ga, regs[Ga]);
                                         set_lower_two_bytes_of_register(Ga, ga);
                                         set_lower_two_bytes_of_register(Fa, Ha);
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ob();
                                         Ha = do_16bit_math(0, ga, regs[Ga]);
                                         ub(Ha);
@@ -9082,15 +9086,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break Fd;
                                 case 0x1a4:
                                 case 0x1ac:
-                                    Ea = phys_mem8[Kb++];
-                                    Ha = regs[(Ea >> 3) & 7];
+                                    mem8 = phys_mem8[Kb++];
+                                    Ha = regs[(mem8 >> 3) & 7];
                                     Ja = (OPbyte >> 3) & 1;
-                                    if ((Ea >> 6) == 3) {
+                                    if ((mem8 >> 6) == 3) {
                                         Ia = phys_mem8[Kb++];
-                                        Fa = Ea & 7;
+                                        Fa = mem8 & 7;
                                         set_lower_two_bytes_of_register(Fa, oc(Ja, regs[Fa], Ha, Ia));
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         Ia = phys_mem8[Kb++];
                                         ga = ob();
                                         ga = oc(Ja, ga, Ha, Ia);
@@ -9099,30 +9103,30 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break Fd;
                                 case 0x1a5:
                                 case 0x1ad:
-                                    Ea = phys_mem8[Kb++];
-                                    Ha = regs[(Ea >> 3) & 7];
+                                    mem8 = phys_mem8[Kb++];
+                                    Ha = regs[(mem8 >> 3) & 7];
                                     Ia = regs[1];
                                     Ja = (OPbyte >> 3) & 1;
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         set_lower_two_bytes_of_register(Fa, oc(Ja, regs[Fa], Ha, Ia));
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ob();
                                         ga = oc(Ja, ga, Ha, Ia);
                                         ub(ga);
                                     }
                                     break Fd;
                                 case 0x1ba:
-                                    Ea = phys_mem8[Kb++];
-                                    Ja = (Ea >> 3) & 7;
+                                    mem8 = phys_mem8[Kb++];
+                                    Ja = (mem8 >> 3) & 7;
                                     switch (Ja) {
                                         case 4:
-                                            if ((Ea >> 6) == 3) {
-                                                ga = regs[Ea & 7];
+                                            if ((mem8 >> 6) == 3) {
+                                                ga = regs[mem8 & 7];
                                                 Ha = phys_mem8[Kb++];
                                             } else {
-                                                fa = Pb(Ea);
+                                                fa = Pb(mem8);
                                                 Ha = phys_mem8[Kb++];
                                                 ga = ib();
                                             }
@@ -9131,12 +9135,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         case 5:
                                         case 6:
                                         case 7:
-                                            if ((Ea >> 6) == 3) {
-                                                Fa = Ea & 7;
+                                            if ((mem8 >> 6) == 3) {
+                                                Fa = mem8 & 7;
                                                 Ha = phys_mem8[Kb++];
                                                 regs[Fa] = vc(Ja & 3, regs[Fa], Ha);
                                             } else {
-                                                fa = Pb(Ea);
+                                                fa = Pb(mem8);
                                                 Ha = phys_mem8[Kb++];
                                                 ga = ob();
                                                 ga = vc(Ja & 3, ga, Ha);
@@ -9148,12 +9152,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     }
                                     break Fd;
                                 case 0x1a3:
-                                    Ea = phys_mem8[Kb++];
-                                    Ha = regs[(Ea >> 3) & 7];
-                                    if ((Ea >> 6) == 3) {
-                                        ga = regs[Ea & 7];
+                                    mem8 = phys_mem8[Kb++];
+                                    Ha = regs[(mem8 >> 3) & 7];
+                                    if ((mem8 >> 6) == 3) {
+                                        ga = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         fa = (fa + (((Ha & 0xffff) >> 4) << 1)) >> 0;
                                         ga = ib();
                                     }
@@ -9162,14 +9166,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x1ab:
                                 case 0x1b3:
                                 case 0x1bb:
-                                    Ea = phys_mem8[Kb++];
-                                    Ha = regs[(Ea >> 3) & 7];
+                                    mem8 = phys_mem8[Kb++];
+                                    Ha = regs[(mem8 >> 3) & 7];
                                     Ja = (OPbyte >> 3) & 3;
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         set_lower_two_bytes_of_register(Fa, vc(Ja, regs[Fa], Ha));
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         fa = (fa + (((Ha & 0xffff) >> 4) << 1)) >> 0;
                                         ga = ob();
                                         ga = vc(Ja, ga, Ha);
@@ -9178,12 +9182,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     break Fd;
                                 case 0x1bc:
                                 case 0x1bd:
-                                    Ea = phys_mem8[Kb++];
-                                    Ga = (Ea >> 3) & 7;
-                                    if ((Ea >> 6) == 3) {
-                                        Ha = regs[Ea & 7];
+                                    mem8 = phys_mem8[Kb++];
+                                    Ga = (mem8 >> 3) & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Ha = regs[mem8 & 7];
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         Ha = ib();
                                     }
                                     ga = regs[Ga];
@@ -9194,10 +9198,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     set_lower_two_bytes_of_register(Ga, ga);
                                     break Fd;
                                 case 0x1b1:
-                                    Ea = phys_mem8[Kb++];
-                                    Ga = (Ea >> 3) & 7;
-                                    if ((Ea >> 6) == 3) {
-                                        Fa = Ea & 7;
+                                    mem8 = phys_mem8[Kb++];
+                                    Ga = (mem8 >> 3) & 7;
+                                    if ((mem8 >> 6) == 3) {
+                                        Fa = mem8 & 7;
                                         ga = regs[Fa];
                                         Ha = do_16bit_math(5, regs[0], ga);
                                         if (Ha == 0) {
@@ -9206,7 +9210,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                             set_lower_two_bytes_of_register(0, ga);
                                         }
                                     } else {
-                                        fa = Pb(Ea);
+                                        fa = Pb(mem8);
                                         ga = ob();
                                         Ha = do_16bit_math(5, regs[0], ga);
                                         if (Ha == 0) {
@@ -10365,6 +10369,8 @@ PCEmulator.prototype.register_ioport_write = function(start, tg, cc, Ch) {
 
 PCEmulator.prototype.ioport80_write = function(fa, Ig) {};
 PCEmulator.prototype.reset = function() { this.request_request = 1; };
+
+
 
 
 
