@@ -3,6 +3,8 @@
 Opcode ref
 http://ref.x86asm.net/coder32.html#xC4
 
+http://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
+
 http://en.wikipedia.org/wiki/X86
 http://en.wikipedia.org/wiki/Control_register
 http://en.wikipedia.org/wiki/X86_assembly_language
@@ -80,7 +82,31 @@ function CPU_X86() {
     this.cc_op2      = 0; // current op, byte2
     this.cc_dst2     = 0; // current dest, byte2
     this.df          = 1;
+
+    /*
+      0.	CF : Carry Flag. Set if the last arithmetic operation carried (addition) or borrowed (subtraction) a
+                 bit beyond the size of the register. This is then checked when the operation is followed with
+                 an add-with-carry or subtract-with-borrow to deal with values too large for just one register to contain.
+      2.	PF : Parity Flag. Set if the number of set bits in the least significant byte is a multiple of 2.
+      4.	AF : Adjust Flag. Carry of Binary Code Decimal (BCD) numbers arithmetic operations.
+      6.	ZF : Zero Flag. Set if the result of an operation is Zero (0).
+      7.	SF : Sign Flag. Set if the result of an operation is negative.
+      8.	TF : Trap Flag. Set if step by step debugging.
+      9.	IF : Interruption Flag. Set if interrupts are enabled.
+      10.	DF : Direction Flag. Stream direction. If set, string operations will decrement their pointer rather
+                 than incrementing it, reading memory backwards.
+      11.	OF : Overflow Flag. Set if signed arithmetic operations result in a value too large for the register to contain.
+      12-13.	IOPL : I/O Privilege Level field (2 bits). I/O Privilege Level of the current process.
+      14.	NT : Nested Task flag. Controls chaining of interrupts. Set if the current process is linked to the next process.
+      16.	RF : Resume Flag. Response to debug exceptions.
+      17.	VM : Virtual-8086 Mode. Set if in 8086 compatibility mode.
+      18.	AC : Alignment Check. Set if alignment checking of memory references is done.
+      19.	VIF : Virtual Interrupt Flag. Virtual image of IF.
+      20.	VIP : Virtual Interrupt Pending flag. Set if an interrupt is pending.
+      21.	ID : Identification Flag. Support for CPUID instruction if can be set.
+    */
     this.eflags      = 0x2; // EFLAG register
+
     this.cycle_count = 0;
     this.hard_irq    = 0;
     this.hard_intno  = -1;
@@ -1852,7 +1878,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         }
         return qc;
     }
-    function bd() {
+    function check_parity() {
         if (_op == 24) {
             return (_src >> 2) & 1;
         } else {
@@ -2003,7 +2029,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0));
                 break;
             case 5:
-                qc = bd();
+                qc = check_parity();
                 break;
             case 6:
                 qc = cd();
@@ -2017,10 +2043,10 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         return qc ^ (gd & 1);
     }
     function lc() {
-        return (bd() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | ed();
+        return (check_parity() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | ed();
     }
     function hd() {
-        return (check_carry() << 0) | (bd() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | (check_overflow() << 11) | ed();
+        return (check_carry() << 0) | (check_parity() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | (check_overflow() << 11) | ed();
     }
     function id() {
         var jd;
@@ -7065,7 +7091,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x7a:
-                    if (bd()) {
+                    if (check_parity()) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         Kb = (Kb + ga) >> 0;
                     } else {
@@ -7073,7 +7099,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 case 0x7b:
-                    if (!bd()) {
+                    if (!check_parity()) {
                         ga = ((phys_mem8[Kb++] << 24) >> 24);
                         Kb = (Kb + ga) >> 0;
                     } else {
@@ -7241,27 +7267,33 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Ae(4, 1, 0, Ha, 0);
                     }
                     break Fd;
+                //62		r	01+			f		BOUND	r16/32	m16/32&16/32	eFlags				..i.....	..i.....		..i.....	Check Array Index Against Bounds
                 case 0x62:
                     Hf();
                     break Fd;
+                //	F5								CMC						.......c	.......c	.......c			Complement Carry Flag
                 case 0xf5:
                     _src = hd() ^ 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
+                //F8								CLC							.......c	.......c		.......c	Clear Carry Flag
                 case 0xf8:
                     _src = hd() & ~0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
+                //F9								STC							.......c	.......c		.......C	Set Carry Flag
                 case 0xf9:
                     _src = hd() | 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
+                //FC								CLD							.d......	.d......		.d......	Clear Direction Flag
                 case 0xfc:
                     cpu.df = 1;
                     break Fd;
+                //FD								STD							.d......	.d......		.D......	Set Direction Flag
                 case 0xfd:
                     cpu.df = -1;
                     break Fd;
@@ -7296,12 +7328,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     cpu.halted = 1;
                     La = 257;
                     break Bg;
+                //A4								MOVS	m8	m8				.d......					Move Data from String to String
+                //MOVSB	m8	m8
                 case 0xa4:
                     dg();
                     break Fd;
+                //A5								MOVS	m16	m16				.d......					Move Data from String to String
+                //MOVSW	m16	m16
                 case 0xa5:
                     sg();
                     break Fd;
+                //AA								STOS	m8	AL				.d......					Store String
+                //STOSB	m8	AL
                 case 0xaa:
                     fg();
                     break Fd;
@@ -10369,6 +10407,7 @@ PCEmulator.prototype.register_ioport_write = function(start, tg, cc, Ch) {
 
 PCEmulator.prototype.ioport80_write = function(fa, Ig) {};
 PCEmulator.prototype.reset = function() { this.request_request = 1; };
+
 
 
 
