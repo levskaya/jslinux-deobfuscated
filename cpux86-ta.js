@@ -13,8 +13,9 @@ http://en.wikipedia.org/wiki/Translation_lookaside_buffer
 
 http://bellard.org/jslinux/tech.html
 
-===================================================================================================
+
 CPU Emulation
+===================================================================================================
 
 Some of the code is inspired from my x86 dynamic translator present in QEMU, but there are important differences because here it is an interpreter. The CPU is close to a 486 compatible x86 without FPU. The lack of FPU is not a problem when running Linux as Operating System because it contains a FPU emulator. In order to be able to run Linux, a complete MMU is implemented. The exact restrictions of the emulated CPU are:
 No FPU/MMX/SSE
@@ -22,9 +23,9 @@ No segment limit and right checks when accessing memory (Linux does not rely on 
 No single-stepping
 I added some tricks which are not present in QEMU to be more precise when emulating unaligned load/stores at page boundaries. The condition code emulation is also more efficient than the one in QEMU.
 
-===================================================================================================
 
 Devices
+===================================================================================================
 
 Currently there is no synchronization between the PIT frequency and the real time, so there is a variable drift between the time returned by Linux (try the "date" command) and the real time.
 The UART (serial port) does not support FIFO mode. Perhaps it could help to improve the display speed.
@@ -36,15 +37,21 @@ A clipboard device (seen as /dev/clipboard in the emulator) was added to allow e
 
 
 Javascript terminal
+===================================================================================================
 
 Although I could have reused the excellent termlib, I decided to write my own because I was curious to see how it could be done. The main problem is the key handling which is different among browsers and OSes, as described here.
 Linux distribution
 
 
+Build Details
+===================================================================================================
 
 I compiled a 2.6.20 Linux kernel (I guess any other version would work provided there is still an FPU emulator). The Linux kernel configuration, patch and the source code of the Linux starter (kind of BIOS) are available: linuxstart-20110820.tar.gz.
 The disk image is just a ram disk image loaded at boot time. It contains a filesystem generated with Buildroot containing BusyBox. I added my toy C compiler TinyCC and my unfinished but usable emacs clone QEmacs. There is also a small MS-DOS .COM launcher I use to test the 16 bit emulation with a tiny .COM program to compute pi and a small self-assembling assembler for MS-DOS.
 
+
+Hints for Bit Twiddling
+===================================================================================================
 
 X & -65281  = mask for lower 8 bits for 32bit X
 X & 3       = mask for lower 2 bits for single byte X
