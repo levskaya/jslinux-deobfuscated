@@ -82,26 +82,26 @@ function CPU_X86() {
     this.df          = 1;
 
     /*
-      0.	CF : Carry Flag. Set if the last arithmetic operation carried (addition) or borrowed (subtraction) a
+      0.    CF : Carry Flag. Set if the last arithmetic operation carried (addition) or borrowed (subtraction) a
                  bit beyond the size of the register. This is then checked when the operation is followed with
                  an add-with-carry or subtract-with-borrow to deal with values too large for just one register to contain.
-      2.	PF : Parity Flag. Set if the number of set bits in the least significant byte is a multiple of 2.
-      4.	AF : Adjust Flag. Carry of Binary Code Decimal (BCD) numbers arithmetic operations.
-      6.	ZF : Zero Flag. Set if the result of an operation is Zero (0).
-      7.	SF : Sign Flag. Set if the result of an operation is negative.
-      8.	TF : Trap Flag. Set if step by step debugging.
-      9.	IF : Interruption Flag. Set if interrupts are enabled.
-      10.	DF : Direction Flag. Stream direction. If set, string operations will decrement their pointer rather
+      2.    PF : Parity Flag. Set if the number of set bits in the least significant byte is a multiple of 2.
+      4.    AF : Adjust Flag. Carry of Binary Code Decimal (BCD) numbers arithmetic operations.
+      6.    ZF : Zero Flag. Set if the result of an operation is Zero (0).
+      7.    SF : Sign Flag. Set if the result of an operation is negative.
+      8.    TF : Trap Flag. Set if step by step debugging.
+      9.    IF : Interruption Flag. Set if interrupts are enabled.
+      10.   DF : Direction Flag. Stream direction. If set, string operations will decrement their pointer rather
                  than incrementing it, reading memory backwards.
-      11.	OF : Overflow Flag. Set if signed arithmetic operations result in a value too large for the register to contain.
+      11.   OF : Overflow Flag. Set if signed arithmetic operations result in a value too large for the register to contain.
       12-13. IOPL : I/O Privilege Level field (2 bits). I/O Privilege Level of the current process.
-      14.	NT : Nested Task flag. Controls chaining of interrupts. Set if the current process is linked to the next process.
-      16.	RF : Resume Flag. Response to debug exceptions.
-      17.	VM : Virtual-8086 Mode. Set if in 8086 compatibility mode.
-      18.	AC : Alignment Check. Set if alignment checking of memory references is done.
-      19.	VIF : Virtual Interrupt Flag. Virtual image of IF.
-      20.	VIP : Virtual Interrupt Pending flag. Set if an interrupt is pending.
-      21.	ID : Identification Flag. Support for CPUID instruction if can be set.
+      14.   NT : Nested Task flag. Controls chaining of interrupts. Set if the current process is linked to the next process.
+      16.   RF : Resume Flag. Response to debug exceptions.
+      17.   VM : Virtual-8086 Mode. Set if in 8086 compatibility mode.
+      18.   AC : Alignment Check. Set if alignment checking of memory references is done.
+      19.   VIF : Virtual Interrupt Flag. Virtual image of IF.
+      20.   VIP : Virtual Interrupt Pending flag. Set if an interrupt is pending.
+      21.   ID : Identification Flag. Support for CPUID instruction if can be set.
     */
     this.eflags      = 0x2; // EFLAG register
 
@@ -115,7 +115,7 @@ function CPU_X86() {
        ==========================================================================================
     */
     /*
-      31	PG	Paging	           If 1, enable paging and use the CR3 register, else disable paging
+      31    PG  Paging             If 1, enable paging and use the CR3 register, else disable paging
       30    CD  Cache disable      Globally enables/disable the memory cache
       29    NW  Not-write through  Globally enables/disable write-back caching
       18    AM  Alignment mask     Alignment check enabled if AM set, AC flag (in EFLAGS register) set, and privilege level is 3
@@ -148,25 +148,25 @@ function CPU_X86() {
     /* CR4
        Used in protected mode to control operations such as virtual-8086 support, enabling I/O breakpoints,
        page size extension and machine check exceptions.
-       Bit	Name	Full Name	Description
-       18	OSXSAVE	XSAVE and Processor Extended States Enable
-       17	PCIDE	PCID Enable	If set, enables process-context identifiers (PCIDs).
-       14	SMXE	SMX Enable
-       13	VMXE	VMX Enable
-       10	OSXMMEXCPT	Operating System Support for Unmasked SIMD Floating-Point Exceptions	If set, enables unmasked SSE exceptions.
-       9	OSFXSR	Operating system support for FXSAVE and FXSTOR instructions	If set, enables SSE instructions and fast FPU save & restore
-       8	PCE	Performance-Monitoring Counter enable
+       Bit  Name    Full Name   Description
+       18   OSXSAVE XSAVE and Processor Extended States Enable
+       17   PCIDE   PCID Enable If set, enables process-context identifiers (PCIDs).
+       14   SMXE    SMX Enable
+       13   VMXE    VMX Enable
+       10   OSXMMEXCPT  Operating System Support for Unmasked SIMD Floating-Point Exceptions    If set, enables unmasked SSE exceptions.
+       9    OSFXSR  Operating system support for FXSAVE and FXSTOR instructions If set, enables SSE instructions and fast FPU save & restore
+       8    PCE Performance-Monitoring Counter enable
               If set, RDPMC can be executed at any privilege level, else RDPMC can only be used in ring 0.
-       7	PGE	Page Global Enabled	If set, address translations (PDE or PTE records) may be shared between address spaces.
-       6	MCE	Machine Check Exception	If set, enables machine check interrupts to occur.
-       5	PAE	Physical Address Extension
+       7    PGE Page Global Enabled If set, address translations (PDE or PTE records) may be shared between address spaces.
+       6    MCE Machine Check Exception If set, enables machine check interrupts to occur.
+       5    PAE Physical Address Extension
               If set, changes page table layout to translate 32-bit virtual addresses into extended 36-bit physical addresses.
-       4	PSE	Page Size Extensions	If unset, page size is 4 KB, else page size is increased to 4 MB (ignored with PAE set).
-       3	DE	Debugging Extensions
-       2	TSD	Time Stamp Disable
+       4    PSE Page Size Extensions    If unset, page size is 4 KB, else page size is increased to 4 MB (ignored with PAE set).
+       3    DE  Debugging Extensions
+       2    TSD Time Stamp Disable
               If set, RDTSC instruction can only be executed when in ring 0, otherwise RDTSC can be used at any privilege level.
-       1	PVI	Protected-mode Virtual Interrupts	If set, enables support for the virtual interrupt flag (VIF) in protected mode.
-       0	VME	Virtual 8086 Mode Extensions	If set, enables support for the virtual interrupt flag (VIF) in virtual-8086 mode.
+       1    PVI Protected-mode Virtual Interrupts   If set, enables support for the virtual interrupt flag (VIF) in protected mode.
+       0    VME Virtual 8086 Mode Extensions    If set, enables support for the virtual interrupt flag (VIF) in virtual-8086 mode.
      */
     this.cr4         = 0; // control register 4
 
@@ -2042,7 +2042,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         }
         return qc;
     }
-    function fd(gd) {
+    function check_status_bits_for_jump(gd) {
         var qc;
         switch (gd >> 1) {
             case 0:
@@ -2134,7 +2134,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         blow_up(intno, 0);
     }
 
-    function rd(sd) {
+    function change_permission_level(sd) {
         cpu.cpl = sd;
         if (cpu.cpl == 3) {
             _tlb_read_ = tlb_read_user;
@@ -3655,7 +3655,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         regs[4] = (regs[4] & ~Pa) | ((le) & Pa);
         selector = (selector & ~3) | he;
         set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
-        rd(he);
+        change_permission_level(he);
         eip = ve, Kb = Mb = 0;
         if ((ie & 1) == 0) {
             cpu.eflags &= ~0x00000200;
@@ -4139,7 +4139,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
             }
             selector = (selector & ~3) | he;
             set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
-            rd(he);
+            change_permission_level(he);
             regs[4] = (regs[4] & ~Pa) | ((Te) & Pa);
             eip = ve, Kb = Mb = 0;
         }
@@ -4266,7 +4266,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     kd(df, 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00003000 | 0x00020000 | 0x00004000 | 0x00080000 | 0x00100000);
                     fe(1, Ke & 0xffff);
-                    rd(3);
+                    change_permission_level(3);
                     fe(2, gf & 0xffff);
                     fe(0, hf & 0xffff);
                     fe(3, jf & 0xffff);
@@ -4365,7 +4365,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 set_segment_vars(2, gf, ae(we, xe), Zd(we, xe), xe);
             }
             set_segment_vars(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
-            rd(He);
+            change_permission_level(He);
             Te = wd;
             Pa = Vd(xe);
             Pe(0, He);
@@ -5668,7 +5668,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
         OPbyte |= (Da = Ra) & 0x0100;
         Fd: for (; ; ) {
             switch (OPbyte) {
-                case 0x66:
+                case 0x66://Operand-size override prefix
                     if (Da == Ra)
                         Cd(Nb, OPbyte);
                     if (Ra & 0x0100)
@@ -5678,7 +5678,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     OPbyte = phys_mem8[Kb++];
                     OPbyte |= (Da & 0x0100);
                     break;
-                case 0x67:
+                case 0x67://Address-size override prefix
                     if (Da == Ra)
                         Cd(Nb, OPbyte);
                     if (Ra & 0x0080)
@@ -5688,21 +5688,21 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     OPbyte = phys_mem8[Kb++];
                     OPbyte |= (Da & 0x0100);
                     break;
-                case 0xf0:
+                case 0xf0://LOCK  Assert LOCK# Signal Prefix
                     if (Da == Ra)
                         Cd(Nb, OPbyte);
                     Da |= 0x0040;
                     OPbyte = phys_mem8[Kb++];
                     OPbyte |= (Da & 0x0100);
                     break;
-                case 0xf2:
+                case 0xf2://REPNZ  Repeat String Operation Prefix
                     if (Da == Ra)
                         Cd(Nb, OPbyte);
                     Da |= 0x0020;
                     OPbyte = phys_mem8[Kb++];
                     OPbyte |= (Da & 0x0100);
                     break;
-                case 0xf3:
+                case 0xf3://REPZ  Repeat String Operation Prefix
                     if (Da == Ra)
                         Cd(Nb, OPbyte);
                     Da |= 0x0010;
@@ -5727,7 +5727,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     OPbyte = phys_mem8[Kb++];
                     OPbyte |= (Da & 0x0100);
                     break;
-                case 0xb0://op = B0+r  MOV  r8  imm8
+                case 0xb0://B0+r  MOV  r8  imm8
                 case 0xb1:
                 case 0xb2:
                 case 0xb3:
@@ -5740,7 +5740,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ua = (OPbyte & 4) << 1;
                     regs[OPbyte & 3] = (regs[OPbyte & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     break Fd;
-                case 0xb8://op = B8+r  MOV  r16/32	imm16/32
+                case 0xb8://B8+r  MOV  r16/32   imm16/32
                 case 0xb9:
                 case 0xba:
                 case 0xbb:
@@ -5774,7 +5774,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         }
                     }
                     break Fd;
-                case 0x89://MOV	 r/m16/32  r16/32
+                case 0x89://MOV  r/m16/32  r16/32
                     mem8 = phys_mem8[Kb++];
                     ga = regs[(mem8 >> 3) & 7];
                     if ((mem8 >> 6) == 3) {
@@ -5791,7 +5791,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         }
                     }
                     break Fd;
-                case 0x8a://MOV	r8	r/m8
+                case 0x8a://MOV r8  r/m8
                     mem8 = phys_mem8[Kb++];
                     if ((mem8 >> 6) == 3) {
                         Fa = mem8 & 7;
@@ -5804,7 +5804,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     Ua = (Ga & 4) << 1;
                     regs[Ga & 3] = (regs[Ga & 3] & ~(0xff << Ua)) | (((ga) & 0xff) << Ua);
                     break Fd;
-                case 0x8b://MOV	r16/32	r/m16/32
+                case 0x8b://MOV r16/32  r/m16/32
                     mem8 = phys_mem8[Kb++];
                     if ((mem8 >> 6) == 3) {
                         ga = regs[mem8 & 7];
@@ -5814,25 +5814,25 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     regs[(mem8 >> 3) & 7] = ga;
                     break Fd;
-                case 0xa0://MOV	AL	moffs8
+                case 0xa0://MOV AL  moffs8
                     mem8_loc = Ub();
                     ga = ld_8bits_mem8_read();
                     regs[0] = (regs[0] & -256) | ga;
                     break Fd;
-                case 0xa1://MOV	eAX	moffs16/32
+                case 0xa1://MOV eAX moffs16/32
                     mem8_loc = Ub();
                     ga = ld_32bits_mem8_read();
                     regs[0] = ga;
                     break Fd;
-                case 0xa2://MOV	moffs8	AL
+                case 0xa2://MOV moffs8  AL
                     mem8_loc = Ub();
                     sb(regs[0]);
                     break Fd;
-                case 0xa3://MOV	moffs16/32	eAX
+                case 0xa3://MOV moffs16/32  eAX
                     mem8_loc = Ub();
                     wb(regs[0]);
                     break Fd;
-                case 0xd7://XLAT	AL	m8    Table Look-up Translation
+                case 0xd7://XLAT    AL  m8    Table Look-up Translation
                     mem8_loc = (regs[3] + (regs[0] & 0xff)) >> 0;
                     if (Da & 0x0080)
                         mem8_loc &= 0xffff;
@@ -5845,7 +5845,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     ga = ld_8bits_mem8_read();
                     set_either_two_bytes_of_reg_ABCD(0, ga);
                     break Fd;
-                case 0xc6://MOV	r/m8	imm8
+                case 0xc6://MOV r/m8    imm8
                     mem8 = phys_mem8[Kb++];
                     if ((mem8 >> 6) == 3) {
                         ga = phys_mem8[Kb++];
@@ -5856,7 +5856,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         sb(ga);
                     }
                     break Fd;
-                case 0xc7://MOV	r/m16/32	imm16/32
+                case 0xc7://MOV r/m16/32    imm16/32
                     mem8 = phys_mem8[Kb++];
                     if ((mem8 >> 6) == 3) {
                         {
@@ -5885,7 +5885,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     regs[0] = regs[Ga];
                     regs[Ga] = ga;
                     break Fd;
-                case 0x86://XCHG	r8	r/m8    Exchange Register/Memory with Register
+                case 0x86://XCHG    r8  r/m8    Exchange Register/Memory with Register
                     mem8 = phys_mem8[Kb++];
                     Ga = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
@@ -5899,7 +5899,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     set_either_two_bytes_of_reg_ABCD(Ga, ga);
                     break Fd;
-                case 0x87://XCHG	r16/32	r/m16/32	Exchange Register/Memory with Register
+                case 0x87://XCHG    r16/32  r/m16/32    Exchange Register/Memory with Register
                     mem8 = phys_mem8[Kb++];
                     Ga = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
@@ -5913,7 +5913,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     regs[Ga] = ga;
                     break Fd;
-                case 0x8e://MOV	Sreg	r/m16    Move
+                case 0x8e://MOV Sreg    r/m16    Move
                     mem8 = phys_mem8[Kb++];
                     Ga = (mem8 >> 3) & 7;
                     if (Ga >= 6 || Ga == 1)
@@ -5926,7 +5926,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     Ie(Ga, ga);
                     break Fd;
-                case 0x8c://MOV	m16	Sreg   OR  MOV	r16/32	Sreg      Move
+                case 0x8c://MOV m16 Sreg   OR  MOV  r16/32  Sreg      Move
                     mem8 = phys_mem8[Kb++];
                     Ga = (mem8 >> 3) & 7;
                     if (Ga >= 6)
@@ -5943,29 +5943,20 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         ub(ga);
                     }
                     break Fd;
-                case 0xc4:// LES	ES	r16/32	m16:16/32								Load Far Pointer
+                case 0xc4://LES   ES  r16/32  m16:16/32  Load Far Pointer
                     Uf(0);
                     break Fd;
-                //	C5		r	LDS	DS	r16/32	m16:16/32								Load Far Pointer
-                case 0xc5:
+                case 0xc5://LDS   DS  r16/32  m16:16/32  Load Far Pointer
                     Uf(3);
                     break Fd;
-                // 00	r		L	ADD	r/m8	r8					o..szapc	o..szapc			Add
-                // 08	r		L	OR	r/m8	r8					o..szapc	o..sz.pc	.....a..	o......c	Logical Inclusive OR
-                // 10		r					L	ADC	r/m8	r8				.......c	o..szapc	o..szapc			Add with Carry
-                // 18		r					L	SBB	r/m8	r8				.......c	o..szapc	o..szapc			Integer Subtraction with Borrow
-                // 20		r					L	AND	r/m8	r8					o..szapc	o..sz.pc	.....a..	o......c	Logical AND
-                // 28		r					L	SUB	r/m8	r8					o..szapc	o..szapc			Subtract
-                // 30		r					L	XOR	r/m8	r8					o..szapc	o..sz.pc	.....a..	o......c	Logical Exclusive OR
-                // 38		r						CMP	r/m8	r8					o..szapc	o..szapc			Compare Two Operands
-                case 0x00:
-                case 0x08:
-                case 0x10:
-                case 0x18:
-                case 0x20:
-                case 0x28:
-                case 0x30:
-                case 0x38:
+                case 0x00://ADD r/m8    r8   Add
+                case 0x08://OR  r/m8    r8   Logical Inclusive OR
+                case 0x10://ADC r/m8    r8   Add with Carry
+                case 0x18://SBB r/m8    r8   Integer Subtraction with Borrow
+                case 0x20://AND r/m8    r8   Logical AND
+                case 0x28://SUB r/m8    r8   Subtract
+                case 0x30://XOR r/m8    r8   Logical Exclusive OR
+                case 0x38://CMP r/m8    r8   Compare Two Operands
                     mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
                     Ga = (mem8 >> 3) & 7;
@@ -5985,7 +5976,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         }
                     }
                     break Fd;
-                case 0x01:
+                case 0x01://ADD	r/m16/32	r16/32  Add
                     mem8 = phys_mem8[Kb++];
                     Ha = regs[(mem8 >> 3) & 7];
                     if ((mem8 >> 6) == 3) {
@@ -6006,12 +5997,12 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         wb(ga);
                     }
                     break Fd;
-                case 0x09:
-                case 0x11:
-                case 0x19:
-                case 0x21:
-                case 0x29:
-                case 0x31:
+                case 0x09://OR	r/m16/32	r16/32  Logical Inclusive OR
+                case 0x11://ADC	r/m16/32	r16/32	Add with Carry
+                case 0x19://SBB	r/m16/32	r16/32  Integer Subtraction with Borrow
+                case 0x21://AND	r/m16/32	r16/32	Logical AND
+                case 0x29://SUB	r/m16/32	r16/32  Subtract
+                case 0x31://XOR	r/m16/32	r16/32  Logical Exclusive OR
                     mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
                     Ha = regs[(mem8 >> 3) & 7];
@@ -6025,7 +6016,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         wb(ga);
                     }
                     break Fd;
-                case 0x39:
+                case 0x39://CMP	r/m16/32	r16/32  Compare Two Operands
                     mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
                     Ha = regs[(mem8 >> 3) & 7];
@@ -6046,14 +6037,14 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         }
                     }
                     break Fd;
-                case 0x02:
-                case 0x0a:
-                case 0x12:
-                case 0x1a:
-                case 0x22:
-                case 0x2a:
-                case 0x32:
-                case 0x3a:
+                case 0x02://ADD	r8	r/m8  Add
+                case 0x0a://OR	r8	r/m8  Logical Inclusive OR
+                case 0x12://ADC	r8	r/m8  Add with Carry
+                case 0x1a://SBB	r8	r/m8  Integer Subtraction with Borrow
+                case 0x22://AND	r8	r/m8  Logical AND
+                case 0x2a://SUB	r8	r/m8  Subtract
+                case 0x32://XOR	r8	r/m8  Logical Exclusive OR
+                case 0x3a://CMP	r8	r/m8  Compare Two Operands
                     mem8 = phys_mem8[Kb++];
                     Ja = OPbyte >> 3;
                     Ga = (mem8 >> 3) & 7;
@@ -6542,16 +6533,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     break Fd;
                 //Rotate and Shift ops
                 /*
-                  C0		0	01+					ROL	r/m8	imm8					o..szapc	o..szapc	o.......		Rotate
-                  C0		1	01+					ROR	r/m8	imm8					o..szapc	o..szapc	o.......		Rotate
-                  C0		2	01+					RCL	r/m8	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
-                  C0		3	01+					RCR	r/m8	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
-                  C0		4	01+					SHL	r/m8	imm8					o..szapc	o..sz.pc	o....a.c		Shift
-                  SAL	r/m8	imm8
-                  C0		5	01+					SHR	r/m8	imm8					o..szapc	o..sz.pc	o....a.c		Shift
-                  C0		6	01+	U2				SAL	r/m8	imm8					o..szapc	o..sz.pc	o....a.c		Shift
-                  SHL	r/m8	imm8
-                  C0		7	01+					SAR	r/m8	imm8					o..szapc	o..sz.pc	o....a..		Shift
+                  C0        0   01+                 ROL r/m8    imm8                    o..szapc    o..szapc    o.......        Rotate
+                  C0        1   01+                 ROR r/m8    imm8                    o..szapc    o..szapc    o.......        Rotate
+                  C0        2   01+                 RCL r/m8    imm8                .......c    o..szapc    o..szapc    o.......        Rotate
+                  C0        3   01+                 RCR r/m8    imm8                .......c    o..szapc    o..szapc    o.......        Rotate
+                  C0        4   01+                 SHL r/m8    imm8                    o..szapc    o..sz.pc    o....a.c        Shift
+                  SAL   r/m8    imm8
+                  C0        5   01+                 SHR r/m8    imm8                    o..szapc    o..sz.pc    o....a.c        Shift
+                  C0        6   01+ U2              SAL r/m8    imm8                    o..szapc    o..sz.pc    o....a.c        Shift
+                  SHL   r/m8    imm8
+                  C0        7   01+                 SAR r/m8    imm8                    o..szapc    o..sz.pc    o....a..        Shift
                 */
                 case 0xc0:
                     mem8 = phys_mem8[Kb++];
@@ -6569,16 +6560,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 /*
-                  C1		0	01+					ROL	r/m16/32	imm8					o..szapc	o..szapc	o.......		Rotate
-                  C1		1	01+					ROR	r/m16/32	imm8					o..szapc	o..szapc	o.......		Rotate
-                  C1		2	01+					RCL	r/m16/32	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
-                  C1		3	01+					RCR	r/m16/32	imm8				.......c	o..szapc	o..szapc	o.......		Rotate
-                  C1		4	01+					SHL	r/m16/32	imm8					o..szapc	o..sz.pc	o....a.c		Shift
-                  SAL	r/m16/32	imm8
-                  C1		5	01+					SHR	r/m16/32	imm8					o..szapc	o..sz.pc	o....a.c		Shift
-                  C1		6	01+	U2				SAL	r/m16/32	imm8					o..szapc	o..sz.pc	o....a.c		Shift
-                  SHL	r/m16/32	imm8
-                  C1		7	01+					SAR	r/m16/32	imm8					o..szapc	o..sz.pc	o....a..		Shift
+                  C1        0   01+                 ROL r/m16/32    imm8                    o..szapc    o..szapc    o.......        Rotate
+                  C1        1   01+                 ROR r/m16/32    imm8                    o..szapc    o..szapc    o.......        Rotate
+                  C1        2   01+                 RCL r/m16/32    imm8                .......c    o..szapc    o..szapc    o.......        Rotate
+                  C1        3   01+                 RCR r/m16/32    imm8                .......c    o..szapc    o..szapc    o.......        Rotate
+                  C1        4   01+                 SHL r/m16/32    imm8                    o..szapc    o..sz.pc    o....a.c        Shift
+                  SAL   r/m16/32    imm8
+                  C1        5   01+                 SHR r/m16/32    imm8                    o..szapc    o..sz.pc    o....a.c        Shift
+                  C1        6   01+ U2              SAL r/m16/32    imm8                    o..szapc    o..sz.pc    o....a.c        Shift
+                  SHL   r/m16/32    imm8
+                  C1        7   01+                 SAR r/m16/32    imm8                    o..szapc    o..sz.pc    o....a..        Shift
                 */
                 case 0xc1:
                     mem8 = phys_mem8[Kb++];
@@ -6596,16 +6587,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 /*
-                  D0		0						ROL	r/m8	1					o..szapc	o..szapc			Rotate
-                  D0		1						ROR	r/m8	1					o..szapc	o..szapc			Rotate
-                  D0		2						RCL	r/m8	1				.......c	o..szapc	o..szapc			Rotate
-                  D0		3						RCR	r/m8	1				.......c	o..szapc	o..szapc			Rotate
-                  D0		4						SHL	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
-                  SAL	r/m8	1
-                  D0		5						SHR	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
-                  D0		6		U2				SAL	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
-                  SHL	r/m8	1
-                  D0		7						SAR	r/m8	1					o..szapc	o..sz.pc	.....a..		Shift
+                  D0        0                       ROL r/m8    1                   o..szapc    o..szapc            Rotate
+                  D0        1                       ROR r/m8    1                   o..szapc    o..szapc            Rotate
+                  D0        2                       RCL r/m8    1               .......c    o..szapc    o..szapc            Rotate
+                  D0        3                       RCR r/m8    1               .......c    o..szapc    o..szapc            Rotate
+                  D0        4                       SHL r/m8    1                   o..szapc    o..sz.pc    .....a..        Shift
+                  SAL   r/m8    1
+                  D0        5                       SHR r/m8    1                   o..szapc    o..sz.pc    .....a..        Shift
+                  D0        6       U2              SAL r/m8    1                   o..szapc    o..sz.pc    .....a..        Shift
+                  SHL   r/m8    1
+                  D0        7                       SAR r/m8    1                   o..szapc    o..sz.pc    .....a..        Shift
                 */
                 case 0xd0:
                     mem8 = phys_mem8[Kb++];
@@ -6621,16 +6612,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 /*
-                  D1		0						ROL	r/m16/32	1					o..szapc	o..szapc			Rotate
-                  D1		1						ROR	r/m16/32	1					o..szapc	o..szapc			Rotate
-                  D1		2						RCL	r/m16/32	1				.......c	o..szapc	o..szapc			Rotate
-                  D1		3						RCR	r/m16/32	1				.......c	o..szapc	o..szapc			Rotate
-                  D1		4						SHL	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
-                  SAL	r/m16/32	1
-                  D1		5						SHR	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
-                  D1		6		U2				SAL	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
-                  SHL	r/m16/32	1
-                  D1		7						SAR	r/m16/32	1					o..szapc	o..sz.pc	.....a..		Shift
+                  D1        0                       ROL r/m16/32    1                   o..szapc    o..szapc            Rotate
+                  D1        1                       ROR r/m16/32    1                   o..szapc    o..szapc            Rotate
+                  D1        2                       RCL r/m16/32    1               .......c    o..szapc    o..szapc            Rotate
+                  D1        3                       RCR r/m16/32    1               .......c    o..szapc    o..szapc            Rotate
+                  D1        4                       SHL r/m16/32    1                   o..szapc    o..sz.pc    .....a..        Shift
+                  SAL   r/m16/32    1
+                  D1        5                       SHR r/m16/32    1                   o..szapc    o..sz.pc    .....a..        Shift
+                  D1        6       U2              SAL r/m16/32    1                   o..szapc    o..sz.pc    .....a..        Shift
+                  SHL   r/m16/32    1
+                  D1        7                       SAR r/m16/32    1                   o..szapc    o..sz.pc    .....a..        Shift
                 */
                 case 0xd1:
                     mem8 = phys_mem8[Kb++];
@@ -6646,16 +6637,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 /*
-                  D2		0						ROL	r/m8	CL					o..szapc	o..szapc	o.......		Rotate
-                  D2		1						ROR	r/m8	CL					o..szapc	o..szapc	o.......		Rotate
-                  D2		2						RCL	r/m8	CL				.......c	o..szapc	o..szapc	o.......		Rotate
-                  D2		3						RCR	r/m8	CL				.......c	o..szapc	o..szapc	o.......		Rotate
-                  D2		4						SHL	r/m8	CL					o..szapc	o..sz.pc	o....a.c		Shift
-                  SAL	r/m8	CL
-                  D2		5						SHR	r/m8	CL					o..szapc	o..sz.pc	o....a.c		Shift
-                  D2		6		U2				SAL	r/m8	CL					o..szapc	o..sz.pc	o....a.c		Shift
-                  SHL	r/m8	CL
-                  D2		7						SAR	r/m8	CL					o..szapc	o..sz.pc	o....a..		Shift
+                  D2        0                       ROL r/m8    CL                  o..szapc    o..szapc    o.......        Rotate
+                  D2        1                       ROR r/m8    CL                  o..szapc    o..szapc    o.......        Rotate
+                  D2        2                       RCL r/m8    CL              .......c    o..szapc    o..szapc    o.......        Rotate
+                  D2        3                       RCR r/m8    CL              .......c    o..szapc    o..szapc    o.......        Rotate
+                  D2        4                       SHL r/m8    CL                  o..szapc    o..sz.pc    o....a.c        Shift
+                  SAL   r/m8    CL
+                  D2        5                       SHR r/m8    CL                  o..szapc    o..sz.pc    o....a.c        Shift
+                  D2        6       U2              SAL r/m8    CL                  o..szapc    o..sz.pc    o....a.c        Shift
+                  SHL   r/m8    CL
+                  D2        7                       SAR r/m8    CL                  o..szapc    o..sz.pc    o....a..        Shift
                 */
                 case 0xd2:
                     mem8 = phys_mem8[Kb++];
@@ -6672,16 +6663,16 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 /*
-		          D3		0						ROL	r/m16/32	CL					o..szapc	o..szapc	o.......		Rotate
-                  D3		1						ROR	r/m16/32	CL					o..szapc	o..szapc	o.......		Rotate
-                  D3		2						RCL	r/m16/32	CL				.......c	o..szapc	o..szapc	o.......		Rotate
-                  D3		3						RCR	r/m16/32	CL				.......c	o..szapc	o..szapc	o.......		Rotate
-                  D3		4						SHL	r/m16/32	CL					o..szapc	o..sz.pc	o....a.c		Shift
-                  SAL	r/m16/32	CL
-                  D3		5						SHR	r/m16/32	CL					o..szapc	o..sz.pc	o....a.c		Shift
-                  D3		6		U2				SAL	r/m16/32	CL					o..szapc	o..sz.pc	o....a.c		Shift
-                  SHL	r/m16/32	CL
-                  D3		7						SAR	r/m16/32	CL					o..szapc	o..sz.pc	.....a..		Shift
+                  D3        0                       ROL r/m16/32    CL                  o..szapc    o..szapc    o.......        Rotate
+                  D3        1                       ROR r/m16/32    CL                  o..szapc    o..szapc    o.......        Rotate
+                  D3        2                       RCL r/m16/32    CL              .......c    o..szapc    o..szapc    o.......        Rotate
+                  D3        3                       RCR r/m16/32    CL              .......c    o..szapc    o..szapc    o.......        Rotate
+                  D3        4                       SHL r/m16/32    CL                  o..szapc    o..sz.pc    o....a.c        Shift
+                  SAL   r/m16/32    CL
+                  D3        5                       SHR r/m16/32    CL                  o..szapc    o..sz.pc    o....a.c        Shift
+                  D3        6       U2              SAL r/m16/32    CL                  o..szapc    o..sz.pc    o....a.c        Shift
+                  SHL   r/m16/32    CL
+                  D3        7                       SAR r/m16/32    CL                  o..szapc    o..sz.pc    .....a..        Shift
                 */
                 case 0xd3:
                     mem8 = phys_mem8[Kb++];
@@ -6697,15 +6688,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         wb(ga);
                     }
                     break Fd;
-                //98								CBW	AX	AL									Convert Byte to Word
+                //98                                CBW AX  AL                                  Convert Byte to Word
                 case 0x98:
                     regs[0] = (regs[0] << 16) >> 16;
                     break Fd;
-                //99								CWD	DX	AX									Convert Word to Doubleword
+                //99                                CWD DX  AX                                  Convert Word to Doubleword
                 case 0x99:
                     regs[2] = regs[0] >> 31;
                     break Fd;
-                //50+r							PUSH	r16/32										Push Word, Doubleword or Quadword Onto the Stack
+                //50+r                          PUSH    r16/32                                      Push Word, Doubleword or Quadword Onto the Stack
                 case 0x50:
                 case 0x51:
                 case 0x52:
@@ -6730,7 +6721,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         xd(ga);
                     }
                     break Fd;
-                //58+r							POP	r16/32										Pop a Value from the Stack
+                //58+r                          POP r16/32                                      Pop a Value from the Stack
                 case 0x58:
                 case 0x59:
                 case 0x5a:
@@ -6749,15 +6740,15 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     regs[OPbyte & 7] = ga;
                     break Fd;
-                //60			01+					PUSHA	AX	CX	DX	...							Push All General-Purpose Registers
+                //60            01+                 PUSHA   AX  CX  DX  ...                         Push All General-Purpose Registers
                 case 0x60:
                     Kf();
                     break Fd;
-               //61			01+					POPA	DI	SI	BP	...							Pop All General-Purpose Registers
+               //61         01+                 POPA    DI  SI  BP  ...                         Pop All General-Purpose Registers
                 case 0x61:
                     Mf();
                     break Fd;
-                //8F		0						POP	r/m16/32										Pop a Value from the Stack
+                //8F        0                       POP r/m16/32                                        Pop a Value from the Stack
                 case 0x8f:
                     mem8 = phys_mem8[Kb++];
                     if ((mem8 >> 6) == 3) {
@@ -6775,7 +6766,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         regs[4] = Ia;
                     }
                     break Fd;
-                //68			01+					PUSH	imm16/32										Push Word, Doubleword or Quadword Onto the Stack
+                //68            01+                 PUSH    imm16/32                                        Push Word, Doubleword or Quadword Onto the Stack
                 case 0x68:
                     {
                         ga = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
@@ -6789,7 +6780,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         xd(ga);
                     }
                     break Fd;
-                //6A			01+					PUSH	imm8										Push Word, Doubleword or Quadword Onto the Stack
+                //6A            01+                 PUSH    imm8                                        Push Word, Doubleword or Quadword Onto the Stack
                 case 0x6a:
                     ga = ((phys_mem8[Kb++] << 24) >> 24);
                     if (Qa) {
@@ -6800,11 +6791,11 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         xd(ga);
                     }
                     break Fd;
-                //C8			01+					ENTER	eBP	imm16	imm8								Make Stack Frame for Procedure Parameters
+                //C8            01+                 ENTER   eBP imm16   imm8                                Make Stack Frame for Procedure Parameters
                 case 0xc8:
                     Tf();
                     break Fd;
-                //C9			01+					LEAVE	eBP										High Level Procedure Exit
+                //C9            01+                 LEAVE   eBP                                     High Level Procedure Exit
                 case 0xc9:
                     if (Qa) {
                         mem8_loc = regs[5];
@@ -6816,8 +6807,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 /*
-                  9C								PUSHF	Flags										Push FLAGS Register onto the Stack
-                  9C			03+					PUSHFD	EFlags										Push eFLAGS Register onto the Stack
+                  9C                                PUSHF   Flags                                       Push FLAGS Register onto the Stack
+                  9C            03+                 PUSHFD  EFlags                                      Push eFLAGS Register onto the Stack
                 */
                 case 0x9c:
                     Sa = (cpu.eflags >> 12) & 3;
@@ -6831,8 +6822,8 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     }
                     break Fd;
                 /*
-                  9D								POPF	Flags										Pop Stack into FLAGS Register
-                  9D			03+					POPFD	EFlags										Pop Stack into eFLAGS Register
+                  9D                                POPF    Flags                                       Pop Stack into FLAGS Register
+                  9D            03+                 POPFD   EFlags                                      Pop Stack into eFLAGS Register
                 */
                 case 0x9d:
                     Sa = (cpu.eflags >> 12) & 3;
@@ -7301,33 +7292,33 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         Ae(4, 1, 0, Ha, 0);
                     }
                     break Fd;
-                //62		r	01+			f		BOUND	r16/32	m16/32&16/32	eFlags				..i.....	..i.....		..i.....	Check Array Index Against Bounds
+                //62        r   01+         f       BOUND   r16/32  m16/32&16/32    eFlags              ..i.....    ..i.....        ..i.....    Check Array Index Against Bounds
                 case 0x62:
                     Hf();
                     break Fd;
-                //	F5								CMC						.......c	.......c	.......c			Complement Carry Flag
+                //  F5                              CMC                     .......c    .......c    .......c            Complement Carry Flag
                 case 0xf5:
                     _src = hd() ^ 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
-                //F8								CLC							.......c	.......c		.......c	Clear Carry Flag
+                //F8                                CLC                         .......c    .......c        .......c    Clear Carry Flag
                 case 0xf8:
                     _src = hd() & ~0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
-                //F9								STC							.......c	.......c		.......C	Set Carry Flag
+                //F9                                STC                         .......c    .......c        .......C    Set Carry Flag
                 case 0xf9:
                     _src = hd() | 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
-                //FC								CLD							.d......	.d......		.d......	Clear Direction Flag
+                //FC                                CLD                         .d......    .d......        .d......    Clear Direction Flag
                 case 0xfc:
                     cpu.df = 1;
                     break Fd;
-                //FD								STD							.d......	.d......		.D......	Set Direction Flag
+                //FD                                STD                         .d......    .d......        .D......    Set Direction Flag
                 case 0xfd:
                     cpu.df = -1;
                     break Fd;
@@ -7362,18 +7353,18 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                     cpu.halted = 1;
                     La = 257;
                     break Bg;
-                //A4								MOVS	m8	m8				.d......					Move Data from String to String
-                //MOVSB	m8	m8
+                //A4                                MOVS    m8  m8              .d......                    Move Data from String to String
+                //MOVSB m8  m8
                 case 0xa4:
                     dg();
                     break Fd;
-                //A5								MOVS	m16	m16				.d......					Move Data from String to String
-                //MOVSW	m16	m16
+                //A5                                MOVS    m16 m16             .d......                    Move Data from String to String
+                //MOVSW m16 m16
                 case 0xa5:
                     sg();
                     break Fd;
-                //AA								STOS	m8	AL				.d......					Store String
-                //STOSB	m8	AL
+                //AA                                STOS    m8  AL              .d......                    Store String
+                //STOSB m8  AL
                 case 0xaa:
                     fg();
                     break Fd;
@@ -7568,6 +7559,37 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                 case 0x0f:
                     OPbyte = phys_mem8[Kb++];
                     switch (OPbyte) {
+                        /*
+                          0F  80          03+                 JO  rel16/32                    o.......                    Jump short if overflow (OF=1)
+                          0F  81          03+                 JNO rel16/32                    o.......                    Jump short if not overflow (OF=0)
+                          0F  82          03+                 JB  rel16/32                    .......c                    Jump short if below/not above or equal/carry (CF=1)
+                                                              JNAE    rel16/32
+                                                              JC  rel16/32
+                          0F  83          03+                 JNB rel16/32                    .......c                    Jump short if not below/above or equal/not carry (CF=0)
+                                                              JAE rel16/32
+                                                              JNC rel16/32
+                          0F  84          03+                 JZ  rel16/32                    ....z...                    Jump short if zero/equal (ZF=0)
+                                                              JE  rel16/32
+                          0F  85          03+                 JNZ rel16/32                    ....z...                    Jump short if not zero/not equal (ZF=1)
+                                                              JNE rel16/32
+                          0F  86          03+                 JBE rel16/32                    ....z..c                    Jump short if below or equal/not above (CF=1 AND ZF=1)
+                                                              JNA rel16/32
+                          0F  87          03+                 JNBE    rel16/32                    ....z..c                    Jump short if not below or equal/above (CF=0 AND ZF=0)
+                                                              JA  rel16/32
+                          0F  88          03+                 JS  rel16/32                    ...s....                    Jump short if sign (SF=1)
+                          0F  89          03+                 JNS rel16/32                    ...s....                    Jump short if not sign (SF=0)
+                          0F  8A          03+                 JP  rel16/32                    ......p.                    Jump short if parity/parity even (PF=1)
+                                                              JPE rel16/32
+                          0F  8B          03+                 JNP rel16/32                    ......p.                    Jump short if not parity/parity odd
+                                                              JPO rel16/32
+                          0F  8C          03+                 JL  rel16/32                    o..s....                    Jump short if less/not greater (SF!=OF)
+                                                              JNGE    rel16/32
+                          0F  8D          03+                 JNL rel16/32                    o..s....                    Jump short if not less/greater or equal (SF=OF)
+                                                              JGE rel16/32
+                          0F  8E          03+                 JLE rel16/32                    o..sz...                    Jump short if less or equal/not greater ((ZF=1) OR (SF!=OF))
+                                                              JNG rel16/32
+                          0F  8F          03+                 JNLE    rel16/32                    o..sz...                    Jump short if not less nor equal/greater ((ZF=0) AND (SF=OF))
+                        */
                         case 0x80:
                         case 0x81:
                         case 0x82:
@@ -7588,7 +7610,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 ga = phys_mem8[Kb] | (phys_mem8[Kb + 1] << 8) | (phys_mem8[Kb + 2] << 16) | (phys_mem8[Kb + 3] << 24);
                                 Kb += 4;
                             }
-                            if (fd(OPbyte & 0xf))
+                            if (check_status_bits_for_jump(OPbyte & 0xf))
                                 Kb = (Kb + ga) >> 0;
                             break Fd;
                         case 0x90:
@@ -7608,7 +7630,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x9e:
                         case 0x9f:
                             mem8 = phys_mem8[Kb++];
-                            ga = fd(OPbyte & 0xf);
+                            ga = check_status_bits_for_jump(OPbyte & 0xf);
                             if ((mem8 >> 6) == 3) {
                                 set_either_two_bytes_of_reg_ABCD(mem8 & 7, ga);
                             } else {
@@ -7639,7 +7661,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 mem8_loc = Pb(mem8);
                                 ga = ld_32bits_mem8_read();
                             }
-                            if (fd(OPbyte & 0xf))
+                            if (check_status_bits_for_jump(OPbyte & 0xf))
                                 regs[(mem8 >> 3) & 7] = ga;
                             break Fd;
                         case 0xb6:
@@ -7799,7 +7821,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                             }
                             regs[mem8 & 7] = ga;
                             break Fd;
-                        //	0F	22		r	03+			0		MOV	CRn	r32					o..szapc		o..szapc		Move to/from Control Registers
+                        //  0F  22      r   03+         0       MOV CRn r32                 o..szapc        o..szapc        Move to/from Control Registers
                         case 0x22:
                             if (cpu.cpl != 0)
                                 blow_up_errcode0(13);
@@ -7825,7 +7847,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                     blow_up_errcode0(6);
                             }
                             break Fd;
-                        // 0F	06			02+			0		CLTS	CR0										Clear Task-Switched Flag in CR0
+                        // 0F   06          02+         0       CLTS    CR0                                     Clear Task-Switched Flag in CR0
                         case 0x06:
                             if (cpu.cpl != 0)
                                 blow_up_errcode0(13);
@@ -8828,7 +8850,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                         case 0x17e:
                         case 0x17f:
                             ga = ((phys_mem8[Kb++] << 24) >> 24);
-                            Ha = fd(OPbyte & 0xf);
+                            Ha = check_status_bits_for_jump(OPbyte & 0xf);
                             if (Ha)
                                 eip = (eip + Kb - Mb + ga) & 0xffff, Kb = Mb = 0;
                             break Fd;
@@ -9061,7 +9083,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                 case 0x18e:
                                 case 0x18f:
                                     ga = Ob();
-                                    if (fd(OPbyte & 0xf))
+                                    if (check_status_bits_for_jump(OPbyte & 0xf))
                                         eip = (eip + Kb - Mb + ga) & 0xffff, Kb = Mb = 0;
                                     break Fd;
                                 case 0x140:
@@ -9087,7 +9109,7 @@ CPU_X86.prototype.exec_internal = function(ua, va) {
                                         mem8_loc = Pb(mem8);
                                         ga = ld_16bits_mem8_read();
                                     }
-                                    if (fd(OPbyte & 0xf))
+                                    if (check_status_bits_for_jump(OPbyte & 0xf))
                                         set_lower_two_bytes_of_register((mem8 >> 3) & 7, ga);
                                     break Fd;
                                 case 0x1b6:
@@ -10441,6 +10463,8 @@ PCEmulator.prototype.register_ioport_write = function(start, tg, cc, Ch) {
 
 PCEmulator.prototype.ioport80_write = function(mem8_loc, Ig) {};
 PCEmulator.prototype.reset = function() { this.request_request = 1; };
+
+
 
 
 
