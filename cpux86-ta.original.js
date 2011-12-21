@@ -153,8 +153,6 @@ CPU_X86.prototype.write_string = function(fa, na) {
     }
     this.st8_phys(fa, 0);
 };
-
-// Represents numeric value ga as n-digit HEX
 function oa(ga, n) {
     var i, s;
     var h = "0123456789ABCDEF";
@@ -164,15 +162,19 @@ function oa(ga, n) {
     }
     return s;
 }
-function pa(n) { return oa(n, 8);} // Represents 8-hex bytes of n
-function qa(n) { return oa(n, 2);} // Represents 4-hex bytes of n
-function ra(n) { return oa(n, 4);} // Represents 2-hex bytes of n
-
+function pa(n) {
+    return oa(n, 8);
+}
+function qa(n) {
+    return oa(n, 2);
+}
+function ra(n) {
+    return oa(n, 4);
+}
 CPU_X86.prototype.dump_short = function() {
-    console.log(" EIP=" + pa(this.eip)    + " EAX=" + pa(this.regs[0]) + " ECX=" + pa(this.regs[1]) + " EDX=" + pa(this.regs[2]) + " EBX=" + pa(this.regs[3]));
-    console.log(" EFL=" + pa(this.eflags) + " ESP=" + pa(this.regs[4]) + " EBP=" + pa(this.regs[5]) + " ESI=" + pa(this.regs[6]) + " EDI=" + pa(this.regs[7]));
+    console.log(" EIP=" + pa(this.eip) + " EAX=" + pa(this.regs[0]) + " ECX=" + pa(this.regs[1]) + " EDX=" + pa(this.regs[2]) + " EBX=" + pa(this.regs[3]));
+    console.log("EFL=" + pa(this.eflags) + " ESP=" + pa(this.regs[4]) + " EBP=" + pa(this.regs[5]) + " ESI=" + pa(this.regs[6]) + " EDI=" + pa(this.regs[7]));
 };
-
 CPU_X86.prototype.dump = function() {
     var i, sa, na;
     var ta = [" ES", " CS", " SS", " DS", " FS", " GS", "LDT", " TR"];
@@ -201,7 +203,6 @@ CPU_X86.prototype.dump = function() {
     na += "IDT=     " + pa(sa.base) + " " + pa(sa.limit);
     console.log(na);
 };
-
 CPU_X86.prototype.exec_internal = function(ua, va) {
     var wa, fa, xa;
     var ya, za, Aa, Ba, Ca;
