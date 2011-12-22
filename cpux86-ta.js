@@ -32,10 +32,20 @@ Hints for Bit Twiddling
 X & -65281  = mask for lower 8 bits for 32bit X
 X & 3       = mask for lower 2 bits for single byte X
 
-
 */
 
-var parity_bit_check_array = [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
+/* Parity Check by LUT:
+static const bool ParityTable256[256] = {
+#   define P2(n) n, n^1, n^1, n
+#   define P4(n) P2(n), P2(n^1), P2(n^1), P2(n)
+#   define P6(n) P4(n), P4(n^1), P4(n^1), P4(n)
+    P6(0), P6(1), P6(1), P6(0) };
+unsigned char b;  // byte value to compute the parity of
+bool parity = ParityTable256[b];
+// OR, for 32-bit words:    unsigned int v; v ^= v >> 16; v ^= v >> 8; bool parity = ParityTable256[v & 0xff];
+// Variation:               unsigned char * p = (unsigned char *) &v; parity = ParityTable256[p[0] ^ p[1] ^ p[2] ^ p[3]]; */
+var parity_LUT = [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
+
 var used_by_shift16 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 var used_by_shift8 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4];
 
@@ -50,13 +60,12 @@ function CPU_X86() {
       DI/EDI/RDI: Destination index for string operations.
       SP/ESP/RSP: Stack pointer for top address of the stack.
       BP/EBP/RBP: Stack base pointer for holding the address of the current stack frame.
-
-      (((IP/EIP/RIP: Instruction pointer. Holds the program counter, the current instruction address.)))-->handled separately in "this.eip"
     */
     this.regs = new Array(); // EAX, EBX, ECX, EDX, ESI, EDI, ESP, EBP  32bit registers
     for (i = 0; i < 8; i++) {
         this.regs[i] = 0;
     }
+    /* IP/EIP/RIP: Instruction pointer. Holds the program counter, the current instruction address. */
     this.eip         = 0; //instruction pointer
     this.cc_op       = 0; // current op
     this.cc_dst      = 0; // current dest
@@ -1904,7 +1913,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         if (_op == 24) {
             return (_src >> 2) & 1;
         } else {
-            return parity_bit_check_array[_dst & 0xff];
+            return parity_LUT[_dst & 0xff];
         }
     }
     function cd() {
@@ -4645,7 +4654,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
         regs[0] = (regs[0] & ~0xff) | wf;
         jd |= (wf == 0) << 6;
-        jd |= parity_bit_check_array[wf] << 2;
+        jd |= parity_LUT[wf] << 2;
         jd |= (wf & 0x80);
         _src = jd;
         _dst = ((_src >> 6) & 1) ^ 1;
@@ -4671,7 +4680,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
         regs[0] = (regs[0] & ~0xff) | wf;
         jd |= (wf == 0) << 6;
-        jd |= parity_bit_check_array[wf] << 2;
+        jd |= parity_LUT[wf] << 2;
         jd |= (wf & 0x80);
         _src = jd;
         _dst = ((_src >> 6) & 1) ^ 1;
@@ -4863,7 +4872,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         Ie(Sb, y);
         set_lower_two_bytes_of_register((mem8 >> 3) & 7, x);
     }
-    function Wf() {
+    function stringOp_INSB() {
         var Xf, Yf, Zf, ag, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
@@ -4892,7 +4901,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
-    function bg() {
+    function stringOp_OUTSB() {
         var Xf, cg, Sb, ag, Zf, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
@@ -4926,7 +4935,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
         }
     }
-    function dg() {
+    function stringOp_MOVSB() {
         var Xf, Yf, cg, ag, Sb, eg;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -4963,7 +4972,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
-    function fg() {
+    function stringOp_STOSB() {
         var Xf, Yf, ag;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -4987,7 +4996,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
-    function gg() {
+    function stringOp_CMPSB() {
         var Xf, Yf, cg, ag, Sb, eg;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -5031,7 +5040,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
         }
     }
-    function hg() {
+    function stringOp_LODSB() {
         var Xf, cg, Sb, ag, x;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -5060,7 +5069,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
         }
     }
-    function ig() {
+    function stringOp_SCASB() {
         var Xf, Yf, ag, x;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -5319,7 +5328,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
         }
     }
-    function qg() {
+    function stringOp_INSD() {
         var Xf, Yf, Zf, ag, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
@@ -5348,7 +5357,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
-    function rg() {
+    function stringOp_OUTSD() {
         var Xf, cg, Sb, ag, Zf, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
@@ -5382,7 +5391,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
         }
     }
-    function sg() {
+    function stringOp_MOVSD() {
         var Xf, Yf, cg, ag, Sb, eg;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -5440,7 +5449,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
-    function xg() {
+    function stringOp_STOSD() {
         var Xf, Yf, ag;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -5480,7 +5489,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
-    function yg() {
+    function stringOp_CMPSD() {
         var Xf, Yf, cg, ag, Sb, eg;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -5524,7 +5533,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
         }
     }
-    function zg() {
+    function stringOp_LODSD() {
         var Xf, cg, Sb, ag, x;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -5553,7 +5562,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
         }
     }
-    function Ag() {
+    function stringOp_SCASD() {
         var Xf, Yf, ag, x;
         if (CS_flags & 0x0080)
             Xf = 0xffff;
@@ -7252,58 +7261,58 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     exit_code = 257;
                     break Bg;
                 case 0xa4://MOVS (DS:)[rSI] (ES:)[rDI] Move Data from String to String
-                    dg();
+                    stringOp_MOVSB();
                     break Fd;
                 case 0xa5://MOVS DS:[SI] ES:[DI] Move Data from String to String
-                    sg();
+                    stringOp_MOVSD();
                     break Fd;
                 case 0xaa://STOS AL (ES:)[rDI] Store String
-                    fg();
+                    stringOp_STOSB();
                     break Fd;
                 case 0xab://STOS AX ES:[DI] Store String
-                    xg();
+                    stringOp_STOSD();
                     break Fd;
                 case 0xa6://CMPS (ES:)[rDI]  Compare String Operands
-                    gg();
+                    stringOp_CMPSB();
                     break Fd;
                 case 0xa7://CMPS ES:[DI]  Compare String Operands
-                    yg();
+                    stringOp_CMPSD();
                     break Fd;
                 case 0xac://LODS (DS:)[rSI] AL Load String
-                    hg();
+                    stringOp_LODSB();
                     break Fd;
                 case 0xad://LODS DS:[SI] AX Load String
-                    zg();
+                    stringOp_LODSD();
                     break Fd;
                 case 0xae://SCAS (ES:)[rDI]  Scan String
-                    ig();
+                    stringOp_SCASB();
                     break Fd;
                 case 0xaf://SCAS ES:[DI]  Scan String
-                    Ag();
+                    stringOp_SCASD();
                     break Fd;
                 case 0x6c://INS DX (ES:)[rDI] Input from Port to String
-                    Wf();
+                    stringOp_INSB();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
                 case 0x6d://INS DX ES:[DI] Input from Port to String
-                    qg();
+                    stringOp_INSD();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
                 case 0x6e://OUTS (DS):[rSI] DX Output String to Port
-                    bg();
+                    stringOp_OUTSB();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
                 case 0x6f://OUTS DS:[SI] DX Output String to Port
-                    rg();
+                    stringOp_OUTSD();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -9415,3 +9424,19 @@ CPU_X86.prototype.load_binary = function(Gg, mem8_loc) {
     }
     return tg;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -22,13 +22,19 @@ There's no alteration in the algorithmic content.  I do check that that it still
 ### References
 Some other helpful references for understanding what's going on:
 
-http://ref.x86asm.net/coder32.html#xC4
-http://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
-http://en.wikipedia.org/wiki/X86
-http://en.wikipedia.org/wiki/Control_register
-http://en.wikipedia.org/wiki/X86_assembly_language
-http://en.wikipedia.org/wiki/Translation_lookaside_buffer
-http://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming
+#### x86
+- http://ref.x86asm.net/coder32.html
+- http://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
+- http://en.wikipedia.org/wiki/X86
+- http://en.wikipedia.org/wiki/Control_register
+- http://en.wikipedia.org/wiki/X86_assembly_language
+- http://en.wikipedia.org/wiki/Translation_lookaside_buffer
+
+#### Bit Hacking
+- http://graphics.stanford.edu/~seander/bithacks.html
+
+#### Other devices
+- http://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming
 
 [1]: http://bellard.org/jslinux/tech.html
 [2]: http://sshaper.org
