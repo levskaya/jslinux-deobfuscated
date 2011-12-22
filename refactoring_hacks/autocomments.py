@@ -11,7 +11,7 @@ import json, re
 #
 # Let me reiterate how much I despise scraping data from XML
 #
-infile = open("x86opcodes.xml","r").read()
+infile = open("x86reference.xml","r").read()
 soup=BeautifulStoneSoup(infile)
 onesies=soup.find('one-byte').findAll('pri_opcd')
 twosies=soup.find('two-byte').findAll('pri_opcd')
@@ -19,9 +19,9 @@ twosies=soup.find('two-byte').findAll('pri_opcd')
 def hexRepOfOp(op):
     i=int(op['value'],16)
     if i < 16:
-        return "0x0"+hex(i)[2:]
+        return ("0x0"+hex(i)[2:]).lower()
     else:
-        return "0x" +hex(i)[2:]
+        return ("0x" +hex(i)[2:]).lower()
 def mnem(op):
     res = op.find('mnem')
     if res:
@@ -66,7 +66,7 @@ json.dump(twodict,outfile)
 outfile.close()
 
 # now transform source file
-caseline = re.compile("(\s+case )(0x[0-9]+):.*")
+caseline = re.compile("(\s+case )(0x[0-9a-f]+):.*")
 
 emulatorlines = open("cpux86-ta.js","r").readlines()
 newlines=[]

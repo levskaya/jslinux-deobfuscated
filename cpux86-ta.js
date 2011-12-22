@@ -5682,21 +5682,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     OPbyte = phys_mem8[mem_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
-                case 0xf0://LOCK  Assert LOCK# Signal Prefix
+                case 0xf0://LOCK   Assert LOCK# Signal Prefix
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags |= 0x0040;
                     OPbyte = phys_mem8[mem_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
-                case 0xf2://REPNZ  Repeat String Operation Prefix
+                case 0xf2://REPNZ  eCX Repeat String Operation Prefix
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags |= 0x0020;
                     OPbyte = phys_mem8[mem_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
-                case 0xf3://REPZ  Repeat String Operation Prefix
+                case 0xf3://REPZ  eCX Repeat String Operation Prefix
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags |= 0x0010;
@@ -5704,9 +5704,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0x26://ES ES  ES segment override prefix
-                case 0x2e://CS  CS segment override prefix
+                case 0x2e://CS CS  CS segment override prefix
                 case 0x36://SS SS  SS segment override prefix
-                case 0x3e://DS  DS segment override prefix
+                case 0x3e://DS DS  DS segment override prefix
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags = (CS_flags & ~0x000f) | (((OPbyte >> 3) & 3) + 1);
@@ -5721,7 +5721,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     OPbyte = phys_mem8[mem_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
-                case 0xb0://B0+r  MOV  r8  imm8
+                case 0xb0://MOV Ib Zb Move
                 case 0xb1:
                 case 0xb2:
                 case 0xb3:
@@ -5734,7 +5734,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     last_tlb_val = (OPbyte & 4) << 1;
                     regs[OPbyte & 3] = (regs[OPbyte & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
                     break Fd;
-                case 0xb8://B8+r  MOV  r16/32   imm16/32
+                case 0xb8://MOV Ivqp Zvqp Move
                 case 0xb9:
                 case 0xba:
                 case 0xbb:
@@ -5785,7 +5785,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         }
                     }
                     break Fd;
-                case 0x8a://MOV r8  r/m8
+                case 0x8a://MOV Eb Gb Move
                     mem8 = phys_mem8[mem_ptr++];
                     if ((mem8 >> 6) == 3) {
                         register_0 = mem8 & 7;
@@ -5798,7 +5798,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     last_tlb_val = (register_1 & 4) << 1;
                     regs[register_1 & 3] = (regs[register_1 & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
                     break Fd;
-                case 0x8b://MOV r16/32  r/m16/32
+                case 0x8b://MOV Evqp Gvqp Move
                     mem8 = phys_mem8[mem_ptr++];
                     if ((mem8 >> 6) == 3) {
                         x = regs[mem8 & 7];
@@ -5808,25 +5808,25 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     regs[(mem8 >> 3) & 7] = x;
                     break Fd;
-                case 0xa0://MOV AL  moffs8
+                case 0xa0://MOV Ob AL Move
                     mem8_loc = Ub();
                     x = ld_8bits_mem8_read();
                     regs[0] = (regs[0] & -256) | x;
                     break Fd;
-                case 0xa1://MOV eAX moffs16/32
+                case 0xa1://MOV Ovqp rAX Move
                     mem8_loc = Ub();
                     x = ld_32bits_mem8_read();
                     regs[0] = x;
                     break Fd;
-                case 0xa2://MOV moffs8  AL
+                case 0xa2://MOV AL Ob Move
                     mem8_loc = Ub();
                     st8_mem8_write(regs[0]);
                     break Fd;
-                case 0xa3://MOV moffs16/32  eAX
+                case 0xa3://MOV rAX Ovqp Move
                     mem8_loc = Ub();
                     st32_mem8_write(regs[0]);
                     break Fd;
-                case 0xd7://XLAT    AL  m8    Table Look-up Translation
+                case 0xd7://XLAT (DS:)[rBX+AL] AL Table Look-up Translation
                     mem8_loc = (regs[3] + (regs[0] & 0xff)) >> 0;
                     if (CS_flags & 0x0080)
                         mem8_loc &= 0xffff;
@@ -5839,7 +5839,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     x = ld_8bits_mem8_read();
                     set_either_two_bytes_of_reg_ABCD(0, x);
                     break Fd;
-                case 0xc6://MOV r/m8    imm8
+                case 0xc6://MOV Ib Eb Move
                     mem8 = phys_mem8[mem_ptr++];
                     if ((mem8 >> 6) == 3) {
                         x = phys_mem8[mem_ptr++];
@@ -5850,7 +5850,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         st8_mem8_write(x);
                     }
                     break Fd;
-                case 0xc7://MOV r/m16/32    imm16/32
+                case 0xc7://MOV Ivds Evqp Move
                     mem8 = phys_mem8[mem_ptr++];
                     if ((mem8 >> 6) == 3) {
                         {
@@ -5907,7 +5907,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     regs[register_1] = x;
                     break Fd;
-                case 0x8e://MOV Sreg    r/m16    Move
+                case 0x8e://MOV Ew Sw Move
                     mem8 = phys_mem8[mem_ptr++];
                     register_1 = (mem8 >> 3) & 7;
                     if (register_1 >= 6 || register_1 == 1)
@@ -5920,7 +5920,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     Ie(register_1, x);
                     break Fd;
-                case 0x8c://MOV m16 Sreg   OR  MOV  r16/32  Sreg      Move
+                case 0x8c://MOV Sw Mw Move
                     mem8 = phys_mem8[mem_ptr++];
                     register_1 = (mem8 >> 3) & 7;
                     if (register_1 >= 6)
@@ -5937,10 +5937,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         st16_mem8_write(x);
                     }
                     break Fd;
-                case 0xc4://LES   ES  r16/32  m16:16/32  Load Far Pointer
+                case 0xc4://LES Mp ES Load Far Pointer
                     Uf(0);
                     break Fd;
-                case 0xc5://LDS   DS  r16/32  m16:16/32  Load Far Pointer
+                case 0xc5://LDS Mp DS Load Far Pointer
                     Uf(3);
                     break Fd;
                 case 0x00://ADD Gb Eb Add
@@ -6032,13 +6032,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x02://ADD Eb Gb Add
-                case 0x0a://OR	r8	r/m8  Logical Inclusive OR
+                case 0x0a://OR Eb Gb Logical Inclusive OR
                 case 0x12://ADC Eb Gb Add with Carry
-                case 0x1a://SBB	r8	r/m8  Integer Subtraction with Borrow
+                case 0x1a://SBB Eb Gb Integer Subtraction with Borrow
                 case 0x22://AND Eb Gb Logical AND
-                case 0x2a://SUB	r8	r/m8  Subtract
+                case 0x2a://SUB Eb Gb Subtract
                 case 0x32://XOR Eb Gb Logical Exclusive OR
-                case 0x3a://CMP	r8	r/m8  Compare Two Operands
+                case 0x3a://CMP Gb  Compare Two Operands
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = OPbyte >> 3;
                     register_1 = (mem8 >> 3) & 7;
@@ -6066,11 +6066,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         _op = 2;
                     }
                     break Fd;
-                case 0x0b:
+                case 0x0b://OR Evqp Gvqp Logical Inclusive OR
                 case 0x13://ADC Evqp Gvqp Add with Carry
-                case 0x1b:
+                case 0x1b://SBB Evqp Gvqp Integer Subtraction with Borrow
                 case 0x23://AND Evqp Gvqp Logical AND
-                case 0x2b:
+                case 0x2b://SUB Evqp Gvqp Subtract
                 case 0x33://XOR Evqp Gvqp Logical Exclusive OR
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = OPbyte >> 3;
@@ -6083,7 +6083,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     regs[register_1] = do_32bit_math(conditional_var, regs[register_1], y);
                     break Fd;
-                case 0x3b:
+                case 0x3b://CMP Gvqp  Compare Two Operands
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = OPbyte >> 3;
                     register_1 = (mem8 >> 3) & 7;
@@ -6100,13 +6100,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x04://ADD Ib AL Add
-                case 0x0c:
+                case 0x0c://OR Ib AL Logical Inclusive OR
                 case 0x14://ADC Ib AL Add with Carry
-                case 0x1c:
+                case 0x1c://SBB Ib AL Integer Subtraction with Borrow
                 case 0x24://AND Ib AL Logical AND
-                case 0x2c:
+                case 0x2c://SUB Ib AL Subtract
                 case 0x34://XOR Ib AL Logical Exclusive OR
-                case 0x3c:
+                case 0x3c://CMP AL  Compare Two Operands
                     y = phys_mem8[mem_ptr++];
                     conditional_var = OPbyte >> 3;
                     set_either_two_bytes_of_reg_ABCD(0, do_8bit_math(conditional_var, regs[0] & 0xff, y));
@@ -6122,11 +6122,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         _op = 2;
                     }
                     break Fd;
-                case 0x0d:
+                case 0x0d://OR Ivds rAX Logical Inclusive OR
                 case 0x15://ADC Ivds rAX Add with Carry
-                case 0x1d:
+                case 0x1d://SBB Ivds rAX Integer Subtraction with Borrow
                 case 0x25://AND Ivds rAX Logical AND
-                case 0x2d:
+                case 0x2d://SUB Ivds rAX Subtract
                     {
                         y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
                         mem_ptr += 4;
@@ -6144,7 +6144,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         _op = 14;
                     }
                     break Fd;
-                case 0x3d:
+                case 0x3d://CMP rAX  Compare Two Operands
                     {
                         y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
                         mem_ptr += 4;
@@ -6265,12 +6265,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0x48://DEC  Zv Decrement by 1
                 case 0x49://REX.WB   REX.W and REX.B combination
-                case 0x4a:
-                case 0x4b:
-                case 0x4c:
-                case 0x4d:
-                case 0x4e:
-                case 0x4f:
+                case 0x4a://REX.WX   REX.W and REX.X combination
+                case 0x4b://REX.WXB   REX.W, REX.X and REX.B combination
+                case 0x4c://REX.WR   REX.W and REX.R combination
+                case 0x4d://REX.WRB   REX.W, REX.R and REX.B combination
+                case 0x4e://REX.WRX   REX.W, REX.R and REX.X combination
+                case 0x4f://REX.WRXB   REX.W, REX.R, REX.X and REX.B combination
                     register_1 = OPbyte & 7;
                     {
                         if (_op < 25) {
@@ -6281,7 +6281,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         _op = 30;
                     }
                     break Fd;
-                case 0x6b:
+                case 0x6b://IMUL Evqp Gvqp Signed Multiply
                     mem8 = phys_mem8[mem_ptr++];
                     register_1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
@@ -6338,14 +6338,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         _op = 14;
                     }
                     break Fd;
-                case 0xa8:
+                case 0xa8://TEST AL  Logical Compare
                     y = phys_mem8[mem_ptr++];
                     {
                         _dst = (((regs[0] & y) << 24) >> 24);
                         _op = 12;
                     }
                     break Fd;
-                case 0xa9:
+                case 0xa9://TEST rAX  Logical Compare
                     {
                         y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
                         mem_ptr += 4;
@@ -6355,7 +6355,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         _op = 14;
                     }
                     break Fd;
-                case 0xf6:
+                case 0xf6://TEST Eb  Logical Compare
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
@@ -6439,7 +6439,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             blow_up_errcode0(6);
                     }
                     break Fd;
-                case 0xf7:
+                case 0xf7://TEST Evqp  Logical Compare
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
@@ -6538,7 +6538,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   SHL   r/m8    imm8
                   C0        7   01+                 SAR r/m8    imm8                    o..szapc    o..sz.pc    o....a..        Shift
                 */
-                case 0xc0:
+                case 0xc0://ROL Ib Eb Rotate
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
@@ -6565,7 +6565,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   SHL   r/m16/32    imm8
                   C1        7   01+                 SAR r/m16/32    imm8                    o..szapc    o..sz.pc    o....a..        Shift
                 */
-                case 0xc1:
+                case 0xc1://ROL Ib Evqp Rotate
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
@@ -6592,7 +6592,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   SHL   r/m8    1
                   D0        7                       SAR r/m8    1                   o..szapc    o..sz.pc    .....a..        Shift
                 */
-                case 0xd0:
+                case 0xd0://ROL 1 Eb Rotate
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
@@ -6617,7 +6617,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   SHL   r/m16/32    1
                   D1        7                       SAR r/m16/32    1                   o..szapc    o..sz.pc    .....a..        Shift
                 */
-                case 0xd1:
+                case 0xd1://ROL 1 Evqp Rotate
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
@@ -6642,7 +6642,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   SHL   r/m8    CL
                   D2        7                       SAR r/m8    CL                  o..szapc    o..sz.pc    o....a..        Shift
                 */
-                case 0xd2:
+                case 0xd2://ROL CL Eb Rotate
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     y = regs[1] & 0xff;
@@ -6668,7 +6668,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   SHL   r/m16/32    CL
                   D3        7                       SAR r/m16/32    CL                  o..szapc    o..sz.pc    .....a..        Shift
                 */
-                case 0xd3:
+                case 0xd3://ROL CL Evqp Rotate
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     y = regs[1] & 0xff;
@@ -6743,7 +6743,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Mf();
                     break Fd;
                 //8F        0                       POP r/m16/32                                        Pop a Value from the Stack
-                case 0x8f:
+                case 0x8f://POP SS:[rSP] Ev Pop a Value from the Stack
                     mem8 = phys_mem8[mem_ptr++];
                     if ((mem8 >> 6) == 3) {
                         x = Ad();
@@ -6775,7 +6775,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 //6A            01+                 PUSH    imm8                                        Push Word, Doubleword or Quadword Onto the Stack
-                case 0x6a:
+                case 0x6a://PUSH Ibss SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                     x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                     if (FS_usage_flag) {
                         mem8_loc = (regs[4] - 4) >> 0;
@@ -6786,11 +6786,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 //C8            01+                 ENTER   eBP imm16   imm8                                Make Stack Frame for Procedure Parameters
-                case 0xc8:
+                case 0xc8://ENTER Iw SS:[rSP] Make Stack Frame for Procedure Parameters
                     Tf();
                     break Fd;
                 //C9            01+                 LEAVE   eBP                                     High Level Procedure Exit
-                case 0xc9:
+                case 0xc9://LEAVE SS:[rSP] eBP High Level Procedure Exit
                     if (FS_usage_flag) {
                         mem8_loc = regs[5];
                         x = ld_32bits_mem8_read();
@@ -6804,7 +6804,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   9C                                PUSHF   Flags                                       Push FLAGS Register onto the Stack
                   9C            03+                 PUSHFD  EFlags                                      Push eFLAGS Register onto the Stack
                 */
-                case 0x9c:
+                case 0x9c://PUSHF Flags SS:[rSP] Push FLAGS Register onto the Stack
                     iopl = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && iopl != 3)
                         blow_up_errcode0(13);
@@ -6819,7 +6819,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                   9D                                POPF    Flags                                       Pop Stack into FLAGS Register
                   9D            03+                 POPFD   EFlags                                      Pop Stack into eFLAGS Register
                 */
-                case 0x9d:
+                case 0x9d://POPF SS:[rSP] Flags Pop Stack into FLAGS Register
                     iopl = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && iopl != 3)
                         blow_up_errcode0(13);
@@ -6846,25 +6846,25 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x06://PUSH ES SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
-                case 0x0e:
+                case 0x0e://PUSH CS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                 case 0x16://PUSH SS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
-                case 0x1e:
+                case 0x1e://PUSH DS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                     xd(cpu.segs[OPbyte >> 3].selector);
                     break Fd;
                 case 0x07://POP SS:[rSP] ES Pop a Value from the Stack
                 case 0x17://POP SS:[rSP] SS Pop a Value from the Stack
-                case 0x1f:
+                case 0x1f://POP SS:[rSP] DS Pop a Value from the Stack
                     Ie(OPbyte >> 3, Ad() & 0xffff);
                     Bd();
                     break Fd;
-                case 0x8d:
+                case 0x8d://LEA M Gvqp Load Effective Address
                     mem8 = phys_mem8[mem_ptr++];
                     if ((mem8 >> 6) == 3)
                         blow_up_errcode0(6);
                     CS_flags = (CS_flags & ~0x000f) | (6 + 1);
                     regs[(mem8 >> 3) & 7] = Pb(mem8);
                     break Fd;
-                case 0xfe:
+                case 0xfe://INC  Eb Increment by 1
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
@@ -6894,7 +6894,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             blow_up_errcode0(6);
                     }
                     break Fd;
-                case 0xff:
+                case 0xff://INC  Evqp Increment by 1
                     mem8 = phys_mem8[mem_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
@@ -7006,18 +7006,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             blow_up_errcode0(6);
                     }
                     break Fd;
-                case 0xeb:
+                case 0xeb://JMP Jbs  Jump
                     x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                     mem_ptr = (mem_ptr + x) >> 0;
                     break Fd;
-                case 0xe9:
+                case 0xe9://JMP Jvds  Jump
                     {
                         x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
                         mem_ptr += 4;
                     }
                     mem_ptr = (mem_ptr + x) >> 0;
                     break Fd;
-                case 0xea:
+                case 0xea://JMPF Ap  Jump
                     if ((((CS_flags >> 8) & 1) ^ 1)) {
                         {
                             x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
@@ -7109,7 +7109,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem_ptr = (mem_ptr + 1) >> 0;
                     }
                     break Fd;
-                case 0x7a:
+                case 0x7a://JP Jbs  Jump short if parity/parity even (PF=1)
                     if (check_parity()) {
                         x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                         mem_ptr = (mem_ptr + x) >> 0;
@@ -7117,7 +7117,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem_ptr = (mem_ptr + 1) >> 0;
                     }
                     break Fd;
-                case 0x7b:
+                case 0x7b://JNP Jbs  Jump short if not parity/parity odd
                     if (!check_parity()) {
                         x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                         mem_ptr = (mem_ptr + x) >> 0;
@@ -7125,7 +7125,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem_ptr = (mem_ptr + 1) >> 0;
                     }
                     break Fd;
-                case 0x7c:
+                case 0x7c://JL Jbs  Jump short if less/not greater (SF!=OF)
                     if (cd()) {
                         x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                         mem_ptr = (mem_ptr + x) >> 0;
@@ -7133,7 +7133,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem_ptr = (mem_ptr + 1) >> 0;
                     }
                     break Fd;
-                case 0x7d:
+                case 0x7d://JNL Jbs  Jump short if not less/greater or equal (SF=OF)
                     if (!cd()) {
                         x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                         mem_ptr = (mem_ptr + x) >> 0;
@@ -7141,7 +7141,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem_ptr = (mem_ptr + 1) >> 0;
                     }
                     break Fd;
-                case 0x7e:
+                case 0x7e://JLE Jbs  Jump short if less or equal/not greater ((ZF=1) OR (SF!=OF))
                     if (dd()) {
                         x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                         mem_ptr = (mem_ptr + x) >> 0;
@@ -7149,7 +7149,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem_ptr = (mem_ptr + 1) >> 0;
                     }
                     break Fd;
-                case 0x7f:
+                case 0x7f://JNLE Jbs  Jump short if not less nor equal/greater ((ZF=0) AND (SF=OF))
                     if (!dd()) {
                         x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                         mem_ptr = (mem_ptr + x) >> 0;
@@ -7157,9 +7157,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem_ptr = (mem_ptr + 1) >> 0;
                     }
                     break Fd;
-                case 0xe0:
-                case 0xe1:
-                case 0xe2:
+                case 0xe0://LOOPNZ Jbs eCX Decrement count; Jump short if count!=0 and ZF=0
+                case 0xe1://LOOPZ Jbs eCX Decrement count; Jump short if count!=0 and ZF=1
+                case 0xe2://LOOP Jbs eCX Decrement count; Jump short if count!=0
                     x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                     if (CS_flags & 0x0080)
                         conditional_var = 0xffff;
@@ -7182,7 +7182,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         }
                     }
                     break Fd;
-                case 0xe3:
+                case 0xe3://JCXZ Jbs  Jump short if eCX register is 0
                     x = ((phys_mem8[mem_ptr++] << 24) >> 24);
                     if (CS_flags & 0x0080)
                         conditional_var = 0xffff;
@@ -7196,13 +7196,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         }
                     }
                     break Fd;
-                case 0xc2:
+                case 0xc2://RETN SS:[rSP]  Return from procedure
                     y = (Ob() << 16) >> 16;
                     x = Ad();
                     regs[4] = (regs[4] & ~SS_mask) | ((regs[4] + 4 + y) & SS_mask);
                     eip = x, mem_ptr = initial_mem_ptr = 0;
                     break Fd;
-                case 0xc3:
+                case 0xc3://RETN SS:[rSP]  Return from procedure
                     if (FS_usage_flag) {
                         mem8_loc = regs[4];
                         x = ld_32bits_mem8_read();
@@ -7213,7 +7213,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     eip = x, mem_ptr = initial_mem_ptr = 0;
                     break Fd;
-                case 0xe8:
+                case 0xe8://CALL Jvds SS:[rSP] Call Procedure
                     {
                         x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
                         mem_ptr += 4;
@@ -7228,7 +7228,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     mem_ptr = (mem_ptr + x) >> 0;
                     break Fd;
-                case 0x9a:
+                case 0x9a://CALLF Ap SS:[rSP] Call Procedure
                     z = (((CS_flags >> 8) & 1) ^ 1);
                     if (z) {
                         {
@@ -7245,7 +7245,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xca:
+                case 0xca://RETF Iw  Return from procedure
                     y = (Ob() << 16) >> 16;
                     nf((((CS_flags >> 8) & 1) ^ 1), y);
                     {
@@ -7253,14 +7253,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xcb:
+                case 0xcb://RETF SS:[rSP]  Return from procedure
                     nf((((CS_flags >> 8) & 1) ^ 1), 0);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
-                case 0xcf:
+                case 0xcf://IRET SS:[rSP] Flags Interrupt Return
                     mf((((CS_flags >> 8) & 1) ^ 1));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7269,18 +7269,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0x90://XCHG  Zvqp Exchange Register/Memory with Register
                     break Fd;
-                case 0xcc:
+                case 0xcc://INT 3 SS:[rSP] Call to Interrupt Procedure
                     y = (eip + mem_ptr - initial_mem_ptr);
                     Ae(3, 1, 0, y, 0);
                     break Fd;
-                case 0xcd:
+                case 0xcd://INT Ib SS:[rSP] Call to Interrupt Procedure
                     x = phys_mem8[mem_ptr++];
                     if ((cpu.eflags & 0x00020000) && ((cpu.eflags >> 12) & 3) != 3)
                         blow_up_errcode0(13);
                     y = (eip + mem_ptr - initial_mem_ptr);
                     Ae(x, 1, 0, y, 0);
                     break Fd;
-                case 0xce:
+                case 0xce://INTO eFlags SS:[rSP] Call to Interrupt Procedure
                     if (check_overflow()) {
                         y = (eip + mem_ptr - initial_mem_ptr);
                         Ae(4, 1, 0, y, 0);
@@ -7291,38 +7291,38 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Hf();
                     break Fd;
                 //  F5                              CMC                     .......c    .......c    .......c            Complement Carry Flag
-                case 0xf5:
+                case 0xf5://CMC   Complement Carry Flag
                     _src = hd() ^ 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
                 //F8                                CLC                         .......c    .......c        .......c    Clear Carry Flag
-                case 0xf8:
+                case 0xf8://CLC   Clear Carry Flag
                     _src = hd() & ~0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
                 //F9                                STC                         .......c    .......c        .......C    Set Carry Flag
-                case 0xf9:
+                case 0xf9://STC   Set Carry Flag
                     _src = hd() | 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
                 //FC                                CLD                         .d......    .d......        .d......    Clear Direction Flag
-                case 0xfc:
+                case 0xfc://CLD   Clear Direction Flag
                     cpu.df = 1;
                     break Fd;
                 //FD                                STD                         .d......    .d......        .D......    Set Direction Flag
-                case 0xfd:
+                case 0xfd://STD   Set Direction Flag
                     cpu.df = -1;
                     break Fd;
-                case 0xfa:
+                case 0xfa://CLI   Clear Interrupt Flag
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
                     cpu.eflags &= ~0x00000200;
                     break Fd;
-                case 0xfb:
+                case 0xfb://STI   Set Interrupt Flag
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7332,16 +7332,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0x9e:
+                case 0x9e://SAHF AH  Store AH into Flags
                     _src = ((regs[0] >> 8) & (0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001)) | (check_overflow() << 11);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
-                case 0x9f:
+                case 0x9f://LAHF  AH Load Status Flags into AH Register
                     x = id();
                     set_either_two_bytes_of_reg_ABCD(4, x);
                     break Fd;
-                case 0xf4:
+                case 0xf4://HLT   Halt
                     if (cpu.cpl != 0)
                         blow_up_errcode0(13);
                     cpu.halted = 1;
@@ -7349,76 +7349,76 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Bg;
                 //A4                                MOVS    m8  m8              .d......                    Move Data from String to String
                 //MOVSB m8  m8
-                case 0xa4:
+                case 0xa4://MOVS (DS:)[rSI] (ES:)[rDI] Move Data from String to String
                     dg();
                     break Fd;
                 //A5                                MOVS    m16 m16             .d......                    Move Data from String to String
                 //MOVSW m16 m16
-                case 0xa5:
+                case 0xa5://MOVS DS:[SI] ES:[DI] Move Data from String to String
                     sg();
                     break Fd;
                 //AA                                STOS    m8  AL              .d......                    Store String
                 //STOSB m8  AL
-                case 0xaa:
+                case 0xaa://STOS AL (ES:)[rDI] Store String
                     fg();
                     break Fd;
-                case 0xab:
+                case 0xab://STOS AX ES:[DI] Store String
                     xg();
                     break Fd;
-                case 0xa6:
+                case 0xa6://CMPS (ES:)[rDI]  Compare String Operands
                     gg();
                     break Fd;
-                case 0xa7:
+                case 0xa7://CMPS ES:[DI]  Compare String Operands
                     yg();
                     break Fd;
-                case 0xac:
+                case 0xac://LODS (DS:)[rSI] AL Load String
                     hg();
                     break Fd;
-                case 0xad:
+                case 0xad://LODS DS:[SI] AX Load String
                     zg();
                     break Fd;
-                case 0xae:
+                case 0xae://SCAS (ES:)[rDI]  Scan String
                     ig();
                     break Fd;
-                case 0xaf:
+                case 0xaf://SCAS ES:[DI]  Scan String
                     Ag();
                     break Fd;
-                case 0x6c:
+                case 0x6c://INS DX (ES:)[rDI] Input from Port to String
                     Wf();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
-                case 0x6d:
+                case 0x6d://INS DX ES:[DI] Input from Port to String
                     qg();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
-                case 0x6e:
+                case 0x6e://OUTS (DS):[rSI] DX Output String to Port
                     bg();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
-                case 0x6f:
+                case 0x6f://OUTS DS:[SI] DX Output String to Port
                     rg();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
                     }
                     break Fd;
-                case 0xd8:
-                case 0xd9:
-                case 0xda:
-                case 0xdb:
-                case 0xdc:
-                case 0xdd:
-                case 0xde:
-                case 0xdf:
+                case 0xd8://FADD Msr ST Add
+                case 0xd9://FLD ESsr ST Load Floating Point Value
+                case 0xda://FIADD Mdi ST Add
+                case 0xdb://FILD Mdi ST Load Integer
+                case 0xdc://FADD Mdr ST Add
+                case 0xdd://FLD Mdr ST Load Floating Point Value
+                case 0xde://FIADD Mwi ST Add
+                case 0xdf://FILD Mwi ST Load Integer
                     if (cpu.cr0 & ((1 << 2) | (1 << 3))) {
                         blow_up_errcode0(7);
                     }
@@ -7432,9 +7432,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem8_loc = Pb(mem8);
                     }
                     break Fd;
-                case 0x9b:
+                case 0x9b://FWAIT   Check pending unmasked floating-point exceptions
                     break Fd;
-                case 0xe4:
+                case 0xe4://IN Ib AL Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7445,7 +7445,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xe5:
+                case 0xe5://IN Ib eAX Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7456,7 +7456,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xe6:
+                case 0xe6://OUT AL Ib Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7467,7 +7467,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xe7:
+                case 0xe7://OUT eAX Ib Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7478,7 +7478,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xec:
+                case 0xec://IN DX AL Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7488,7 +7488,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xed:
+                case 0xed://IN DX eAX Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7498,7 +7498,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xee:
+                case 0xee://OUT AL DX Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7508,7 +7508,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Bg;
                     }
                     break Fd;
-                case 0xef:
+                case 0xef://OUT eAX DX Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         blow_up_errcode0(13);
@@ -7521,28 +7521,28 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x27://DAA  AL Decimal Adjust AL after Addition
                     Df();
                     break Fd;
-                case 0x2f:
+                case 0x2f://DAS  AL Decimal Adjust AL after Subtraction
                     Ff();
                     break Fd;
                 case 0x37://AAA  AL ASCII Adjust After Addition
                     zf();
                     break Fd;
-                case 0x3f:
+                case 0x3f://AAS  AL ASCII Adjust AL After Subtraction
                     Cf();
                     break Fd;
-                case 0xd4:
+                case 0xd4://AAM  AL ASCII Adjust AX After Multiply
                     x = phys_mem8[mem_ptr++];
                     vf(x);
                     break Fd;
-                case 0xd5:
+                case 0xd5://AAD  AL ASCII Adjust AX Before Division
                     x = phys_mem8[mem_ptr++];
                     yf(x);
                     break Fd;
                 case 0x63://ARPL Ew  Adjust RPL Field of Segment Selector
                     tf();
                     break Fd;
-                case 0xd6:
-                case 0xf1:
+                case 0xd6://SALC   Undefined and Reserved; Does not Generate #UD
+                case 0xf1://INT1   Undefined and Reserved; Does not Generate #UD
                     blow_up_errcode0(6);
                     break;
 
@@ -7594,12 +7594,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x87://JNBE Jvds  Jump short if not below or equal/above (CF=0 AND ZF=0)
                         case 0x88://JS Jvds  Jump short if sign (SF=1)
                         case 0x89://JNS Jvds  Jump short if not sign (SF=0)
-                        case 0x8a:
-                        case 0x8b:
-                        case 0x8c:
-                        case 0x8d:
-                        case 0x8e:
-                        case 0x8f:
+                        case 0x8a://JP Jvds  Jump short if parity/parity even (PF=1)
+                        case 0x8b://JNP Jvds  Jump short if not parity/parity odd
+                        case 0x8c://JL Jvds  Jump short if less/not greater (SF!=OF)
+                        case 0x8d://JNL Jvds  Jump short if not less/greater or equal (SF=OF)
+                        case 0x8e://JLE Jvds  Jump short if less or equal/not greater ((ZF=1) OR (SF!=OF))
+                        case 0x8f://JNLE Jvds  Jump short if not less nor equal/greater ((ZF=0) AND (SF=OF))
                             {
                                 x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
                                 mem_ptr += 4;
@@ -7617,12 +7617,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x97://SETNBE  Eb Set Byte on Condition - not below or equal/above (CF=0 AND ZF=0)
                         case 0x98://SETS  Eb Set Byte on Condition - sign (SF=1)
                         case 0x99://SETNS  Eb Set Byte on Condition - not sign (SF=0)
-                        case 0x9a:
-                        case 0x9b:
-                        case 0x9c:
-                        case 0x9d:
-                        case 0x9e:
-                        case 0x9f:
+                        case 0x9a://SETP  Eb Set Byte on Condition - parity/parity even (PF=1)
+                        case 0x9b://SETNP  Eb Set Byte on Condition - not parity/parity odd
+                        case 0x9c://SETL  Eb Set Byte on Condition - less/not greater (SF!=OF)
+                        case 0x9d://SETNL  Eb Set Byte on Condition - not less/greater or equal (SF=OF)
+                        case 0x9e://SETLE  Eb Set Byte on Condition - less or equal/not greater ((ZF=1) OR (SF!=OF))
+                        case 0x9f://SETNLE  Eb Set Byte on Condition - not less nor equal/greater ((ZF=0) AND (SF=OF))
                             mem8 = phys_mem8[mem_ptr++];
                             x = check_status_bits_for_jump(OPbyte & 0xf);
                             if ((mem8 >> 6) == 3) {
@@ -7642,12 +7642,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x47://CMOVNBE Evqp Gvqp Conditional Move - not below or equal/above (CF=0 AND ZF=0)
                         case 0x48://CMOVS Evqp Gvqp Conditional Move - sign (SF=1)
                         case 0x49://CMOVNS Evqp Gvqp Conditional Move - not sign (SF=0)
-                        case 0x4a:
-                        case 0x4b:
-                        case 0x4c:
-                        case 0x4d:
-                        case 0x4e:
-                        case 0x4f:
+                        case 0x4a://CMOVP Evqp Gvqp Conditional Move - parity/parity even (PF=1)
+                        case 0x4b://CMOVNP Evqp Gvqp Conditional Move - not parity/parity odd
+                        case 0x4c://CMOVL Evqp Gvqp Conditional Move - less/not greater (SF!=OF)
+                        case 0x4d://CMOVNL Evqp Gvqp Conditional Move - not less/greater or equal (SF=OF)
+                        case 0x4e://CMOVLE Evqp Gvqp Conditional Move - less or equal/not greater ((ZF=1) OR (SF!=OF))
+                        case 0x4f://CMOVNLE Evqp Gvqp Conditional Move - not less nor equal/greater ((ZF=0) AND (SF=OF))
                             mem8 = phys_mem8[mem_ptr++];
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
@@ -7658,7 +7658,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             if (check_status_bits_for_jump(OPbyte & 0xf))
                                 regs[(mem8 >> 3) & 7] = x;
                             break Fd;
-                        case 0xb6:
+                        case 0xb6://MOVZX Eb Gvqp Move with Zero-Extend
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -7670,7 +7670,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             regs[register_1] = x;
                             break Fd;
-                        case 0xb7:
+                        case 0xb7://MOVZX Ew Gvqp Move with Zero-Extend
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -7681,7 +7681,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             regs[register_1] = x;
                             break Fd;
-                        case 0xbe:
+                        case 0xbe://MOVSX Eb Gvqp Move with Sign-Extension
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -7693,7 +7693,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             regs[register_1] = (((x) << 24) >> 24);
                             break Fd;
-                        case 0xbf:
+                        case 0xbf://MOVSX Ew Gvqp Move with Sign-Extension
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -7858,15 +7858,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             if (register_1 == 4 || register_1 == 5)
                                 blow_up_errcode0(6);
                             break Fd;
-                        case 0xb2:
-                        case 0xb4:
-                        case 0xb5:
+                        case 0xb2://LSS Mptp SS Load Far Pointer
+                        case 0xb4://LFS Mptp FS Load Far Pointer
+                        case 0xb5://LGS Mptp GS Load Far Pointer
                             Uf(OPbyte & 7);
                             break Fd;
-                        case 0xa2:
+                        case 0xa2://CPUID  IA32_BIOS_SIGN_ID CPU Identification
                             uf();
                             break Fd;
-                        case 0xa4:
+                        case 0xa4://SHLD Gvqp Evqp Double Precision Shift Left
                             mem8 = phys_mem8[mem_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
@@ -7881,7 +7881,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 st32_mem8_write(x);
                             }
                             break Fd;
-                        case 0xa5:
+                        case 0xa5://SHLD Gvqp Evqp Double Precision Shift Left
                             mem8 = phys_mem8[mem_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             z = regs[1];
@@ -7895,7 +7895,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 st32_mem8_write(x);
                             }
                             break Fd;
-                        case 0xac:
+                        case 0xac://SHRD Gvqp Evqp Double Precision Shift Right
                             mem8 = phys_mem8[mem_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
@@ -7910,7 +7910,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 st32_mem8_write(x);
                             }
                             break Fd;
-                        case 0xad:
+                        case 0xad://SHRD Gvqp Evqp Double Precision Shift Right
                             mem8 = phys_mem8[mem_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             z = regs[1];
@@ -7924,7 +7924,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 st32_mem8_write(x);
                             }
                             break Fd;
-                        case 0xba:
+                        case 0xba://BT Evqp  Bit Test
                             mem8 = phys_mem8[mem_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             switch (conditional_var) {
@@ -7958,7 +7958,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     blow_up_errcode0(6);
                             }
                             break Fd;
-                        case 0xa3:
+                        case 0xa3://BT Evqp  Bit Test
                             mem8 = phys_mem8[mem_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
@@ -7970,9 +7970,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             uc(x, y);
                             break Fd;
-                        case 0xab:
-                        case 0xb3:
-                        case 0xbb:
+                        case 0xab://BTS Gvqp Evqp Bit Test and Set
+                        case 0xb3://BTR Gvqp Evqp Bit Test and Reset
+                        case 0xbb://BTC Gvqp Evqp Bit Test and Complement
                             mem8 = phys_mem8[mem_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             conditional_var = (OPbyte >> 3) & 3;
@@ -7987,8 +7987,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 st32_mem8_write(x);
                             }
                             break Fd;
-                        case 0xbc:
-                        case 0xbd:
+                        case 0xbc://BSF Evqp Gvqp Bit Scan Forward
+                        case 0xbd://BSR Evqp Gvqp Bit Scan Reverse
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -8002,7 +8002,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             else
                                 regs[register_1] = zc(regs[register_1], y);
                             break Fd;
-                        case 0xaf:
+                        case 0xaf://IMUL Evqp Gvqp Signed Multiply
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -8020,7 +8020,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             regs[0] = x >>> 0;
                             regs[2] = (x / 0x100000000) >>> 0;
                             break Fd;
-                        case 0xc0:
+                        case 0xc0://XADD  Eb Exchange and Add
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -8037,7 +8037,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 set_either_two_bytes_of_reg_ABCD(register_1, x);
                             }
                             break Fd;
-                        case 0xc1:
+                        case 0xc1://XADD  Evqp Exchange and Add
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -8054,7 +8054,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 regs[register_1] = x;
                             }
                             break Fd;
-                        case 0xb0:
+                        case 0xb0://CMPXCHG Gb Eb Compare and Exchange
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -8077,7 +8077,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 }
                             }
                             break Fd;
-                        case 0xb1:
+                        case 0xb1://CMPXCHG Gvqp Evqp Compare and Exchange
                             mem8 = phys_mem8[mem_ptr++];
                             register_1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
@@ -8100,16 +8100,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 }
                             }
                             break Fd;
-                        case 0xa0:
-                        case 0xa8:
+                        case 0xa0://PUSH FS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
+                        case 0xa8://PUSH GS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                             xd(cpu.segs[(OPbyte >> 3) & 7].selector);
                             break Fd;
-                        case 0xa1:
-                        case 0xa9:
+                        case 0xa1://POP SS:[rSP] FS Pop a Value from the Stack
+                        case 0xa9://POP SS:[rSP] GS Pop a Value from the Stack
                             Ie((OPbyte >> 3) & 7, Ad() & 0xffff);
                             Bd();
                             break Fd;
-                        case 0xc8:
+                        case 0xc8://BSWAP  Zvqp Byte Swap
                         case 0xc9:
                         case 0xca:
                         case 0xcb:
@@ -8128,9 +8128,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x08://INVD   Invalidate Internal Caches
                         case 0x09://WBINVD   Write Back and Invalidate Cache
                         case 0x0a:
-                        case 0x0b:
+                        case 0x0b://UD2   Undefined Instruction
                         case 0x0c:
-                        case 0x0d:
+                        case 0x0d://NOP Ev  No Operation
                         case 0x0e:
                         case 0x0f:
                         case 0x10://MOVUPS Wps Vps Move Unaligned Packed Single-FP Values
@@ -8143,12 +8143,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x17://MOVHPS Vq Mq Move High Packed Single-FP Values
                         case 0x18://HINT_NOP Ev  Hintable NOP
                         case 0x19://HINT_NOP Ev  Hintable NOP
-                        case 0x1a:
-                        case 0x1b:
-                        case 0x1c:
-                        case 0x1d:
-                        case 0x1e:
-                        case 0x1f:
+                        case 0x1a://HINT_NOP Ev  Hintable NOP
+                        case 0x1b://HINT_NOP Ev  Hintable NOP
+                        case 0x1c://HINT_NOP Ev  Hintable NOP
+                        case 0x1d://HINT_NOP Ev  Hintable NOP
+                        case 0x1e://HINT_NOP Ev  Hintable NOP
+                        case 0x1f://HINT_NOP Ev  Hintable NOP
                         case 0x21://MOV Dd Rd Move to/from Debug Registers
                         case 0x24://MOV Td Rd Move to/from Test Registers
                         case 0x25:
@@ -8156,12 +8156,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x27:
                         case 0x28://MOVAPS Wps Vps Move Aligned Packed Single-FP Values
                         case 0x29://MOVAPS Vps Wps Move Aligned Packed Single-FP Values
-                        case 0x2a:
-                        case 0x2b:
-                        case 0x2c:
-                        case 0x2d:
-                        case 0x2e:
-                        case 0x2f:
+                        case 0x2a://CVTPI2PS Qpi Vps Convert Packed DW Integers to1.11 PackedSingle-FP Values
+                        case 0x2b://MOVNTPS Vps Mps Store Packed Single-FP Values Using Non-Temporal Hint
+                        case 0x2c://CVTTPS2PI Wpsq Ppi Convert with Trunc. Packed Single-FP Values to1.11 PackedDW Integers
+                        case 0x2d://CVTPS2PI Wpsq Ppi Convert Packed Single-FP Values to1.11 PackedDW Integers
+                        case 0x2e://UCOMISS Vss  Unordered Compare Scalar Single-FP Values and Set EFLAGS
+                        case 0x2f://COMISS Vss  Compare Scalar Ordered Single-FP Values and Set EFLAGS
                         case 0x30://WRMSR rCX MSR Write to Model Specific Register
                         case 0x32://RDMSR rCX rAX Read from Model Specific Register
                         case 0x33://RDPMC PMC EAX Read Performance-Monitoring Counters
@@ -8171,7 +8171,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x37://GETSEC EAX  GETSEC Leaf Functions
                         case 0x38://PSHUFB Qq Pq Packed Shuffle Bytes
                         case 0x39:
-                        case 0x3a:
+                        case 0x3a://ROUNDPS Wps Vps Round Packed Single-FP Values
                         case 0x3b:
                         case 0x3c:
                         case 0x3d:
@@ -8187,12 +8187,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x57://XORPS Wps Vps Bitwise Logical XOR for Single-FP Values
                         case 0x58://ADDPS Wps Vps Add Packed Single-FP Values
                         case 0x59://MULPS Wps Vps Multiply Packed Single-FP Values
-                        case 0x5a:
-                        case 0x5b:
-                        case 0x5c:
-                        case 0x5d:
-                        case 0x5e:
-                        case 0x5f:
+                        case 0x5a://CVTPS2PD Wps Vpd Convert Packed Single-FP Values to1.11 PackedDouble-FP Values
+                        case 0x5b://CVTDQ2PS Wdq Vps Convert Packed DW Integers to1.11 PackedSingle-FP Values
+                        case 0x5c://SUBPS Wps Vps Subtract Packed Single-FP Values
+                        case 0x5d://MINPS Wps Vps Return Minimum Packed Single-FP Values
+                        case 0x5e://DIVPS Wps Vps Divide Packed Single-FP Values
+                        case 0x5f://MAXPS Wps Vps Return Maximum Packed Single-FP Values
                         case 0x60://PUNPCKLBW Qd Pq Unpack Low Data
                         case 0x61://PUNPCKLWD Qd Pq Unpack Low Data
                         case 0x62://PUNPCKLDQ Qd Pq Unpack Low Data
@@ -8203,12 +8203,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x67://PACKUSWB Qq Pq Pack with Unsigned Saturation
                         case 0x68://PUNPCKHBW Qq Pq Unpack High Data
                         case 0x69://PUNPCKHWD Qq Pq Unpack High Data
-                        case 0x6a:
-                        case 0x6b:
-                        case 0x6c:
-                        case 0x6d:
-                        case 0x6e:
-                        case 0x6f:
+                        case 0x6a://PUNPCKHDQ Qq Pq Unpack High Data
+                        case 0x6b://PACKSSDW Qq Pq Pack with Signed Saturation
+                        case 0x6c://PUNPCKLQDQ Wdq Vdq Unpack Low Data
+                        case 0x6d://PUNPCKHQDQ Wdq Vdq Unpack High Data
+                        case 0x6e://MOVD Ed Pq Move Doubleword
+                        case 0x6f://MOVQ Qq Pq Move Quadword
                         case 0x70://PSHUFW Qq Pq Shuffle Packed Words
                         case 0x71://PSRLW Ib Nq Shift Packed Data Right Logical
                         case 0x72://PSRLD Ib Nq Shift Double Quadword Right Logical
@@ -8221,69 +8221,69 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x79://VMWRITE Gd  Write Field to Virtual-Machine Control Structure
                         case 0x7a:
                         case 0x7b:
-                        case 0x7c:
-                        case 0x7d:
-                        case 0x7e:
-                        case 0x7f:
+                        case 0x7c://HADDPD Wpd Vpd Packed Double-FP Horizontal Add
+                        case 0x7d://HSUBPD Wpd Vpd Packed Double-FP Horizontal Subtract
+                        case 0x7e://MOVD Pq Ed Move Doubleword
+                        case 0x7f://MOVQ Pq Qq Move Quadword
                         case 0xa6:
                         case 0xa7:
-                        case 0xaa:
-                        case 0xae:
-                        case 0xb8:
-                        case 0xb9:
-                        case 0xc2:
-                        case 0xc3:
-                        case 0xc4:
-                        case 0xc5:
-                        case 0xc6:
-                        case 0xc7:
-                        case 0xd0:
-                        case 0xd1:
-                        case 0xd2:
-                        case 0xd3:
-                        case 0xd4:
-                        case 0xd5:
-                        case 0xd6:
-                        case 0xd7:
-                        case 0xd8:
-                        case 0xd9:
-                        case 0xda:
-                        case 0xdb:
-                        case 0xdc:
-                        case 0xdd:
-                        case 0xde:
-                        case 0xdf:
-                        case 0xe0:
-                        case 0xe1:
-                        case 0xe2:
-                        case 0xe3:
-                        case 0xe4:
-                        case 0xe5:
-                        case 0xe6:
-                        case 0xe7:
-                        case 0xe8:
-                        case 0xe9:
-                        case 0xea:
-                        case 0xeb:
-                        case 0xec:
-                        case 0xed:
-                        case 0xee:
-                        case 0xef:
-                        case 0xf0:
-                        case 0xf1:
-                        case 0xf2:
-                        case 0xf3:
-                        case 0xf4:
-                        case 0xf5:
-                        case 0xf6:
-                        case 0xf7:
-                        case 0xf8:
-                        case 0xf9:
-                        case 0xfa:
-                        case 0xfb:
-                        case 0xfc:
-                        case 0xfd:
-                        case 0xfe:
+                        case 0xaa://RSM  Flags Resume from System Management Mode
+                        case 0xae://FXSAVE ST Mstx Save x87 FPU, MMX, XMM, and MXCSR State
+                        case 0xb8://JMPE   Jump to IA-64 Instruction Set
+                        case 0xb9://UD G  Undefined Instruction
+                        case 0xc2://CMPPS Wps Vps Compare Packed Single-FP Values
+                        case 0xc3://MOVNTI Gdqp Mdqp Store Doubleword Using Non-Temporal Hint
+                        case 0xc4://PINSRW Rdqp Pq Insert Word
+                        case 0xc5://PEXTRW Nq Gdqp Extract Word
+                        case 0xc6://SHUFPS Wps Vps Shuffle Packed Single-FP Values
+                        case 0xc7://CMPXCHG8B EBX Mq Compare and Exchange Bytes
+                        case 0xd0://ADDSUBPD Wpd Vpd Packed Double-FP Add/Subtract
+                        case 0xd1://PSRLW Qq Pq Shift Packed Data Right Logical
+                        case 0xd2://PSRLD Qq Pq Shift Packed Data Right Logical
+                        case 0xd3://PSRLQ Qq Pq Shift Packed Data Right Logical
+                        case 0xd4://PADDQ Qq Pq Add Packed Quadword Integers
+                        case 0xd5://PMULLW Qq Pq Multiply Packed Signed Integers and Store Low Result
+                        case 0xd6://MOVQ Vq Wq Move Quadword
+                        case 0xd7://PMOVMSKB Nq Gdqp Move Byte Mask
+                        case 0xd8://PSUBUSB Qq Pq Subtract Packed Unsigned Integers with Unsigned Saturation
+                        case 0xd9://PSUBUSW Qq Pq Subtract Packed Unsigned Integers with Unsigned Saturation
+                        case 0xda://PMINUB Qq Pq Minimum of Packed Unsigned Byte Integers
+                        case 0xdb://PAND Qd Pq Logical AND
+                        case 0xdc://PADDUSB Qq Pq Add Packed Unsigned Integers with Unsigned Saturation
+                        case 0xdd://PADDUSW Qq Pq Add Packed Unsigned Integers with Unsigned Saturation
+                        case 0xde://PMAXUB Qq Pq Maximum of Packed Unsigned Byte Integers
+                        case 0xdf://PANDN Qq Pq Logical AND NOT
+                        case 0xe0://PAVGB Qq Pq Average Packed Integers
+                        case 0xe1://PSRAW Qq Pq Shift Packed Data Right Arithmetic
+                        case 0xe2://PSRAD Qq Pq Shift Packed Data Right Arithmetic
+                        case 0xe3://PAVGW Qq Pq Average Packed Integers
+                        case 0xe4://PMULHUW Qq Pq Multiply Packed Unsigned Integers and Store High Result
+                        case 0xe5://PMULHW Qq Pq Multiply Packed Signed Integers and Store High Result
+                        case 0xe6://CVTPD2DQ Wpd Vdq Convert Packed Double-FP Values to1.11 PackedDW Integers
+                        case 0xe7://MOVNTQ Pq Mq Store of Quadword Using Non-Temporal Hint
+                        case 0xe8://PSUBSB Qq Pq Subtract Packed Signed Integers with Signed Saturation
+                        case 0xe9://PSUBSW Qq Pq Subtract Packed Signed Integers with Signed Saturation
+                        case 0xea://PMINSW Qq Pq Minimum of Packed Signed Word Integers
+                        case 0xeb://POR Qq Pq Bitwise Logical OR
+                        case 0xec://PADDSB Qq Pq Add Packed Signed Integers with Signed Saturation
+                        case 0xed://PADDSW Qq Pq Add Packed Signed Integers with Signed Saturation
+                        case 0xee://PMAXSW Qq Pq Maximum of Packed Signed Word Integers
+                        case 0xef://PXOR Qq Pq Logical Exclusive OR
+                        case 0xf0://LDDQU Mdq Vdq Load Unaligned Integer 128 Bits
+                        case 0xf1://PSLLW Qq Pq Shift Packed Data Left Logical
+                        case 0xf2://PSLLD Qq Pq Shift Packed Data Left Logical
+                        case 0xf3://PSLLQ Qq Pq Shift Packed Data Left Logical
+                        case 0xf4://PMULUDQ Qq Pq Multiply Packed Unsigned DW Integers
+                        case 0xf5://PMADDWD Qd Pq Multiply and Add Packed Integers
+                        case 0xf6://PSADBW Qq Pq Compute Sum of Absolute Differences
+                        case 0xf7://MASKMOVQ Nq (DS:)[rDI] Store Selected Bytes of Quadword
+                        case 0xf8://PSUBB Qq Pq Subtract Packed Integers
+                        case 0xf9://PSUBW Qq Pq Subtract Packed Integers
+                        case 0xfa://PSUBD Qq Pq Subtract Packed Integers
+                        case 0xfb://PSUBQ Qq Pq Subtract Packed Quadword Integers
+                        case 0xfc://PADDB Qq Pq Add Packed Integers
+                        case 0xfd://PADDW Qq Pq Add Packed Integers
+                        case 0xfe://PADDD Qq Pq Add Packed Integers
                         case 0xff:
                         default:
                             blow_up_errcode0(6);
