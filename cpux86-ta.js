@@ -61,28 +61,35 @@ space of the 80386 (2^(20) times 2^(12) = 2^(32)).
 
 Hints for Bit Twiddling
 =========================================================
-X & -65281  = mask for lower 8 bits for 32bit X
-X & 3       = mask for lower 2 bits for single byte X
+X & (2^N-1) = mask for lower N bits of X
+X & -2^N    = mask for upper N bits of X  (for two's complement)
+
+X & 3       = mask for lower 2 bits for X
+X & 7       = mask for lower 7 bits for X
+X & -4096   = mask for upper 20 bits for X
 
 ((x << 16) >> 16)  = clears top 16bits, enforces word-size data
 ((x << 24) >> 24)  = clears top 24bits, enforces byte-size data
 
+(1<<0 | 1<<4 | 1<<7)  = sets bits 0,4,7 to 1, rest to 0
+
 */
 
 /* Parity Check by LUT:
-static const bool ParityTable256[256] = {
-#   define P2(n) n, n^1, n^1, n
-#   define P4(n) P2(n), P2(n^1), P2(n^1), P2(n)
-#   define P6(n) P4(n), P4(n^1), P4(n^1), P4(n)
-    P6(0), P6(1), P6(1), P6(0) };
-unsigned char b;  // byte value to compute the parity of
-bool parity = ParityTable256[b];
-// OR, for 32-bit words:    unsigned int v; v ^= v >> 16; v ^= v >> 8; bool parity = ParityTable256[v & 0xff];
-// Variation:               unsigned char * p = (unsigned char *) &v; parity = ParityTable256[p[0] ^ p[1] ^ p[2] ^ p[3]]; */
+   static const bool ParityTable256[256] = {
+   #   define P2(n) n, n^1, n^1, n
+   #   define P4(n) P2(n), P2(n^1), P2(n^1), P2(n)
+   #   define P6(n) P4(n), P4(n^1), P4(n^1), P4(n)
+   P6(0), P6(1), P6(1), P6(0) };
+   unsigned char b;  // byte value to compute the parity of
+   bool parity = ParityTable256[b];
+   // OR, for 32-bit words:    unsigned int v; v ^= v >> 16; v ^= v >> 8; bool parity = ParityTable256[v & 0xff];
+   // Variation:               unsigned char * p = (unsigned char *) &v; parity = ParityTable256[p[0] ^ p[1] ^ p[2] ^ p[3]];
+*/
 var parity_LUT = [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
 
-var used_by_shift16 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-var used_by_shift8 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4];
+var shift16_LUT = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+var shift8_LUT = [0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4];
 
 function CPU_X86() {
     var i, tlb_size;
@@ -371,6 +378,10 @@ CPU_X86.prototype.st8_phys  = function(mem8_loc, x) {         this.phys_mem8[mem
 CPU_X86.prototype.ld32_phys = function(mem8_loc)    {  return this.phys_mem32[mem8_loc >> 2]; };
 CPU_X86.prototype.st32_phys = function(mem8_loc, x) {         this.phys_mem32[mem8_loc >> 2] = x; };
 
+/*
+   TLB Routines
+   ==========================================================================================
+*/
 CPU_X86.prototype.tlb_set_page = function(mem8_loc, page_val, set_write_tlb, set_user_tlb) {
     var i, x, j;
     page_val &= -4096; // only top 20bits matter
@@ -444,6 +455,12 @@ CPU_X86.prototype.tlb_flush_all1 = function(la) {
     this.tlb_pages_count = new_n;
 };
 
+
+/*
+   String / Logging Routines
+   ==========================================================================================
+*/
+
 /* writes ASCII string in na into memory location mem8_loc */
 CPU_X86.prototype.write_string = function(mem8_loc, str) {
     var i;
@@ -453,7 +470,7 @@ CPU_X86.prototype.write_string = function(mem8_loc, str) {
     this.st8_phys(mem8_loc, 0);
 };
 
-// Represents numeric value ga as n-digit HEX
+/* Represents numeric value ga as n-digit HEX */
 function hex_rep(x, n) {
     var i, s;
     var h = "0123456789ABCDEF";
@@ -506,6 +523,13 @@ CPU_X86.prototype.dump = function() {
     str += "IDT=     " + _4_bytes_(sa.base) + " " + _4_bytes_(sa.limit);
     console.log(str);
 };
+
+
+
+/*
+  The Beast
+  ==========================================================================================
+*/
 
 CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     /*
@@ -1300,7 +1324,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 }
                 break;
             case 2:
-                Zb = used_by_shift8[Zb & 0x1f];
+                Zb = shift8_LUT[Zb & 0x1f];
                 if (Zb) {
                     Yb &= 0xff;
                     kc = Yb;
@@ -1315,7 +1339,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 }
                 break;
             case 3:
-                Zb = used_by_shift8[Zb & 0x1f];
+                Zb = shift8_LUT[Zb & 0x1f];
                 if (Zb) {
                     Yb &= 0xff;
                     kc = Yb;
@@ -1389,7 +1413,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 }
                 break;
             case 2:
-                Zb = used_by_shift16[Zb & 0x1f];
+                Zb = shift16_LUT[Zb & 0x1f];
                 if (Zb) {
                     Yb &= 0xffff;
                     kc = Yb;
@@ -1404,7 +1428,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 }
                 break;
             case 3:
-                Zb = used_by_shift16[Zb & 0x1f];
+                Zb = shift16_LUT[Zb & 0x1f];
                 if (Zb) {
                     Yb &= 0xffff;
                     kc = Yb;
@@ -2547,7 +2571,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 case 0x6d:
                 case 0x6e:
                 case 0x6f:
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xb0:
                 case 0xb1:
                 case 0xb2:
@@ -2597,7 +2621,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     n++;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xb8:
                 case 0xb9:
                 case 0xba:
@@ -2621,7 +2645,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     n += Ed;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x88:
                 case 0x89:
                 case 0x8a:
@@ -2756,7 +2780,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         if (n > 15)
                             abort(6);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa0:
                 case 0xa1:
                 case 0xa2:
@@ -2767,7 +2791,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         n += 4;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc6:
                 case 0x80:
                 case 0x82:
@@ -2850,7 +2874,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     n++;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc7:
                 case 0x81:
                 case 0x69:
@@ -2929,7 +2953,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     n += Ed;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf6:
                     {
                         {
@@ -3009,7 +3033,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         if (n > 15)
                             abort(6);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf7:
                     {
                         {
@@ -3089,24 +3113,24 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         if (n > 15)
                             abort(6);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xea:
                 case 0x9a:
                     n += 2 + Ed;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc2:
                 case 0xca:
                     n += 2;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc8:
                     n += 3;
                     if (n > 15)
                         abort(6);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd6:
                 case 0xf1:
                 default:
@@ -3134,7 +3158,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         case 0xcd:
                         case 0xce:
                         case 0xcf:
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x80:
                         case 0x81:
                         case 0x82:
@@ -3154,7 +3178,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             n += Ed;
                             if (n > 15)
                                 abort(6);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x90:
                         case 0x91:
                         case 0x92:
@@ -3286,7 +3310,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 if (n > 15)
                                     abort(6);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xa4:
                         case 0xac:
                         case 0xba:
@@ -3365,7 +3389,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             n++;
                             if (n > 15)
                                 abort(6);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x04:
                         case 0x05:
                         case 0x07:
@@ -5869,7 +5893,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     physmem8_ptr = 0;
     initial_mem_ptr = 0;
 
-    Bg: do {
+    OUTER_LOOP: do {
         eip = (eip + physmem8_ptr - initial_mem_ptr) >> 0;
         Nb = (eip + CS_base) >> 0;
         Lb = _tlb_read_[Nb >>> 12];
@@ -5971,7 +5995,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     OPbyte &= 7; //last bits
                     last_tlb_val = (OPbyte & 4) << 1;
                     regs[OPbyte & 3] = (regs[OPbyte & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xb8://MOV Ivqp Zvqp Move
                 case 0xb9:
                 case 0xba:
@@ -5985,7 +6009,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         physmem8_ptr += 4;
                     }
                     regs[OPbyte & 7] = x;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x88://MOV Gb Eb Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6005,7 +6029,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x89://MOV Gvqp Evqp Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     x = regs[(mem8 >> 3) & 7];
@@ -6022,7 +6046,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x8a://MOV Eb Gb Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
@@ -6035,7 +6059,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     reg_idx1 = (mem8 >> 3) & 7;
                     last_tlb_val = (reg_idx1 & 4) << 1;
                     regs[reg_idx1 & 3] = (regs[reg_idx1 & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x8b://MOV Evqp Gvqp Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
@@ -6045,25 +6069,25 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) | mem8_loc) & 3 ? __ld_32bits_mem8_read() : phys_mem32[(mem8_loc ^ last_tlb_val) >> 2]);
                     }
                     regs[(mem8 >> 3) & 7] = x;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa0://MOV Ob AL Move byte at (seg:offset) to AL
                     mem8_loc = segmented_mem8_loc_for_MOV();
                     x = ld_8bits_mem8_read();
                     regs[0] = (regs[0] & -256) | x;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa1://MOV Ovqp rAX Move dword at (seg:offset) to EAX
                     mem8_loc = segmented_mem8_loc_for_MOV();
                     x = ld_32bits_mem8_read();
                     regs[0] = x;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa2://MOV AL Ob Move AL to (seg:offset)
                     mem8_loc = segmented_mem8_loc_for_MOV();
                     st8_mem8_write(regs[0]);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa3://MOV rAX Ovqp Move EAX to (seg:offset)
                     mem8_loc = segmented_mem8_loc_for_MOV();
                     st32_mem8_write(regs[0]);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd7://XLAT (DS:)[rBX+AL] AL Table Look-up Translation
                     mem8_loc = (regs[3] + (regs[0] & 0xff)) >> 0;
                     if (CS_flags & 0x0080)
@@ -6076,7 +6100,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     mem8_loc = (mem8_loc + cpu.segs[reg_idx1].base) >> 0;
                     x = ld_8bits_mem8_read();
                     set_word_in_register(0, x);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc6://MOV Ib Eb Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
@@ -6087,7 +6111,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = phys_mem8[physmem8_ptr++];
                         st8_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc7://MOV Ivds Evqp Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
@@ -6104,7 +6128,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         }
                         st32_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x91://(90+r)  XCHG  r16/32  eAX     Exchange Register/Memory with Register
                 case 0x92:
                 case 0x93:
@@ -6116,7 +6140,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     x = regs[0];
                     regs[0] = regs[reg_idx1];
                     regs[reg_idx1] = x;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x86://XCHG  Gb Exchange Register/Memory with Register
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6130,7 +6154,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         st8_mem8_write((regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)));
                     }
                     set_word_in_register(reg_idx1, x);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x87://XCHG  Gvqp Exchange Register/Memory with Register
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6144,7 +6168,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         st32_mem8_write(regs[reg_idx1]);
                     }
                     regs[reg_idx1] = x;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x8e://MOV Ew Sw Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6157,7 +6181,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = ld_16bits_mem8_read();
                     }
                     Ie(reg_idx1, x);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x8c://MOV Sw Mw Move
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6174,13 +6198,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         mem8_loc = segment_translation(mem8);
                         st16_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc4://LES Mp ES Load Far Pointer
                     Uf(0);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc5://LDS Mp DS Load Far Pointer
                     Uf(3);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x00://ADD Gb Eb Add
                 case 0x08://OR Gb Eb Logical Inclusive OR
                 case 0x10://ADC Gb Eb Add with Carry
@@ -6207,7 +6231,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             do_8bit_math(7, x, y);
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x01://ADD Gvqp Evqp Add
                     mem8 = phys_mem8[physmem8_ptr++];
                     y = regs[(mem8 >> 3) & 7];
@@ -6228,7 +6252,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         }
                         st32_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x09://OR Gvqp Evqp Logical Inclusive OR
                 case 0x11://ADC Gvqp Evqp Add with Carry
                 case 0x19://SBB Gvqp Evqp Integer Subtraction with Borrow
@@ -6247,7 +6271,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = do_32bit_math(conditional_var, x, y);
                         st32_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x39://CMP Evqp  Compare Two Operands
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
@@ -6268,7 +6292,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             _op = 8;
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x02://ADD Eb Gb Add
                 case 0x0a://OR Eb Gb Logical Inclusive OR
                 case 0x12://ADC Eb Gb Add with Carry
@@ -6288,7 +6312,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         y = ld_8bits_mem8_read();
                     }
                     set_word_in_register(reg_idx1, do_8bit_math(conditional_var, (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)), y));
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x03://ADD Evqp Gvqp Add
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6303,7 +6327,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = regs[reg_idx1] = (regs[reg_idx1] + _src) >> 0;
                         _op = 2;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x0b://OR Evqp Gvqp Logical Inclusive OR
                 case 0x13://ADC Evqp Gvqp Add with Carry
                 case 0x1b://SBB Evqp Gvqp Integer Subtraction with Borrow
@@ -6320,7 +6344,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         y = ld_32bits_mem8_read();
                     }
                     regs[reg_idx1] = do_32bit_math(conditional_var, regs[reg_idx1], y);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x3b://CMP Gvqp  Compare Two Operands
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
@@ -6336,7 +6360,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = (regs[reg_idx1] - _src) >> 0;
                         _op = 8;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x04://ADD Ib AL Add
                 case 0x0c://OR Ib AL Logical Inclusive OR
                 case 0x14://ADC Ib AL Add with Carry
@@ -6348,7 +6372,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     y = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
                     set_word_in_register(0, do_8bit_math(conditional_var, regs[0] & 0xff, y));
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x05://ADD Ivds rAX Add
                     {
                         y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
@@ -6359,7 +6383,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = regs[0] = (regs[0] + _src) >> 0;
                         _op = 2;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x0d://OR Ivds rAX Logical Inclusive OR
                 case 0x15://ADC Ivds rAX Add with Carry
                 case 0x1d://SBB Ivds rAX Integer Subtraction with Borrow
@@ -6371,7 +6395,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     }
                     conditional_var = OPbyte >> 3;
                     regs[0] = do_32bit_math(conditional_var, regs[0], y);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x35://XOR Ivds rAX Logical Exclusive OR
                     {
                         y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
@@ -6381,7 +6405,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = regs[0] = regs[0] ^ y;
                         _op = 14;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x3d://CMP rAX  Compare Two Operands
                     {
                         y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
@@ -6392,7 +6416,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = (regs[0] - _src) >> 0;
                         _op = 8;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x80://ADD Ib Eb Add
                 case 0x82://ADD Ib Eb Add
                     mem8 = phys_mem8[physmem8_ptr++];
@@ -6413,7 +6437,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             do_8bit_math(7, x, y);
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x81://ADD Ivds Evqp Add
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6452,7 +6476,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             st32_mem8_write(x);
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x83://ADD Ibs Evqp Add
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6482,7 +6506,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             st32_mem8_write(x);
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x40://INC  Zv Increment by 1
                 case 0x41://REX.B   Extension of r/m field, base field, or opcode reg field
                 case 0x42://REX.X   Extension of SIB index field
@@ -6500,7 +6524,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         regs[reg_idx1] = _dst = (regs[reg_idx1] + 1) >> 0;
                         _op = 27;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x48://DEC  Zv Decrement by 1
                 case 0x49://REX.WB   REX.W and REX.B combination
                 case 0x4a://REX.WX   REX.W and REX.X combination
@@ -6518,7 +6542,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         regs[reg_idx1] = _dst = (regs[reg_idx1] - 1) >> 0;
                         _op = 30;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x6b://IMUL Evqp Gvqp Signed Multiply
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6530,7 +6554,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     }
                     z = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     regs[reg_idx1] = Wc(y, z);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x69://IMUL Evqp Gvqp Signed Multiply
                     mem8 = phys_mem8[physmem8_ptr++];
                     reg_idx1 = (mem8 >> 3) & 7;
@@ -6545,7 +6569,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         physmem8_ptr += 4;
                     }
                     regs[reg_idx1] = Wc(y, z);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x84://TEST Eb  Logical Compare
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
@@ -6561,7 +6585,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = (((x & y) << 24) >> 24);
                         _op = 12;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x85://TEST Evqp  Logical Compare
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
@@ -6575,14 +6599,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = x & y;
                         _op = 14;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa8://TEST AL  Logical Compare
                     y = phys_mem8[physmem8_ptr++];
                     {
                         _dst = (((regs[0] & y) << 24) >> 24);
                         _op = 12;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa9://TEST rAX  Logical Compare
                     {
                         y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
@@ -6592,7 +6616,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         _dst = regs[0] & y;
                         _op = 14;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf6://TEST Eb  Logical Compare
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6676,7 +6700,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         default:
                             abort(6);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf7://TEST Evqp  Logical Compare
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6762,7 +6786,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         default:
                             abort(6);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 //Rotate and Shift ops ---------------------------------------------------------------
                 case 0xc0://ROL Ib Eb Rotate
                     mem8 = phys_mem8[physmem8_ptr++];
@@ -6778,7 +6802,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = shift8(conditional_var, x, y);
                         st8_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc1://ROL Ib Evqp Rotate
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6793,7 +6817,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = shift32(conditional_var, x, y);
                         st32_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd0://ROL 1 Eb Rotate
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6806,7 +6830,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = shift8(conditional_var, x, 1);
                         st8_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd1://ROL 1 Evqp Rotate
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6819,7 +6843,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = shift32(conditional_var, x, 1);
                         st32_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd2://ROL CL Eb Rotate
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6833,7 +6857,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = shift8(conditional_var, x, y);
                         st8_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd3://ROL CL Evqp Rotate
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -6847,13 +6871,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = shift32(conditional_var, x, y);
                         st32_mem8_write(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x98://CBW AL AX Convert Byte to Word
                     regs[0] = (regs[0] << 16) >> 16;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x99://CWD AX DX Convert Word to Doubleword
                     regs[2] = regs[0] >> 31;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x50://PUSH Zv SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                 case 0x51:
                 case 0x52:
@@ -6877,7 +6901,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         xd(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x58://POP SS:[rSP] Zv Pop a Value from the Stack
                 case 0x59:
                 case 0x5a:
@@ -6895,14 +6919,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         Bd();
                     }
                     regs[OPbyte & 7] = x;
-                    break Fd;
+                    break EXEC_LOOP;
 
                 case 0x60://PUSHA AX SS:[rSP] Push All General-Purpose Registers
                     Kf();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x61://POPA SS:[rSP] DI Pop All General-Purpose Registers
                     Mf();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x8f://POP SS:[rSP] Ev Pop a Value from the Stack
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
@@ -6919,7 +6943,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         st32_mem8_write(x);
                         regs[4] = z;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x68://PUSH Ivs SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                     {
                         x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
@@ -6932,7 +6956,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         xd(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x6a://PUSH Ibss SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                     x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     if (FS_usage_flag) {
@@ -6942,10 +6966,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         xd(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc8://ENTER Iw SS:[rSP] Make Stack Frame for Procedure Parameters
                     Tf();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc9://LEAVE SS:[rSP] eBP High Level Procedure Exit
                     if (FS_usage_flag) {
                         mem8_loc = regs[5];
@@ -6955,7 +6979,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         Of();
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x9c://PUSHF Flags SS:[rSP] Push FLAGS Register onto the Stack
                     iopl = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && iopl != 3)
@@ -6966,7 +6990,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         vd(x);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x9d://POPF SS:[rSP] Flags Pop Stack into FLAGS Register
                     iopl = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && iopl != 3)
@@ -6990,28 +7014,28 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     kd(x, z & y);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x06://PUSH ES SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                 case 0x0e://PUSH CS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                 case 0x16://PUSH SS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                 case 0x1e://PUSH DS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                     xd(cpu.segs[OPbyte >> 3].selector);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x07://POP SS:[rSP] ES Pop a Value from the Stack
                 case 0x17://POP SS:[rSP] SS Pop a Value from the Stack
                 case 0x1f://POP SS:[rSP] DS Pop a Value from the Stack
                     Ie(OPbyte >> 3, Ad() & 0xffff);
                     Bd();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x8d://LEA M Gvqp Load Effective Address
                     mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3)
                         abort(6);
                     CS_flags = (CS_flags & ~0x000f) | (6 + 1);
                     regs[(mem8 >> 3) & 7] = segment_translation(mem8);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xfe://INC  Eb Increment by 1
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -7041,7 +7065,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         default:
                             abort(6);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xff://INC  Evqp Increment by 1
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
@@ -7153,18 +7177,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         default:
                             abort(6);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xeb://JMP Jbs  Jump
                     x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     physmem8_ptr = (physmem8_ptr + x) >> 0;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe9://JMP Jvds  Jump
                     {
                         x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
                         physmem8_ptr += 4;
                     }
                     physmem8_ptr = (physmem8_ptr + x) >> 0;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xea://JMPF Ap  Jump
                     if ((((CS_flags >> 8) & 1) ^ 1)) {
                         {
@@ -7176,7 +7200,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     }
                     y = ld16_mem8_direct();
                     Oe(y, x);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x70://JO Jbs  Jump short if overflow (OF=1)
                     if (check_overflow()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7184,7 +7208,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x71://JNO Jbs  Jump short if not overflow (OF=0)
                     if (!check_overflow()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7192,7 +7216,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x72://JB Jbs  Jump short if below/not above or equal/carry (CF=1)
                     if (check_carry()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7200,7 +7224,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x73://JNB Jbs  Jump short if not below/above or equal/not carry (CF=0)
                     if (!check_carry()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7208,7 +7232,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x74://JZ Jbs  Jump short if zero/equal (ZF=0)
                     if ((_dst == 0)) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7216,7 +7240,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x75://JNZ Jbs  Jump short if not zero/not equal (ZF=1)
                     if (!(_dst == 0)) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7224,7 +7248,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x76://JBE Jbs  Jump short if below or equal/not above (CF=1 AND ZF=1)
                     if (check_below_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7232,7 +7256,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x77://JNBE Jbs  Jump short if not below or equal/above (CF=0 AND ZF=0)
                     if (!check_below_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7240,7 +7264,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x78://JS Jbs  Jump short if sign (SF=1)
                     if ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0))) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7248,7 +7272,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x79://JNS Jbs  Jump short if not sign (SF=0)
                     if (!(_op == 24 ? ((_src >> 7) & 1) : (_dst < 0))) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7256,7 +7280,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x7a://JP Jbs  Jump short if parity/parity even (PF=1)
                     if (check_parity()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7264,7 +7288,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x7b://JNP Jbs  Jump short if not parity/parity odd
                     if (!check_parity()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7272,7 +7296,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x7c://JL Jbs  Jump short if less/not greater (SF!=OF)
                     if (check_less_than()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7280,7 +7304,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x7d://JNL Jbs  Jump short if not less/greater or equal (SF=OF)
                     if (!check_less_than()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7288,7 +7312,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x7e://JLE Jbs  Jump short if less or equal/not greater ((ZF=1) OR (SF!=OF))
                     if (check_less_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7296,7 +7320,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x7f://JNLE Jbs  Jump short if not less nor equal/greater ((ZF=0) AND (SF=OF))
                     if (!check_less_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
@@ -7304,7 +7328,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe0://LOOPNZ Jbs eCX Decrement count; Jump short if count!=0 and ZF=0
                 case 0xe1://LOOPZ Jbs eCX Decrement count; Jump short if count!=0 and ZF=1
                 case 0xe2://LOOP Jbs eCX Decrement count; Jump short if count!=0
@@ -7329,7 +7353,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             physmem8_ptr = (physmem8_ptr + x) >> 0;
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe3://JCXZ Jbs  Jump short if eCX register is 0
                     x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     if (CS_flags & 0x0080)
@@ -7343,13 +7367,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             physmem8_ptr = (physmem8_ptr + x) >> 0;
                         }
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc2://RETN SS:[rSP]  Return from procedure
                     y = (ld16_mem8_direct() << 16) >> 16;
                     x = Ad();
                     regs[4] = (regs[4] & ~SS_mask) | ((regs[4] + 4 + y) & SS_mask);
                     eip = x, physmem8_ptr = initial_mem_ptr = 0;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xc3://RETN SS:[rSP]  Return from procedure
                     if (FS_usage_flag) {
                         mem8_loc = regs[4];
@@ -7360,7 +7384,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         Bd();
                     }
                     eip = x, physmem8_ptr = initial_mem_ptr = 0;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe8://CALL Jvds SS:[rSP] Call Procedure
                     {
                         x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
@@ -7375,7 +7399,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         xd(y);
                     }
                     physmem8_ptr = (physmem8_ptr + x) >> 0;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x9a://CALLF Ap SS:[rSP] Call Procedure
                     z = (((CS_flags >> 8) & 1) ^ 1);
                     if (z) {
@@ -7390,80 +7414,80 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     Ze(z, y, x, (eip + physmem8_ptr - initial_mem_ptr));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xca://RETF Iw  Return from procedure
                     y = (ld16_mem8_direct() << 16) >> 16;
                     nf((((CS_flags >> 8) & 1) ^ 1), y);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xcb://RETF SS:[rSP]  Return from procedure
                     nf((((CS_flags >> 8) & 1) ^ 1), 0);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xcf://IRET SS:[rSP] Flags Interrupt Return
                     mf((((CS_flags >> 8) & 1) ^ 1));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x90://XCHG  Zvqp Exchange Register/Memory with Register
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xcc://INT 3 SS:[rSP] Call to Interrupt Procedure
                     y = (eip + physmem8_ptr - initial_mem_ptr);
                     do_interrupt(3, 1, 0, y, 0);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xcd://INT Ib SS:[rSP] Call to Interrupt Procedure
                     x = phys_mem8[physmem8_ptr++];
                     if ((cpu.eflags & 0x00020000) && ((cpu.eflags >> 12) & 3) != 3)
                         abort(13);
                     y = (eip + physmem8_ptr - initial_mem_ptr);
                     do_interrupt(x, 1, 0, y, 0);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xce://INTO eFlags SS:[rSP] Call to Interrupt Procedure
                     if (check_overflow()) {
                         y = (eip + physmem8_ptr - initial_mem_ptr);
                         do_interrupt(4, 1, 0, y, 0);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x62://BOUND Gv SS:[rSP] Check Array Index Against Bounds
                     checkOp_BOUND();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf5://CMC   Complement Carry Flag
                     _src = get_conditional_flags() ^ 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf8://CLC   Clear Carry Flag
                     _src = get_conditional_flags() & ~0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf9://STC   Set Carry Flag
                     _src = get_conditional_flags() | 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xfc://CLD   Clear Direction Flag
                     cpu.df = 1;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xfd://STD   Set Direction Flag
                     cpu.df = -1;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xfa://CLI   Clear Interrupt Flag
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         abort(13);
                     cpu.eflags &= ~0x00000200;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xfb://STI   Set Interrupt Flag
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7471,82 +7495,82 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     cpu.eflags |= 0x00000200;
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x9e://SAHF AH  Store AH into Flags
                     _src = ((regs[0] >> 8) & (0x0080 | 0x0040 | 0x0010 | 0x0004 | 0x0001)) | (check_overflow() << 11);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x9f://LAHF  AH Load Status Flags into AH Register
                     x = id();
                     set_word_in_register(4, x);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xf4://HLT   Halt
                     if (cpu.cpl != 0)
                         abort(13);
                     cpu.halted = 1;
                     exit_code = 257;
-                    break Bg;
+                    break OUTER_LOOP;
                 case 0xa4://MOVS (DS:)[rSI] (ES:)[rDI] Move Data from String to String
                     stringOp_MOVSB();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa5://MOVS DS:[SI] ES:[DI] Move Data from String to String
                     stringOp_MOVSD();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xaa://STOS AL (ES:)[rDI] Store String
                     stringOp_STOSB();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xab://STOS AX ES:[DI] Store String
                     stringOp_STOSD();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa6://CMPS (ES:)[rDI]  Compare String Operands
                     stringOp_CMPSB();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xa7://CMPS ES:[DI]  Compare String Operands
                     stringOp_CMPSD();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xac://LODS (DS:)[rSI] AL Load String
                     stringOp_LODSB();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xad://LODS DS:[SI] AX Load String
                     stringOp_LODSD();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xae://SCAS (ES:)[rDI]  Scan String
                     stringOp_SCASB();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xaf://SCAS ES:[DI]  Scan String
                     stringOp_SCASD();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x6c://INS DX (ES:)[rDI] Input from Port to String
                     stringOp_INSB();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x6d://INS DX ES:[DI] Input from Port to String
                     stringOp_INSD();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x6e://OUTS (DS):[rSI] DX Output String to Port
                     stringOp_OUTSB();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x6f://OUTS DS:[SI] DX Output String to Port
                     stringOp_OUTSD();
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd8://FADD Msr ST Add
                 case 0xd9://FLD ESsr ST Load Floating Point Value
                 case 0xda://FIADD Mdi ST Add
@@ -7567,9 +7591,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     } else {
                         mem8_loc = segment_translation(mem8);
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x9b://FWAIT   Check pending unmasked floating-point exceptions
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe4://IN Ib AL Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7578,9 +7602,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     set_word_in_register(0, cpu.ld8_port(x));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe5://IN Ib eAX Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7589,9 +7613,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     regs[0] = cpu.ld32_port(x);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe6://OUT AL Ib Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7600,9 +7624,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     cpu.st8_port(x, regs[0] & 0xff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xe7://OUT eAX Ib Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7611,9 +7635,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     cpu.st32_port(x, regs[0]);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xec://IN DX AL Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7621,9 +7645,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     set_word_in_register(0, cpu.ld8_port(regs[2] & 0xffff));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xed://IN DX eAX Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7631,9 +7655,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     regs[0] = cpu.ld32_port(regs[2] & 0xffff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xee://OUT AL DX Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7641,9 +7665,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     cpu.st8_port(regs[2] & 0xffff, regs[0] & 0xff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xef://OUT eAX DX Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
@@ -7651,32 +7675,32 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     cpu.st32_port(regs[2] & 0xffff, regs[0]);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                            break Bg;
+                            break OUTER_LOOP;
                     }
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x27://DAA  AL Decimal Adjust AL after Addition
                     Df();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x2f://DAS  AL Decimal Adjust AL after Subtraction
                     Ff();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x37://AAA  AL ASCII Adjust After Addition
                     zf();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x3f://AAS  AL ASCII Adjust AL After Subtraction
                     Cf();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd4://AAM  AL ASCII Adjust AX After Multiply
                     x = phys_mem8[physmem8_ptr++];
                     vf(x);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd5://AAD  AL ASCII Adjust AX Before Division
                     x = phys_mem8[physmem8_ptr++];
                     yf(x);
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0x63://ARPL Ew  Adjust RPL Field of Segment Selector
                     tf();
-                    break Fd;
+                    break EXEC_LOOP;
                 case 0xd6://SALC   Undefined and Reserved; Does not Generate #UD
                 case 0xf1://INT1   Undefined and Reserved; Does not Generate #UD
                     abort(6);
@@ -7711,7 +7735,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                             if (check_status_bits_for_jump(OPbyte & 0xf))
                                 physmem8_ptr = (physmem8_ptr + x) >> 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x90://SETO  Eb Set Byte on Condition - overflow (OF=1)
                         case 0x91://SETNO  Eb Set Byte on Condition - not overflow (OF=0)
                         case 0x92://SETB  Eb Set Byte on Condition - below/not above or equal/carry (CF=1)
@@ -7736,7 +7760,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 st8_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x40://CMOVO Evqp Gvqp Conditional Move - overflow (OF=1)
                         case 0x41://CMOVNO Evqp Gvqp Conditional Move - not overflow (OF=0)
                         case 0x42://CMOVB Evqp Gvqp Conditional Move - below/not above or equal/carry (CF=1)
@@ -7762,7 +7786,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                             if (check_status_bits_for_jump(OPbyte & 0xf))
                                 regs[(mem8 >> 3) & 7] = x;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xb6://MOVZX Eb Gvqp Move with Zero-Extend
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -7774,7 +7798,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                             }
                             regs[reg_idx1] = x;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xb7://MOVZX Ew Gvqp Move with Zero-Extend
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -7785,7 +7809,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = ld_16bits_mem8_read();
                             }
                             regs[reg_idx1] = x;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xbe://MOVSX Eb Gvqp Move with Sign-Extension
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -7797,7 +7821,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                             }
                             regs[reg_idx1] = (((x) << 24) >> 24);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xbf://MOVSX Ew Gvqp Move with Sign-Extension
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -7808,7 +7832,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = ld_16bits_mem8_read();
                             }
                             regs[reg_idx1] = (((x) << 16) >> 16);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x00://SLDT LDTR Mw Store Local Descriptor Table Register
                             if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
                                 abort(6);
@@ -7856,7 +7880,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 default:
                                     abort(6);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x01://SGDT GDTR Ms Store Global Descriptor Table Register
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -7890,11 +7914,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 default:
                                     abort(6);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x02://LAR Mw Gvqp Load Access Rights Byte
                         case 0x03://LSL Mw Gvqp Load Segment Limit
                             qf((((CS_flags >> 8) & 1) ^ 1), OPbyte & 1);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x20://MOV Cd Rd Move to/from Control Registers
                             if (cpu.cpl != 0)
                                 abort(13);
@@ -7919,7 +7943,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     abort(6);
                             }
                             regs[mem8 & 7] = x;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x22://MOV Rd Cd Move to/from Control Registers
                             if (cpu.cpl != 0)
                                 abort(13);
@@ -7944,12 +7968,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 default:
                                     abort(6);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x06://CLTS  CR0 Clear Task-Switched Flag in CR0
                             if (cpu.cpl != 0)
                                 abort(13);
                             set_CR0(cpu.cr0 & ~(1 << 3)); //Clear Task-Switched Flag in CR0
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x23://MOV Rd Dd Move to/from Debug Registers
                             if (cpu.cpl != 0)
                                 abort(13);
@@ -7960,15 +7984,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             x = regs[mem8 & 7];
                             if (reg_idx1 == 4 || reg_idx1 == 5)
                                 abort(6);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xb2://LSS Mptp SS Load Far Pointer
                         case 0xb4://LFS Mptp FS Load Far Pointer
                         case 0xb5://LGS Mptp GS Load Far Pointer
                             Uf(OPbyte & 7);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xa2://CPUID  IA32_BIOS_SIGN_ID CPU Identification
                             uf();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xa4://SHLD Gvqp Evqp Double Precision Shift Left
                             mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
@@ -7983,7 +8007,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = rc(x, y, z);
                                 st32_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xa5://SHLD Gvqp Evqp Double Precision Shift Left
                             mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
@@ -7997,7 +8021,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = rc(x, y, z);
                                 st32_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xac://SHRD Gvqp Evqp Double Precision Shift Right
                             mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
@@ -8012,7 +8036,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = sc(x, y, z);
                                 st32_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xad://SHRD Gvqp Evqp Double Precision Shift Right
                             mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
@@ -8026,7 +8050,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = sc(x, y, z);
                                 st32_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xba://BT Evqp  Bit Test
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8060,7 +8084,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 default:
                                     abort(6);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xa3://BT Evqp  Bit Test
                             mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
@@ -8072,7 +8096,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = ld_32bits_mem8_read();
                             }
                             uc(x, y);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xab://BTS Gvqp Evqp Bit Test and Set
                         case 0xb3://BTR Gvqp Evqp Bit Test and Reset
                         case 0xbb://BTC Gvqp Evqp Bit Test and Complement
@@ -8089,7 +8113,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = xc(conditional_var, x, y);
                                 st32_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xbc://BSF Evqp Gvqp Bit Scan Forward
                         case 0xbd://BSR Evqp Gvqp Bit Scan Reverse
                             mem8 = phys_mem8[physmem8_ptr++];
@@ -8104,7 +8128,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 regs[reg_idx1] = Bc(regs[reg_idx1], y);
                             else
                                 regs[reg_idx1] = zc(regs[reg_idx1], y);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xaf://IMUL Evqp Gvqp Signed Multiply
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8115,14 +8139,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 y = ld_32bits_mem8_read();
                             }
                             regs[reg_idx1] = Wc(regs[reg_idx1], y);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x31://RDTSC IA32_TIME_STAMP_COUNTER EAX Read Time-Stamp Counter
                             if ((cpu.cr4 & (1 << 2)) && cpu.cpl != 0)
                                 abort(13);
                             x = current_cycle_count();
                             regs[0] = x >>> 0;
                             regs[2] = (x / 0x100000000) >>> 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xc0://XADD  Eb Exchange and Add
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8139,7 +8163,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 st8_mem8_write(y);
                                 set_word_in_register(reg_idx1, x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xc1://XADD  Evqp Exchange and Add
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8156,7 +8180,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 st32_mem8_write(y);
                                 regs[reg_idx1] = x;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xb0://CMPXCHG Gb Eb Compare and Exchange
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8179,7 +8203,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     set_word_in_register(0, x);
                                 }
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xb1://CMPXCHG Gvqp Evqp Compare and Exchange
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8202,16 +8226,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     regs[0] = x;
                                 }
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xa0://PUSH FS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                         case 0xa8://PUSH GS SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                             xd(cpu.segs[(OPbyte >> 3) & 7].selector);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xa1://POP SS:[rSP] FS Pop a Value from the Stack
                         case 0xa9://POP SS:[rSP] GS Pop a Value from the Stack
                             Ie((OPbyte >> 3) & 7, Ad() & 0xffff);
                             Bd();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0xc8://BSWAP  Zvqp Byte Swap
                         case 0xc9:
                         case 0xca:
@@ -8224,7 +8248,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             x = regs[reg_idx1];
                             x = (x >>> 24) | ((x >> 8) & 0x0000ff00) | ((x << 8) & 0x00ff0000) | (x << 24);
                             regs[reg_idx1] = x;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x04:
                         case 0x05://LOADALL  AX Load All of the CPU Registers
                         case 0x07://LOADALL  EAX Load All of the CPU Registers
@@ -8403,7 +8427,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 st16_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x18b:
                             mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
@@ -8413,7 +8437,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = ld_16bits_mem8_read();
                             }
                             set_lower_word_in_register((mem8 >> 3) & 7, x);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1b8:
                         case 0x1b9:
                         case 0x1ba:
@@ -8423,16 +8447,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         case 0x1be:
                         case 0x1bf:
                             set_lower_word_in_register(OPbyte & 7, ld16_mem8_direct());
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1a1://MOV EAX,moffs32            Move dword at (seg:offset) to EAX
                             mem8_loc = segmented_mem8_loc_for_MOV();
                             x = ld_16bits_mem8_read();
                             set_lower_word_in_register(0, x);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1a3://MOV moffs16,AX             Move AX to (seg:offset)
                             mem8_loc = segmented_mem8_loc_for_MOV();
                             st16_mem8_write(regs[0]);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c7:
                             mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
@@ -8443,7 +8467,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = ld16_mem8_direct();
                                 st16_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x191:
                         case 0x192:
                         case 0x193:
@@ -8455,7 +8479,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             x = regs[0];
                             set_lower_word_in_register(0, regs[reg_idx1]);
                             set_lower_word_in_register(reg_idx1, x);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x187:
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8469,13 +8493,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 st16_mem8_write(regs[reg_idx1]);
                             }
                             set_lower_word_in_register(reg_idx1, x);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c4:
                             Vf(0);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c5:
                             Vf(3);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x101:
                         case 0x109:
                         case 0x111:
@@ -8501,7 +8525,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     do_16bit_math(7, x, y);
                                 }
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x103:
                         case 0x10b:
                         case 0x113:
@@ -8520,7 +8544,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 y = ld_16bits_mem8_read();
                             }
                             set_lower_word_in_register(reg_idx1, do_16bit_math(conditional_var, regs[reg_idx1], y));
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x105:
                         case 0x10d:
                         case 0x115:
@@ -8532,7 +8556,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             y = ld16_mem8_direct();
                             conditional_var = (OPbyte >> 3) & 7;
                             set_lower_word_in_register(0, do_16bit_math(conditional_var, regs[0], y));
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x181:
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8552,7 +8576,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     do_16bit_math(7, x, y);
                                 }
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x183:
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8572,7 +8596,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     do_16bit_math(7, x, y);
                                 }
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x140:
                         case 0x141:
                         case 0x142:
@@ -8583,7 +8607,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         case 0x147:
                             reg_idx1 = OPbyte & 7;
                             set_lower_word_in_register(reg_idx1, increment_16bit(regs[reg_idx1]));
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x148:
                         case 0x149:
                         case 0x14a:
@@ -8594,7 +8618,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         case 0x14f:
                             reg_idx1 = OPbyte & 7;
                             set_lower_word_in_register(reg_idx1, decrement_16bit(regs[reg_idx1]));
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x16b:
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8606,7 +8630,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                             z = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                             set_lower_word_in_register(reg_idx1, Rc(y, z));
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x169:
                             mem8 = phys_mem8[physmem8_ptr++];
                             reg_idx1 = (mem8 >> 3) & 7;
@@ -8618,7 +8642,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                             z = ld16_mem8_direct();
                             set_lower_word_in_register(reg_idx1, Rc(y, z));
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x185:
                             mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
@@ -8632,14 +8656,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 _dst = (((x & y) << 16) >> 16);
                                 _op = 13;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1a9:
                             y = ld16_mem8_direct();
                             {
                                 _dst = (((regs[0] & y) << 16) >> 16);
                                 _op = 13;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1f7:
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8722,7 +8746,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 default:
                                     abort(6);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c1:
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8737,7 +8761,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = shift16(conditional_var, x, y);
                                 st16_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1d1:
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8750,7 +8774,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = shift16(conditional_var, x, 1);
                                 st16_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1d3:
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8764,15 +8788,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 x = shift16(conditional_var, x, y);
                                 st16_mem8_write(x);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x198:
                             set_lower_word_in_register(0, (regs[0] << 24) >> 24);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x199:
                             set_lower_word_in_register(2, (regs[0] << 16) >> 31);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x190:
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x150:
                         case 0x151:
                         case 0x152:
@@ -8782,7 +8806,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         case 0x156:
                         case 0x157:
                             vd(regs[OPbyte & 7]);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x158:
                         case 0x159:
                         case 0x15a:
@@ -8794,13 +8818,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             x = yd();
                             zd();
                             set_lower_word_in_register(OPbyte & 7, x);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x160:
                             Jf();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x161:
                             Lf();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x18f:
                             mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
@@ -8817,40 +8841,40 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 st16_mem8_write(x);
                                 regs[4] = z;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x168:
                             x = ld16_mem8_direct();
                             vd(x);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x16a:
                             x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                             vd(x);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c8:
                             Pf();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c9:
                             Nf();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x106:
                         case 0x10e:
                         case 0x116:
                         case 0x11e:
                             vd(cpu.segs[(OPbyte >> 3) & 3].selector);
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x107:
                         case 0x117:
                         case 0x11f:
                             Ie((OPbyte >> 3) & 3, yd());
                             zd();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x18d:
                             mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3)
                                 abort(6);
                             CS_flags = (CS_flags & ~0x000f) | (6 + 1);
                             set_lower_word_in_register((mem8 >> 3) & 7, segment_translation(mem8));
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1ff:
                             mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
@@ -8921,15 +8945,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 default:
                                     abort(6);
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1eb:
                             x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                             eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1e9:
                             x = ld16_mem8_direct();
                             eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x170:
                         case 0x171:
                         case 0x172:
@@ -8950,55 +8974,55 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             y = check_status_bits_for_jump(OPbyte & 0xf);
                             if (y)
                                 eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c2:
                             y = (ld16_mem8_direct() << 16) >> 16;
                             x = yd();
                             regs[4] = (regs[4] & ~SS_mask) | ((regs[4] + 2 + y) & SS_mask);
                             eip = x, physmem8_ptr = initial_mem_ptr = 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1c3:
                             x = yd();
                             zd();
                             eip = x, physmem8_ptr = initial_mem_ptr = 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1e8:
                             x = ld16_mem8_direct();
                             vd((eip + physmem8_ptr - initial_mem_ptr));
                             eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x162:
                             If();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1a5:
                             lg();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1a7:
                             ng();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1ad:
                             og();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1af:
                             pg();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1ab:
                             mg();
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x16d:
                             jg();
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                                    break Bg;
+                                    break OUTER_LOOP;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x16f:
                             kg();
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                                    break Bg;
+                                    break OUTER_LOOP;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1e5:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
@@ -9007,9 +9031,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             set_lower_word_in_register(0, cpu.ld16_port(x));
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                                    break Bg;
+                                    break OUTER_LOOP;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1e7:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
@@ -9018,9 +9042,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             cpu.st16_port(x, regs[0] & 0xffff);
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                                    break Bg;
+                                    break OUTER_LOOP;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1ed:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
@@ -9028,9 +9052,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             set_lower_word_in_register(0, cpu.ld16_port(regs[2] & 0xffff));
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                                    break Bg;
+                                    break OUTER_LOOP;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x1ef:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
@@ -9038,9 +9062,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             cpu.st16_port(regs[2] & 0xffff, regs[0] & 0xffff);
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
-                                    break Bg;
+                                    break OUTER_LOOP;
                             }
-                            break Fd;
+                            break EXEC_LOOP;
                         case 0x166:
                         case 0x167:
                         case 0x1f0:
@@ -9182,7 +9206,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     x = ld16_mem8_direct();
                                     if (check_status_bits_for_jump(OPbyte & 0xf))
                                         eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x140:
                                 case 0x141:
                                 case 0x142:
@@ -9208,7 +9232,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     }
                                     if (check_status_bits_for_jump(OPbyte & 0xf))
                                         set_lower_word_in_register((mem8 >> 3) & 7, x);
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1b6:
                                     mem8 = phys_mem8[physmem8_ptr++];
                                     reg_idx1 = (mem8 >> 3) & 7;
@@ -9220,7 +9244,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         x = ld_8bits_mem8_read();
                                     }
                                     set_lower_word_in_register(reg_idx1, x);
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1be:
                                     mem8 = phys_mem8[physmem8_ptr++];
                                     reg_idx1 = (mem8 >> 3) & 7;
@@ -9232,7 +9256,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         x = ld_8bits_mem8_read();
                                     }
                                     set_lower_word_in_register(reg_idx1, (((x) << 24) >> 24));
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1af:
                                     mem8 = phys_mem8[physmem8_ptr++];
                                     reg_idx1 = (mem8 >> 3) & 7;
@@ -9243,7 +9267,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         y = ld_16bits_mem8_read();
                                     }
                                     set_lower_word_in_register(reg_idx1, Rc(regs[reg_idx1], y));
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1c1:
                                     mem8 = phys_mem8[physmem8_ptr++];
                                     reg_idx1 = (mem8 >> 3) & 7;
@@ -9260,21 +9284,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         st16_mem8_write(y);
                                         set_lower_word_in_register(reg_idx1, x);
                                     }
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1a0:
                                 case 0x1a8:
                                     vd(cpu.segs[(OPbyte >> 3) & 7].selector);
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1a1:
                                 case 0x1a9:
                                     Ie((OPbyte >> 3) & 7, yd());
                                     zd();
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1b2:
                                 case 0x1b4:
                                 case 0x1b5:
                                     Vf(OPbyte & 7);
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1a4:
                                 case 0x1ac:
                                     mem8 = phys_mem8[physmem8_ptr++];
@@ -9291,7 +9315,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         x = oc(conditional_var, x, y, z);
                                         st16_mem8_write(x);
                                     }
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1a5:
                                 case 0x1ad:
                                     mem8 = phys_mem8[physmem8_ptr++];
@@ -9307,7 +9331,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         x = oc(conditional_var, x, y, z);
                                         st16_mem8_write(x);
                                     }
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1ba:
                                     mem8 = phys_mem8[physmem8_ptr++];
                                     conditional_var = (mem8 >> 3) & 7;
@@ -9341,7 +9365,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         default:
                                             abort(6);
                                     }
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1a3:
                                     mem8 = phys_mem8[physmem8_ptr++];
                                     y = regs[(mem8 >> 3) & 7];
@@ -9353,7 +9377,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         x = ld_16bits_mem8_read();
                                     }
                                     tc(x, y);
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1ab:
                                 case 0x1b3:
                                 case 0x1bb:
@@ -9370,7 +9394,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         x = vc(conditional_var, x, y);
                                         st16_mem8_write(x);
                                     }
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1bc:
                                 case 0x1bd:
                                     mem8 = phys_mem8[physmem8_ptr++];
@@ -9387,7 +9411,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     else
                                         x = yc(x, y);
                                     set_lower_word_in_register(reg_idx1, x);
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x1b1:
                                     mem8 = phys_mem8[physmem8_ptr++];
                                     reg_idx1 = (mem8 >> 3) & 7;
@@ -9410,7 +9434,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                             set_lower_word_in_register(0, x);
                                         }
                                     }
-                                    break Fd;
+                                    break EXEC_LOOP;
                                 case 0x100:
                                 case 0x101:
                                 case 0x102:
@@ -9653,6 +9677,8 @@ CPU_X86.prototype.load_binary = function(Gg, mem8_loc) {
     }
     return tg;
 };
+
+
 
 
 
