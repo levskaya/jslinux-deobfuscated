@@ -45,35 +45,6 @@ address.
 a physical address. This step is optional, at the discretion of
 systems-software designers.
 
-
-Segmented Memory
------------------
-x86 memory segmentation refers to the implementation of memory
-segmentation on the x86 architecture. Memory is divided into portions
-that may be addressed by a single index register without changing a
-16-bit segment selector. In real mode or V86 mode, a segment is always
-64 kilobytes in size (using 16-bit offsets). In protected mode, a
-segment can have variable length. Segments can overlap.
-
-Within the x86 architectures, when operating in the real (compatible)
-mode, physical address is computed as:
-
-  Address = 16*segment + offset
-
-The 16-bit segment register is shifted
-left by 4 bits and added to a 16-bit offset, resulting in a 20-bit
-address.
-
-When the 80386 is used to execute software designed for architectures
-that don't have segments, it may be expedient to effectively "turn
-off" the segmentation features of the 80386. The 80386 does not have a
-mode that disables segmentation, but the same effect can be achieved
-by initially loading the segment registers with selectors for
-descriptors that encompass the entire 32-bit linear address
-space. Once loaded, the segment registers don't need to be
-changed. The 32-bit offsets used by 80386 instructions are adequate to
-address the entire linear-address space.
-
 Paged Memory
 --------------
 A page table is simply an array of 32-bit page specifiers. A page
@@ -202,10 +173,11 @@ function CPU_X86() {
        Used when virtual addressing is enabled, hence when the PG
        bit is set in CR0.  CR3 enables the processor to translate
        virtual addresses into physical addresses by locating the page
-       directory and page tables for the current task. Typically, the
-       upper 20 bits of CR3 become the page directory base register
-       (PDBR), which stores the physical address of the first page
-       directory entry.  */
+       directory and page tables for the current task.
+
+       Typically, the upper 20 bits of CR3 become the page directory
+       base register (PDBR), which stores the physical address of the
+       first page directory entry.  */
     this.cr3 = 0;
 
     /* CR4
@@ -399,12 +371,12 @@ CPU_X86.prototype.st8_phys  = function(mem8_loc, x) {         this.phys_mem8[mem
 CPU_X86.prototype.ld32_phys = function(mem8_loc)    {  return this.phys_mem32[mem8_loc >> 2]; };
 CPU_X86.prototype.st32_phys = function(mem8_loc, x) {         this.phys_mem32[mem8_loc >> 2] = x; };
 
-CPU_X86.prototype.tlb_set_page = function(mem8_loc, ha, ia, ja) {
+CPU_X86.prototype.tlb_set_page = function(mem8_loc, page_val, set_write_tlb, set_user_tlb) {
     var i, x, j;
-    ha &= -4096;
-    mem8_loc &= -4096;
-    x = mem8_loc ^ ha;
-    i = mem8_loc >>> 12;
+    page_val &= -4096; // only top 20bits matter
+    mem8_loc &= -4096; // only top 20bits matter
+    x = mem8_loc ^ page_val; // XOR used to simulate hashing
+    i = mem8_loc >>> 12; // top 20bits point to TLB
     if (this.tlb_read_kernel[i] == -1) {
         if (this.tlb_pages_count >= 2048) {
             this.tlb_flush_all1((i - 1) & 0xfffff);
@@ -412,14 +384,14 @@ CPU_X86.prototype.tlb_set_page = function(mem8_loc, ha, ia, ja) {
         this.tlb_pages[this.tlb_pages_count++] = i;
     }
     this.tlb_read_kernel[i] = x;
-    if (ia) {
+    if (set_write_tlb) {
         this.tlb_write_kernel[i] = x;
     } else {
         this.tlb_write_kernel[i] = -1;
     }
-    if (ja) {
+    if (set_user_tlb) {
         this.tlb_read_user[i] = x;
-        if (ia) {
+        if (set_write_tlb) {
             this.tlb_write_user[i] = x;
         } else {
             this.tlb_write_user[i] = -1;
@@ -440,11 +412,11 @@ CPU_X86.prototype.tlb_flush_page = function(mem8_loc) {
 };
 
 CPU_X86.prototype.tlb_flush_all = function() {
-    var i, j, n, ka;
-    ka = this.tlb_pages;
+    var i, j, n, tlb_pages;
+    tlb_pages = this.tlb_pages;
     n = this.tlb_pages_count;
     for (j = 0; j < n; j++) {
-        i = ka[j];
+        i = tlb_pages[j];
         this.tlb_read_kernel[i] = -1;
         this.tlb_write_kernel[i] = -1;
         this.tlb_read_user[i] = -1;
@@ -454,14 +426,14 @@ CPU_X86.prototype.tlb_flush_all = function() {
 };
 
 CPU_X86.prototype.tlb_flush_all1 = function(la) {
-    var i, j, n, ka, ma;
-    ka = this.tlb_pages;
+    var i, j, n, tlb_pages, new_n;
+    tlb_pages = this.tlb_pages;
     n = this.tlb_pages_count;
-    ma = 0;
+    new_n = 0;
     for (j = 0; j < n; j++) {
-        i = ka[j];
+        i = tlb_pages[j];
         if (i == la) {
-            ka[ma++] = i;
+            tlb_pages[new_n++] = i;
         } else {
             this.tlb_read_kernel[i] = -1;
             this.tlb_write_kernel[i] = -1;
@@ -469,7 +441,7 @@ CPU_X86.prototype.tlb_flush_all1 = function(la) {
             this.tlb_write_user[i] = -1;
         }
     }
-    this.tlb_pages_count = ma;
+    this.tlb_pages_count = new_n;
 };
 
 /* writes ASCII string in na into memory location mem8_loc */
@@ -537,11 +509,14 @@ CPU_X86.prototype.dump = function() {
 
 CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     /*
-      x,y,z,v are either just general non-local values or their exact specialization is unclear, esp. x,y look like they're used for everything
+      x,y,z,v are either just general non-local values or their exact specialization is unclear,
+      esp. x,y look like they're used for everything
+
+      I don't know what 'v' should be called, it's not clear yet
      */
     var cpu, mem8_loc, regs;
     var _src, _dst, _op, _op2, _dst2;
-    var CS_flags, mem8, register_0, OPbyte, register_1, x, y, z, conditional_var, cycles_left, exit_code, v;
+    var CS_flags, mem8, reg_idx0, OPbyte, reg_idx1, x, y, z, conditional_var, cycles_left, exit_code, v;
     var CS_base, SS_base, SS_mask, FS_usage_flag, init_CS_flags, iopl;//io privilege level
     var phys_mem8, last_tlb_val;
     var phys_mem16, phys_mem32;
@@ -766,24 +741,64 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             phys_mem32[(mem8_loc ^ tlb_lookup) >> 2] = x;
         }
     }
-    var eip, mem_ptr, Lb, initial_mem_ptr, Nb;
+
+    var eip, physmem8_ptr, Lb, initial_mem_ptr, Nb;
+
     function ld16_mem8_direct() {
         var x, y;
-        x = phys_mem8[mem_ptr++];
-        y = phys_mem8[mem_ptr++];
+        x = phys_mem8[physmem8_ptr++];
+        y = phys_mem8[physmem8_ptr++];
         return x | (y << 8);
     }
-    function giant_get_mem8_loc_func(mem8) {
+
+    /*
+       Segmented Memory Mode Routines
+       ================================================================================
+
+       Segmented Memory
+       -----------------
+       x86 memory segmentation refers to the implementation of memory
+       segmentation on the x86 architecture. Memory is divided into portions
+       that may be addressed by a single index register without changing a
+       16-bit segment selector. In real mode or V86 mode, a segment is always
+       64 kilobytes in size (using 16-bit offsets). In protected mode, a
+       segment can have variable length. Segments can overlap.
+
+       Within the x86 architectures, when operating in the real (compatible)
+       mode, physical address is computed as:
+
+       Address = 16*segment + offset
+
+       The 16-bit segment register is shifted
+       left by 4 bits and added to a 16-bit offset, resulting in a 20-bit
+       address.
+
+       When the 80386 is used to execute software designed for architectures
+       that don't have segments, it may be expedient to effectively "turn
+       off" the segmentation features of the 80386. The 80386 does not have a
+       mode that disables segmentation, but the same effect can be achieved
+       by initially loading the segment registers with selectors for
+       descriptors that encompass the entire 32-bit linear address
+       space. Once loaded, the segment registers don't need to be
+       changed. The 32-bit offsets used by 80386 instructions are adequate to
+       address the entire linear-address space.
+
+     */
+    /*
+       segment translation routine (I believe):
+       Translates Logical Memory Address to Linear Memory Address
+     */
+    function segment_translation(mem8) {
         var base, mem8_loc, Qb, Rb, Sb, Tb;
         if (FS_usage_flag && (CS_flags & (0x000f | 0x0080)) == 0) {
             switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                 case 0x04:
-                    Qb = phys_mem8[mem_ptr++];
+                    Qb = phys_mem8[physmem8_ptr++];
                     base = Qb & 7;
                     if (base == 5) {
                         {
-                            mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                            mem_ptr += 4;
+                            mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                            physmem8_ptr += 4;
                         }
                     } else {
                         mem8_loc = regs[base];
@@ -794,8 +809,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break;
                 case 0x0c:
-                    Qb = phys_mem8[mem_ptr++];
-                    mem8_loc = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                    Qb = phys_mem8[physmem8_ptr++];
+                    mem8_loc = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     base = Qb & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
                     Rb = (Qb >> 3) & 7;
@@ -804,10 +819,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break;
                 case 0x14:
-                    Qb = phys_mem8[mem_ptr++];
+                    Qb = phys_mem8[physmem8_ptr++];
                     {
-                        mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     base = Qb & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
@@ -818,8 +833,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break;
                 case 0x05:
                     {
-                        mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     break;
                 case 0x00:
@@ -838,7 +853,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x0d:
                 case 0x0e:
                 case 0x0f:
-                    mem8_loc = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                    mem8_loc = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     base = mem8 & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
                     break;
@@ -851,8 +866,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x17:
                 default:
                     {
-                        mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     base = mem8 & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
@@ -869,7 +884,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         mem8_loc = 0;
                         break;
                     case 1:
-                        mem8_loc = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                        mem8_loc = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         break;
                     default:
                         mem8_loc = ld16_mem8_direct();
@@ -922,12 +937,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         } else {
             switch ((mem8 & 7) | ((mem8 >> 3) & 0x18)) {
                 case 0x04:
-                    Qb = phys_mem8[mem_ptr++];
+                    Qb = phys_mem8[physmem8_ptr++];
                     base = Qb & 7;
                     if (base == 5) {
                         {
-                            mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                            mem_ptr += 4;
+                            mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                            physmem8_ptr += 4;
                         }
                         base = 0;
                     } else {
@@ -939,8 +954,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break;
                 case 0x0c:
-                    Qb = phys_mem8[mem_ptr++];
-                    mem8_loc = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                    Qb = phys_mem8[physmem8_ptr++];
+                    mem8_loc = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     base = Qb & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
                     Rb = (Qb >> 3) & 7;
@@ -949,10 +964,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break;
                 case 0x14:
-                    Qb = phys_mem8[mem_ptr++];
+                    Qb = phys_mem8[physmem8_ptr++];
                     {
-                        mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     base = Qb & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
@@ -963,8 +978,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break;
                 case 0x05:
                     {
-                        mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     base = 0;
                     break;
@@ -984,7 +999,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x0d:
                 case 0x0e:
                 case 0x0f:
-                    mem8_loc = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                    mem8_loc = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     base = mem8 & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
                     break;
@@ -997,8 +1012,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x17:
                 default:
                     {
-                        mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     base = mem8 & 7;
                     mem8_loc = (mem8_loc + regs[base]) >> 0;
@@ -1017,14 +1032,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             return mem8_loc;
         }
     }
-    function Ub() {
+    function segmented_mem8_loc_for_MOV() {
         var mem8_loc, Sb;
         if (CS_flags & 0x0080) {
             mem8_loc = ld16_mem8_direct();
         } else {
             {
-                mem8_loc = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                mem_ptr += 4;
+                mem8_loc = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                physmem8_ptr += 4;
             }
         }
         Sb = CS_flags & 0x000f;
@@ -1035,19 +1050,30 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         mem8_loc = (mem8_loc + cpu.segs[Sb].base) >> 0;
         return mem8_loc;
     }
-    function set_either_two_bytes_of_reg_ABCD(register_1, x) {
+
+    /*
+       Register Manipulation
+       ==========================================================================================
+    */
+    function set_word_in_register(reg_idx1, x) {
         /*
            if arg[0] is = 1xx  then set register xx's upper two bytes to two bytes in arg[1]
            if arg[0] is = 0xx  then set register xx's lower two bytes to two bytes in arg[1]
         */
-        if (register_1 & 4)
-            regs[register_1 & 3] = (regs[register_1 & 3] & -65281) | ((x & 0xff) << 8);
+        if (reg_idx1 & 4)
+            regs[reg_idx1 & 3] = (regs[reg_idx1 & 3] & -65281) | ((x & 0xff) << 8);
         else
-            regs[register_1 & 3] = (regs[register_1 & 3] & -256) | (x & 0xff);
+            regs[reg_idx1 & 3] = (regs[reg_idx1 & 3] & -256) | (x & 0xff);
     }
-    function set_lower_two_bytes_of_register(register_1, x) {
-        regs[register_1] = (regs[register_1] & -65536) | (x & 0xffff);
+
+    function set_lower_word_in_register(reg_idx1, x) {
+        regs[reg_idx1] = (regs[reg_idx1] & -65536) | (x & 0xffff);
     }
+
+    /*
+      Arithmetic Operations
+      ==========================================================================================
+    */
     function do_32bit_math(conditional_var, Yb, Zb) {
         var ac;
         switch (conditional_var) {
@@ -1508,7 +1534,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         return Yb;
     }
 
-    /* Bit Twiddling Functions --------------------------------------------------------------------------------*/
+
+    /*
+       Bit Twiddling Functions
+       ==========================================================================================
+    */
 
     function oc(conditional_var, Yb, Zb, pc) {
         var qc;
@@ -1669,7 +1699,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             abort(0);
         q = (a / OPbyte) >> 0;
         r = (a % OPbyte);
-        set_lower_two_bytes_of_register(0, (q & 0xff) | (r << 8));
+        set_lower_word_in_register(0, (q & 0xff) | (r << 8));
     }
     function Ec(OPbyte) {
         var a, q, r;
@@ -1681,7 +1711,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         if (((q << 24) >> 24) != q)
             abort(0);
         r = (a % OPbyte);
-        set_lower_two_bytes_of_register(0, (q & 0xff) | (r << 8));
+        set_lower_word_in_register(0, (q & 0xff) | (r << 8));
     }
     function Fc(OPbyte) {
         var a, q, r;
@@ -1691,8 +1721,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             abort(0);
         q = (a / OPbyte) >> 0;
         r = (a % OPbyte);
-        set_lower_two_bytes_of_register(0, q);
-        set_lower_two_bytes_of_register(2, r);
+        set_lower_word_in_register(0, q);
+        set_lower_word_in_register(2, r);
     }
     function Gc(OPbyte) {
         var a, q, r;
@@ -1704,8 +1734,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         if (((q << 16) >> 16) != q)
             abort(0);
         r = (a % OPbyte);
-        set_lower_two_bytes_of_register(0, q);
-        set_lower_two_bytes_of_register(2, r);
+        set_lower_word_in_register(0, q);
+        set_lower_word_in_register(2, r);
     }
     function Hc(Ic, Jc, OPbyte) {
         var a, i, Kc;
@@ -3848,7 +3878,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         selector = (selector & ~3) | he;
         set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
         change_permission_level(he);
-        eip = ve, mem_ptr = initial_mem_ptr = 0;
+        eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         if ((ie & 1) == 0) {
             cpu.eflags &= ~0x00000200;
         }
@@ -3884,7 +3914,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             st16_mem8_write(ye);
         }
         regs[4] = (regs[4] & ~SS_mask) | ((le) & SS_mask);
-        eip = ve, mem_ptr = initial_mem_ptr = 0;
+        eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         cpu.segs[1].selector = selector;
         cpu.segs[1].base = (selector << 4);
         cpu.eflags &= ~(0x00000200 | 0x00000100 | 0x00040000 | 0x00010000);
@@ -4037,7 +4067,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
     }
     function Je(Ke, Le) {
-        eip = Le, mem_ptr = initial_mem_ptr = 0;
+        eip = Le, physmem8_ptr = initial_mem_ptr = 0;
         cpu.segs[1].selector = Ke;
         cpu.segs[1].base = (Ke << 4);
         init_segment_local_vars();
@@ -4072,7 +4102,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             if ((Le >>> 0) > (limit >>> 0))
                 abort_with_error_code(13, Ke & 0xfffc);
             set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
-            eip = Le, mem_ptr = initial_mem_ptr = 0;
+            eip = Le, physmem8_ptr = initial_mem_ptr = 0;
         } else {
             cpu_abort("unsupported jump to call or task gate");
         }
@@ -4123,7 +4153,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             }
         }
         regs[4] = (regs[4] & ~SS_mask) | ((le) & SS_mask);
-        eip = Le, mem_ptr = initial_mem_ptr = 0;
+        eip = Le, physmem8_ptr = initial_mem_ptr = 0;
         cpu.segs[1].selector = Ke;
         cpu.segs[1].base = (Ke << 4);
         init_segment_local_vars();
@@ -4191,7 +4221,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     abort_with_error_code(13, Ke & 0xfffc);
                 regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
                 set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
-                eip = Le, mem_ptr = initial_mem_ptr = 0;
+                eip = Le, physmem8_ptr = initial_mem_ptr = 0;
             }
         } else {
             ie = (Wd >> 8) & 0x1f;
@@ -4333,7 +4363,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
             change_permission_level(he);
             regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
-            eip = ve, mem_ptr = initial_mem_ptr = 0;
+            eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         }
     }
     function Ze(je, Ke, Le, oe) {
@@ -4385,7 +4415,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         regs[4] = (regs[4] & ~SS_mask) | ((Te + cf) & SS_mask);
         cpu.segs[1].selector = Ke;
         cpu.segs[1].base = (Ke << 4);
-        eip = Le, mem_ptr = initial_mem_ptr = 0;
+        eip = Le, physmem8_ptr = initial_mem_ptr = 0;
         if (bf) {
             if (cpu.eflags & 0x00020000)
                 ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00010000 | 0x00004000;
@@ -4464,7 +4494,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     init_segment_vars_with_selector(3, jf & 0xffff);
                     init_segment_vars_with_selector(4, kf & 0xffff);
                     init_segment_vars_with_selector(5, lf & 0xffff);
-                    eip = Le & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                    eip = Le & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                     regs[4] = (regs[4] & ~SS_mask) | ((wd) & SS_mask);
                     return;
                 }
@@ -4567,7 +4597,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             Te = (Te + cf) & -1;
         }
         regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
-        eip = Le, mem_ptr = initial_mem_ptr = 0;
+        eip = Le, physmem8_ptr = initial_mem_ptr = 0;
         if (bf) {
             ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00010000 | 0x00004000;
             if (se == 0)
@@ -4650,15 +4680,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
     }
     function qf(je, pf) {
-        var x, mem8, register_1, selector;
+        var x, mem8, reg_idx1, selector;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
             abort(6);
-        mem8 = phys_mem8[mem_ptr++];
-        register_1 = (mem8 >> 3) & 7;
+        mem8 = phys_mem8[physmem8_ptr++];
+        reg_idx1 = (mem8 >> 3) & 7;
         if ((mem8 >> 6) == 3) {
             selector = regs[mem8 & 7] & 0xffff;
         } else {
-            mem8_loc = giant_get_mem8_loc_func(mem8);
+            mem8_loc = segment_translation(mem8);
             selector = ld_16bits_mem8_read();
         }
         x = of(selector, pf);
@@ -4668,9 +4698,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         } else {
             _src |= 0x0040;
             if (je)
-                regs[register_1] = x;
+                regs[reg_idx1] = x;
             else
-                set_lower_two_bytes_of_register(register_1, x);
+                set_lower_word_in_register(reg_idx1, x);
         }
         _dst = ((_src >> 6) & 1) ^ 1;
         _op = 24;
@@ -4720,15 +4750,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         _op = 24;
     }
     function tf() {
-        var mem8, x, y, register_0;
+        var mem8, x, y, reg_idx0;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
             abort(6);
-        mem8 = phys_mem8[mem_ptr++];
+        mem8 = phys_mem8[physmem8_ptr++];
         if ((mem8 >> 6) == 3) {
-            register_0 = mem8 & 7;
-            x = regs[register_0] & 0xffff;
+            reg_idx0 = mem8 & 7;
+            x = regs[reg_idx0] & 0xffff;
         } else {
-            mem8_loc = giant_get_mem8_loc_func(mem8);
+            mem8_loc = segment_translation(mem8);
             x = ld_16bits_mem8_write();
         }
         y = regs[(mem8 >> 3) & 7];
@@ -4736,7 +4766,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         if ((x & 3) < (y & 3)) {
             x = (x & ~3) | (y & 3);
             if ((mem8 >> 6) == 3) {
-                set_lower_two_bytes_of_register(register_0, x);
+                set_lower_word_in_register(reg_idx0, x);
             } else {
                 st16_mem8_write(x);
             }
@@ -4877,71 +4907,71 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
     function checkOp_BOUND() {
         var mem8, x, y, z;
-        mem8 = phys_mem8[mem_ptr++];
+        mem8 = phys_mem8[physmem8_ptr++];
         if ((mem8 >> 3) == 3)
             abort(6);
-        mem8_loc = giant_get_mem8_loc_func(mem8);
+        mem8_loc = segment_translation(mem8);
         x = ld_32bits_mem8_read();
         mem8_loc = (mem8_loc + 4) & -1;
         y = ld_32bits_mem8_read();
-        register_1 = (mem8 >> 3) & 7;
-        z = regs[register_1];
+        reg_idx1 = (mem8 >> 3) & 7;
+        z = regs[reg_idx1];
         if (z < x || z > y)
             abort(5);
     }
     function If() {
         var mem8, x, y, z;
-        mem8 = phys_mem8[mem_ptr++];
+        mem8 = phys_mem8[physmem8_ptr++];
         if ((mem8 >> 3) == 3)
             abort(6);
-        mem8_loc = giant_get_mem8_loc_func(mem8);
+        mem8_loc = segment_translation(mem8);
         x = (ld_16bits_mem8_read() << 16) >> 16;
         mem8_loc = (mem8_loc + 2) & -1;
         y = (ld_16bits_mem8_read() << 16) >> 16;
-        register_1 = (mem8 >> 3) & 7;
-        z = (regs[register_1] << 16) >> 16;
+        reg_idx1 = (mem8 >> 3) & 7;
+        z = (regs[reg_idx1] << 16) >> 16;
         if (z < x || z > y)
             abort(5);
     }
     function Jf() {
-        var x, y, register_1;
+        var x, y, reg_idx1;
         y = (regs[4] - 16) >> 0;
         mem8_loc = ((y & SS_mask) + SS_base) >> 0;
-        for (register_1 = 7; register_1 >= 0; register_1--) {
-            x = regs[register_1];
+        for (reg_idx1 = 7; reg_idx1 >= 0; reg_idx1--) {
+            x = regs[reg_idx1];
             st16_mem8_write(x);
             mem8_loc = (mem8_loc + 2) >> 0;
         }
         regs[4] = (regs[4] & ~SS_mask) | ((y) & SS_mask);
     }
     function Kf() {
-        var x, y, register_1;
+        var x, y, reg_idx1;
         y = (regs[4] - 32) >> 0;
         mem8_loc = ((y & SS_mask) + SS_base) >> 0;
-        for (register_1 = 7; register_1 >= 0; register_1--) {
-            x = regs[register_1];
+        for (reg_idx1 = 7; reg_idx1 >= 0; reg_idx1--) {
+            x = regs[reg_idx1];
             st32_mem8_write(x);
             mem8_loc = (mem8_loc + 4) >> 0;
         }
         regs[4] = (regs[4] & ~SS_mask) | ((y) & SS_mask);
     }
     function Lf() {
-        var register_1;
+        var reg_idx1;
         mem8_loc = ((regs[4] & SS_mask) + SS_base) >> 0;
-        for (register_1 = 7; register_1 >= 0; register_1--) {
-            if (register_1 != 4) {
-                set_lower_two_bytes_of_register(register_1, ld_16bits_mem8_read());
+        for (reg_idx1 = 7; reg_idx1 >= 0; reg_idx1--) {
+            if (reg_idx1 != 4) {
+                set_lower_word_in_register(reg_idx1, ld_16bits_mem8_read());
             }
             mem8_loc = (mem8_loc + 2) >> 0;
         }
         regs[4] = (regs[4] & ~SS_mask) | ((regs[4] + 16) & SS_mask);
     }
     function Mf() {
-        var register_1;
+        var reg_idx1;
         mem8_loc = ((regs[4] & SS_mask) + SS_base) >> 0;
-        for (register_1 = 7; register_1 >= 0; register_1--) {
-            if (register_1 != 4) {
-                regs[register_1] = ld_32bits_mem8_read();
+        for (reg_idx1 = 7; reg_idx1 >= 0; reg_idx1--) {
+            if (reg_idx1 != 4) {
+                regs[reg_idx1] = ld_32bits_mem8_read();
             }
             mem8_loc = (mem8_loc + 4) >> 0;
         }
@@ -4952,7 +4982,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         y = regs[5];
         mem8_loc = ((y & SS_mask) + SS_base) >> 0;
         x = ld_16bits_mem8_read();
-        set_lower_two_bytes_of_register(5, x);
+        set_lower_word_in_register(5, x);
         regs[4] = (regs[4] & ~SS_mask) | ((y + 2) & SS_mask);
     }
     function Of() {
@@ -4966,7 +4996,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function Pf() {
         var cf, Qf, le, Rf, x, Sf;
         cf = ld16_mem8_direct();
-        Qf = phys_mem8[mem_ptr++];
+        Qf = phys_mem8[physmem8_ptr++];
         Qf &= 0x1f;
         le = regs[4];
         Rf = regs[5];
@@ -5003,7 +5033,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function Tf() {
         var cf, Qf, le, Rf, x, Sf;
         cf = ld16_mem8_direct();
-        Qf = phys_mem8[mem_ptr++];
+        Qf = phys_mem8[physmem8_ptr++];
         Qf &= 0x1f;
         le = regs[4];
         Rf = regs[5];
@@ -5039,10 +5069,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
     function Uf(Sb) {
         var x, y, mem8;
-        mem8 = phys_mem8[mem_ptr++];
+        mem8 = phys_mem8[physmem8_ptr++];
         if ((mem8 >> 3) == 3)
             abort(6);
-        mem8_loc = giant_get_mem8_loc_func(mem8);
+        mem8_loc = segment_translation(mem8);
         x = ld_32bits_mem8_read();
         mem8_loc += 4;
         y = ld_16bits_mem8_read();
@@ -5051,15 +5081,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
     function Vf(Sb) {
         var x, y, mem8;
-        mem8 = phys_mem8[mem_ptr++];
+        mem8 = phys_mem8[physmem8_ptr++];
         if ((mem8 >> 3) == 3)
             abort(6);
-        mem8_loc = giant_get_mem8_loc_func(mem8);
+        mem8_loc = segment_translation(mem8);
         x = ld_16bits_mem8_read();
         mem8_loc += 2;
         y = ld_16bits_mem8_read();
         Ie(Sb, y);
-        set_lower_two_bytes_of_register((mem8 >> 3) & 7, x);
+        set_lower_word_in_register((mem8 >> 3) & 7, x);
     }
     function stringOp_INSB() {
         var Xf, Yf, Zf, ag, iopl, x;
@@ -5082,7 +5112,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = cpu.ld8_port(Zf);
             mem8_loc = ((Yf & Xf) + cpu.segs[0].base) >> 0;
@@ -5116,7 +5146,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             mem8_loc = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             x = ld_8bits_mem8_read();
@@ -5151,7 +5181,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
                 regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             }
         } else {
             x = ld_8bits_mem8_read();
@@ -5178,7 +5208,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 0)) & Xf);
                 regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             }
         } else {
             st8_mem8_write(regs[0]);
@@ -5219,7 +5249,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     return;
             }
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_8bits_mem8_read();
             mem8_loc = eg;
@@ -5251,7 +5281,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 0)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_8bits_mem8_read();
             regs[0] = (regs[0] & -256) | x;
@@ -5282,7 +5312,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     return;
             }
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_8bits_mem8_read();
             do_8bit_math(7, regs[0], x);
@@ -5310,7 +5340,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = cpu.ld16_port(Zf);
             mem8_loc = ((Yf & Xf) + cpu.segs[0].base) >> 0;
@@ -5344,7 +5374,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             mem8_loc = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             x = ld_16bits_mem8_read();
@@ -5379,7 +5409,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
                 regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             }
         } else {
             x = ld_16bits_mem8_read();
@@ -5406,7 +5436,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 1)) & Xf);
                 regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             }
         } else {
             st16_mem8_write(regs[0]);
@@ -5447,7 +5477,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     return;
             }
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_16bits_mem8_read();
             mem8_loc = eg;
@@ -5479,7 +5509,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 1)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_16bits_mem8_read();
             regs[0] = (regs[0] & -65536) | x;
@@ -5510,7 +5540,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     return;
             }
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_16bits_mem8_read();
             do_16bit_math(7, regs[0], x);
@@ -5538,7 +5568,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = cpu.ld32_port(Zf);
             mem8_loc = ((Yf & Xf) + cpu.segs[0].base) >> 0;
@@ -5572,7 +5602,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             mem8_loc = ((cg & Xf) + cpu.segs[Sb].base) >> 0;
             x = ld_32bits_mem8_read();
@@ -5619,7 +5649,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 regs[7] = (Yf + wg) >> 0;
                 regs[1] = ag = (ag - tg) >> 0;
                 if (ag)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             } else {
                 x = ld_32bits_mem8_read();
                 mem8_loc = eg;
@@ -5628,7 +5658,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
                 regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             }
         } else {
             x = ld_32bits_mem8_read();
@@ -5665,13 +5695,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 regs[7] = (Yf + wg) >> 0;
                 regs[1] = ag = (ag - tg) >> 0;
                 if (ag)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             } else {
                 st32_mem8_write(regs[0]);
                 regs[7] = (Yf & ~Xf) | ((Yf + (cpu.df << 2)) & Xf);
                 regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
                 if (ag & Xf)
-                    mem_ptr = initial_mem_ptr;
+                    physmem8_ptr = initial_mem_ptr;
             }
         } else {
             st32_mem8_write(regs[0]);
@@ -5712,7 +5742,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     return;
             }
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_32bits_mem8_read();
             mem8_loc = eg;
@@ -5744,7 +5774,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             regs[6] = (cg & ~Xf) | ((cg + (cpu.df << 2)) & Xf);
             regs[1] = ag = (ag & ~Xf) | ((ag - 1) & Xf);
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_32bits_mem8_read();
             regs[0] = x;
@@ -5775,7 +5805,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     return;
             }
             if (ag & Xf)
-                mem_ptr = initial_mem_ptr;
+                physmem8_ptr = initial_mem_ptr;
         } else {
             x = ld_32bits_mem8_read();
             do_32bit_math(7, regs[0], x);
@@ -5827,11 +5857,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         Ae(cpu.hard_intno, 0, 0, 0, 1);
         cpu.hard_intno = -1;
     }
-    mem_ptr = 0;
+    physmem8_ptr = 0;
     initial_mem_ptr = 0;
 
     Bg: do {
-        eip = (eip + mem_ptr - initial_mem_ptr) >> 0;
+        eip = (eip + physmem8_ptr - initial_mem_ptr) >> 0;
         Nb = (eip + CS_base) >> 0;
         Lb = _tlb_read_[Nb >>> 12];
         if (((Lb | Nb) & 0xfff) >= (4096 - 15 + 1)) {
@@ -5839,23 +5869,23 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             if (Lb == -1)
                 do_tlb_set_page(Nb, 0, cpu.cpl == 3);
             Lb = _tlb_read_[Nb >>> 12];
-            initial_mem_ptr = mem_ptr = Nb ^ Lb;
-            OPbyte = phys_mem8[mem_ptr++];
+            initial_mem_ptr = physmem8_ptr = Nb ^ Lb;
+            OPbyte = phys_mem8[physmem8_ptr++];
             Cg = Nb & 0xfff;
             if (Cg >= (4096 - 15 + 1)) {
                 x = Cd(Nb, OPbyte);
                 if ((Cg + x) > 4096) {
-                    initial_mem_ptr = mem_ptr = this.mem_size;
+                    initial_mem_ptr = physmem8_ptr = this.mem_size;
                     for (y = 0; y < x; y++) {
                         mem8_loc = (Nb + y) >> 0;
-                        phys_mem8[mem_ptr + y] = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
+                        phys_mem8[physmem8_ptr + y] = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                     }
-                    mem_ptr++;
+                    physmem8_ptr++;
                 }
             }
         } else {
-            initial_mem_ptr = mem_ptr = Nb ^ Lb;
-            OPbyte = phys_mem8[mem_ptr++];
+            initial_mem_ptr = physmem8_ptr = Nb ^ Lb;
+            OPbyte = phys_mem8[physmem8_ptr++];
         }
         OPbyte |= (CS_flags = init_CS_flags) & 0x0100;
         Fd: for (; ; ) {
@@ -5867,7 +5897,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         CS_flags &= ~0x0100;
                     else
                         CS_flags |= 0x0100;
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0x67://   Address-size override prefix
@@ -5877,28 +5907,28 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         CS_flags &= ~0x0080;
                     else
                         CS_flags |= 0x0080;
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0xf0://LOCK   Assert LOCK# Signal Prefix
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags |= 0x0040;
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0xf2://REPNZ  eCX Repeat String Operation Prefix
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags |= 0x0020;
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0xf3://REPZ  eCX Repeat String Operation Prefix
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags |= 0x0010;
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0x26://ES ES  ES segment override prefix
@@ -5908,7 +5938,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags = (CS_flags & ~0x000f) | (((OPbyte >> 3) & 3) + 1);
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0x64://FS FS  FS segment override prefix
@@ -5916,7 +5946,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     if (CS_flags == init_CS_flags)
                         Cd(Nb, OPbyte);
                     CS_flags = (CS_flags & ~0x000f) | ((OPbyte & 7) + 1);
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     OPbyte |= (CS_flags & 0x0100);
                     break;
                 case 0xb0://MOV Ib Zb Move
@@ -5927,7 +5957,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xb5:
                 case 0xb6:
                 case 0xb7:
-                    x = phys_mem8[mem_ptr++]; //r8
+                    x = phys_mem8[physmem8_ptr++]; //r8
                     OPbyte &= 7; //last bits
                     last_tlb_val = (OPbyte & 4) << 1;
                     regs[OPbyte & 3] = (regs[OPbyte & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
@@ -5941,21 +5971,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xbe:
                 case 0xbf:
                     {
-                        x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     regs[OPbyte & 7] = x;
                     break Fd;
                 case 0x88://MOV Gb Eb Move
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
-                    x = (regs[register_1 & 3] >> ((register_1 & 4) << 1));
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
+                    x = (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1));
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        last_tlb_val = (register_0 & 4) << 1;
-                        regs[register_0 & 3] = (regs[register_0 & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
+                        reg_idx0 = mem8 & 7;
+                        last_tlb_val = (reg_idx0 & 4) << 1;
+                        regs[reg_idx0 & 3] = (regs[reg_idx0 & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         {
                             last_tlb_val = _tlb_write_[mem8_loc >>> 12];
                             if (last_tlb_val == -1) {
@@ -5967,12 +5997,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x89://MOV Gvqp Evqp Move
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     x = regs[(mem8 >> 3) & 7];
                     if ((mem8 >> 6) == 3) {
                         regs[mem8 & 7] = x;
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         {
                             last_tlb_val = _tlb_write_[mem8_loc >>> 12];
                             if ((last_tlb_val | mem8_loc) & 3) {
@@ -5984,83 +6014,83 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x8a://MOV Eb Gb Move
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                        reg_idx0 = mem8 & 7;
+                        x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                     }
-                    register_1 = (mem8 >> 3) & 7;
-                    last_tlb_val = (register_1 & 4) << 1;
-                    regs[register_1 & 3] = (regs[register_1 & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
+                    reg_idx1 = (mem8 >> 3) & 7;
+                    last_tlb_val = (reg_idx1 & 4) << 1;
+                    regs[reg_idx1 & 3] = (regs[reg_idx1 & 3] & ~(0xff << last_tlb_val)) | (((x) & 0xff) << last_tlb_val);
                     break Fd;
                 case 0x8b://MOV Evqp Gvqp Move
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
                         x = regs[mem8 & 7];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) | mem8_loc) & 3 ? __ld_32bits_mem8_read() : phys_mem32[(mem8_loc ^ last_tlb_val) >> 2]);
                     }
                     regs[(mem8 >> 3) & 7] = x;
                     break Fd;
-                case 0xa0://MOV Ob AL Move
-                    mem8_loc = Ub();
+                case 0xa0://MOV Ob AL Move byte at (seg:offset) to AL
+                    mem8_loc = segmented_mem8_loc_for_MOV();
                     x = ld_8bits_mem8_read();
                     regs[0] = (regs[0] & -256) | x;
                     break Fd;
-                case 0xa1://MOV Ovqp rAX Move
-                    mem8_loc = Ub();
+                case 0xa1://MOV Ovqp rAX Move dword at (seg:offset) to EAX
+                    mem8_loc = segmented_mem8_loc_for_MOV();
                     x = ld_32bits_mem8_read();
                     regs[0] = x;
                     break Fd;
-                case 0xa2://MOV AL Ob Move
-                    mem8_loc = Ub();
+                case 0xa2://MOV AL Ob Move AL to (seg:offset)
+                    mem8_loc = segmented_mem8_loc_for_MOV();
                     st8_mem8_write(regs[0]);
                     break Fd;
-                case 0xa3://MOV rAX Ovqp Move
-                    mem8_loc = Ub();
+                case 0xa3://MOV rAX Ovqp Move EAX to (seg:offset)
+                    mem8_loc = segmented_mem8_loc_for_MOV();
                     st32_mem8_write(regs[0]);
                     break Fd;
                 case 0xd7://XLAT (DS:)[rBX+AL] AL Table Look-up Translation
                     mem8_loc = (regs[3] + (regs[0] & 0xff)) >> 0;
                     if (CS_flags & 0x0080)
                         mem8_loc &= 0xffff;
-                    register_1 = CS_flags & 0x000f;
-                    if (register_1 == 0)
-                        register_1 = 3;
+                    reg_idx1 = CS_flags & 0x000f;
+                    if (reg_idx1 == 0)
+                        reg_idx1 = 3;
                     else
-                        register_1--;
-                    mem8_loc = (mem8_loc + cpu.segs[register_1].base) >> 0;
+                        reg_idx1--;
+                    mem8_loc = (mem8_loc + cpu.segs[reg_idx1].base) >> 0;
                     x = ld_8bits_mem8_read();
-                    set_either_two_bytes_of_reg_ABCD(0, x);
+                    set_word_in_register(0, x);
                     break Fd;
                 case 0xc6://MOV Ib Eb Move
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
-                        x = phys_mem8[mem_ptr++];
-                        set_either_two_bytes_of_reg_ABCD(mem8 & 7, x);
+                        x = phys_mem8[physmem8_ptr++];
+                        set_word_in_register(mem8 & 7, x);
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
-                        x = phys_mem8[mem_ptr++];
+                        mem8_loc = segment_translation(mem8);
+                        x = phys_mem8[physmem8_ptr++];
                         st8_mem8_write(x);
                     }
                     break Fd;
                 case 0xc7://MOV Ivds Evqp Move
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
                         {
-                            x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                            mem_ptr += 4;
+                            x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                            physmem8_ptr += 4;
                         }
                         regs[mem8 & 7] = x;
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         {
-                            x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                            mem_ptr += 4;
+                            x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                            physmem8_ptr += 4;
                         }
                         st32_mem8_write(x);
                     }
@@ -6072,66 +6102,66 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x95:
                 case 0x96:
                 case 0x97:
-                    register_1 = OPbyte & 7;
+                    reg_idx1 = OPbyte & 7;
                     x = regs[0];
-                    regs[0] = regs[register_1];
-                    regs[register_1] = x;
+                    regs[0] = regs[reg_idx1];
+                    regs[reg_idx1] = x;
                     break Fd;
                 case 0x86://XCHG  Gb Exchange Register/Memory with Register
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
-                        set_either_two_bytes_of_reg_ABCD(register_0, (regs[register_1 & 3] >> ((register_1 & 4) << 1)));
+                        reg_idx0 = mem8 & 7;
+                        x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
+                        set_word_in_register(reg_idx0, (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_8bits_mem8_write();
-                        st8_mem8_write((regs[register_1 & 3] >> ((register_1 & 4) << 1)));
+                        st8_mem8_write((regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)));
                     }
-                    set_either_two_bytes_of_reg_ABCD(register_1, x);
+                    set_word_in_register(reg_idx1, x);
                     break Fd;
                 case 0x87://XCHG  Gvqp Exchange Register/Memory with Register
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        x = regs[register_0];
-                        regs[register_0] = regs[register_1];
+                        reg_idx0 = mem8 & 7;
+                        x = regs[reg_idx0];
+                        regs[reg_idx0] = regs[reg_idx1];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_32bits_mem8_write();
-                        st32_mem8_write(regs[register_1]);
+                        st32_mem8_write(regs[reg_idx1]);
                     }
-                    regs[register_1] = x;
+                    regs[reg_idx1] = x;
                     break Fd;
                 case 0x8e://MOV Ew Sw Move
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
-                    if (register_1 >= 6 || register_1 == 1)
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
+                    if (reg_idx1 >= 6 || reg_idx1 == 1)
                         abort(6);
                     if ((mem8 >> 6) == 3) {
                         x = regs[mem8 & 7] & 0xffff;
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_16bits_mem8_read();
                     }
-                    Ie(register_1, x);
+                    Ie(reg_idx1, x);
                     break Fd;
                 case 0x8c://MOV Sw Mw Move
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
-                    if (register_1 >= 6)
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
+                    if (reg_idx1 >= 6)
                         abort(6);
-                    x = cpu.segs[register_1].selector;
+                    x = cpu.segs[reg_idx1].selector;
                     if ((mem8 >> 6) == 3) {
                         if ((((CS_flags >> 8) & 1) ^ 1)) {
                             regs[mem8 & 7] = x;
                         } else {
-                            set_lower_two_bytes_of_register(mem8 & 7, x);
+                            set_lower_word_in_register(mem8 & 7, x);
                         }
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         st16_mem8_write(x);
                     }
                     break Fd;
@@ -6149,15 +6179,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x28://SUB Gb Eb Subtract
                 case 0x30://XOR Gb Eb Logical Exclusive OR
                 case 0x38://CMP Eb  Compare Two Operands
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
-                    register_1 = (mem8 >> 3) & 7;
-                    y = (regs[register_1 & 3] >> ((register_1 & 4) << 1));
+                    reg_idx1 = (mem8 >> 3) & 7;
+                    y = (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1));
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        set_either_two_bytes_of_reg_ABCD(register_0, do_8bit_math(conditional_var, (regs[register_0 & 3] >> ((register_0 & 4) << 1)), y));
+                        reg_idx0 = mem8 & 7;
+                        set_word_in_register(reg_idx0, do_8bit_math(conditional_var, (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)), y));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         if (conditional_var != 7) {
                             x = ld_8bits_mem8_write();
                             x = do_8bit_math(conditional_var, x, y);
@@ -6169,17 +6199,17 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x01://ADD Gvqp Evqp Add
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     y = regs[(mem8 >> 3) & 7];
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
+                        reg_idx0 = mem8 & 7;
                         {
                             _src = y;
-                            _dst = regs[register_0] = (regs[register_0] + _src) >> 0;
+                            _dst = regs[reg_idx0] = (regs[reg_idx0] + _src) >> 0;
                             _op = 2;
                         }
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_32bits_mem8_write();
                         {
                             _src = y;
@@ -6195,32 +6225,32 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x21://AND Gvqp Evqp Logical AND
                 case 0x29://SUB Gvqp Evqp Subtract
                 case 0x31://XOR Gvqp Evqp Logical Exclusive OR
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
                     y = regs[(mem8 >> 3) & 7];
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        regs[register_0] = do_32bit_math(conditional_var, regs[register_0], y);
+                        reg_idx0 = mem8 & 7;
+                        regs[reg_idx0] = do_32bit_math(conditional_var, regs[reg_idx0], y);
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_32bits_mem8_write();
                         x = do_32bit_math(conditional_var, x, y);
                         st32_mem8_write(x);
                     }
                     break Fd;
                 case 0x39://CMP Evqp  Compare Two Operands
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
                     y = regs[(mem8 >> 3) & 7];
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
+                        reg_idx0 = mem8 & 7;
                         {
                             _src = y;
-                            _dst = (regs[register_0] - _src) >> 0;
+                            _dst = (regs[reg_idx0] - _src) >> 0;
                             _op = 8;
                         }
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_32bits_mem8_read();
                         {
                             _src = y;
@@ -6237,30 +6267,30 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x2a://SUB Eb Gb Subtract
                 case 0x32://XOR Eb Gb Logical Exclusive OR
                 case 0x3a://CMP Gb  Compare Two Operands
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
-                    register_1 = (mem8 >> 3) & 7;
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        y = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                        reg_idx0 = mem8 & 7;
+                        y = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         y = ld_8bits_mem8_read();
                     }
-                    set_either_two_bytes_of_reg_ABCD(register_1, do_8bit_math(conditional_var, (regs[register_1 & 3] >> ((register_1 & 4) << 1)), y));
+                    set_word_in_register(reg_idx1, do_8bit_math(conditional_var, (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)), y));
                     break Fd;
                 case 0x03://ADD Evqp Gvqp Add
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
                         y = regs[mem8 & 7];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         y = ld_32bits_mem8_read();
                     }
                     {
                         _src = y;
-                        _dst = regs[register_1] = (regs[register_1] + _src) >> 0;
+                        _dst = regs[reg_idx1] = (regs[reg_idx1] + _src) >> 0;
                         _op = 2;
                     }
                     break Fd;
@@ -6270,30 +6300,30 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x23://AND Evqp Gvqp Logical AND
                 case 0x2b://SUB Evqp Gvqp Subtract
                 case 0x33://XOR Evqp Gvqp Logical Exclusive OR
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
-                    register_1 = (mem8 >> 3) & 7;
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
                         y = regs[mem8 & 7];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         y = ld_32bits_mem8_read();
                     }
-                    regs[register_1] = do_32bit_math(conditional_var, regs[register_1], y);
+                    regs[reg_idx1] = do_32bit_math(conditional_var, regs[reg_idx1], y);
                     break Fd;
                 case 0x3b://CMP Gvqp  Compare Two Operands
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
-                    register_1 = (mem8 >> 3) & 7;
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
                         y = regs[mem8 & 7];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         y = ld_32bits_mem8_read();
                     }
                     {
                         _src = y;
-                        _dst = (regs[register_1] - _src) >> 0;
+                        _dst = (regs[reg_idx1] - _src) >> 0;
                         _op = 8;
                     }
                     break Fd;
@@ -6305,14 +6335,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x2c://SUB Ib AL Subtract
                 case 0x34://XOR Ib AL Logical Exclusive OR
                 case 0x3c://CMP AL  Compare Two Operands
-                    y = phys_mem8[mem_ptr++];
+                    y = phys_mem8[physmem8_ptr++];
                     conditional_var = OPbyte >> 3;
-                    set_either_two_bytes_of_reg_ABCD(0, do_8bit_math(conditional_var, regs[0] & 0xff, y));
+                    set_word_in_register(0, do_8bit_math(conditional_var, regs[0] & 0xff, y));
                     break Fd;
                 case 0x05://ADD Ivds rAX Add
                     {
-                        y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     {
                         _src = y;
@@ -6326,16 +6356,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x25://AND Ivds rAX Logical AND
                 case 0x2d://SUB Ivds rAX Subtract
                     {
-                        y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     conditional_var = OPbyte >> 3;
                     regs[0] = do_32bit_math(conditional_var, regs[0], y);
                     break Fd;
                 case 0x35://XOR Ivds rAX Logical Exclusive OR
                     {
-                        y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     {
                         _dst = regs[0] = regs[0] ^ y;
@@ -6344,8 +6374,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0x3d://CMP rAX  Compare Two Operands
                     {
-                        y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     {
                         _src = y;
@@ -6355,15 +6385,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0x80://ADD Ib Eb Add
                 case 0x82://ADD Ib Eb Add
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        y = phys_mem8[mem_ptr++];
-                        set_either_two_bytes_of_reg_ABCD(register_0, do_8bit_math(conditional_var, (regs[register_0 & 3] >> ((register_0 & 4) << 1)), y));
+                        reg_idx0 = mem8 & 7;
+                        y = phys_mem8[physmem8_ptr++];
+                        set_word_in_register(reg_idx0, do_8bit_math(conditional_var, (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)), y));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
-                        y = phys_mem8[mem_ptr++];
+                        mem8_loc = segment_translation(mem8);
+                        y = phys_mem8[physmem8_ptr++];
                         if (conditional_var != 7) {
                             x = ld_8bits_mem8_write();
                             x = do_8bit_math(conditional_var, x, y);
@@ -6375,18 +6405,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x81://ADD Ivds Evqp Add
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if (conditional_var == 7) {
                         if ((mem8 >> 6) == 3) {
                             x = regs[mem8 & 7];
                         } else {
-                            mem8_loc = giant_get_mem8_loc_func(mem8);
+                            mem8_loc = segment_translation(mem8);
                             x = ld_32bits_mem8_read();
                         }
                         {
-                            y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                            mem_ptr += 4;
+                            y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                            physmem8_ptr += 4;
                         }
                         {
                             _src = y;
@@ -6395,17 +6425,17 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         }
                     } else {
                         if ((mem8 >> 6) == 3) {
-                            register_0 = mem8 & 7;
+                            reg_idx0 = mem8 & 7;
                             {
-                                y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                                mem_ptr += 4;
+                                y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                                physmem8_ptr += 4;
                             }
-                            regs[register_0] = do_32bit_math(conditional_var, regs[register_0], y);
+                            regs[reg_idx0] = do_32bit_math(conditional_var, regs[reg_idx0], y);
                         } else {
-                            mem8_loc = giant_get_mem8_loc_func(mem8);
+                            mem8_loc = segment_translation(mem8);
                             {
-                                y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                                mem_ptr += 4;
+                                y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                                physmem8_ptr += 4;
                             }
                             x = ld_32bits_mem8_write();
                             x = do_32bit_math(conditional_var, x, y);
@@ -6414,16 +6444,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x83://ADD Ibs Evqp Add
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if (conditional_var == 7) {
                         if ((mem8 >> 6) == 3) {
                             x = regs[mem8 & 7];
                         } else {
-                            mem8_loc = giant_get_mem8_loc_func(mem8);
+                            mem8_loc = segment_translation(mem8);
                             x = ld_32bits_mem8_read();
                         }
-                        y = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                        y = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         {
                             _src = y;
                             _dst = (x - _src) >> 0;
@@ -6431,12 +6461,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         }
                     } else {
                         if ((mem8 >> 6) == 3) {
-                            register_0 = mem8 & 7;
-                            y = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                            regs[register_0] = do_32bit_math(conditional_var, regs[register_0], y);
+                            reg_idx0 = mem8 & 7;
+                            y = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                            regs[reg_idx0] = do_32bit_math(conditional_var, regs[reg_idx0], y);
                         } else {
-                            mem8_loc = giant_get_mem8_loc_func(mem8);
-                            y = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                            mem8_loc = segment_translation(mem8);
+                            y = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                             x = ld_32bits_mem8_write();
                             x = do_32bit_math(conditional_var, x, y);
                             st32_mem8_write(x);
@@ -6451,13 +6481,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x45://REX.RB   REX.R and REX.B combination
                 case 0x46://REX.RX   REX.R and REX.X combination
                 case 0x47://REX.RXB   REX.R, REX.X and REX.B combination
-                    register_1 = OPbyte & 7;
+                    reg_idx1 = OPbyte & 7;
                     {
                         if (_op < 25) {
                             _op2 = _op;
                             _dst2 = _dst;
                         }
-                        regs[register_1] = _dst = (regs[register_1] + 1) >> 0;
+                        regs[reg_idx1] = _dst = (regs[reg_idx1] + 1) >> 0;
                         _op = 27;
                     }
                     break Fd;
@@ -6469,65 +6499,65 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x4d://REX.WRB   REX.W, REX.R and REX.B combination
                 case 0x4e://REX.WRX   REX.W, REX.R and REX.X combination
                 case 0x4f://REX.WRXB   REX.W, REX.R, REX.X and REX.B combination
-                    register_1 = OPbyte & 7;
+                    reg_idx1 = OPbyte & 7;
                     {
                         if (_op < 25) {
                             _op2 = _op;
                             _dst2 = _dst;
                         }
-                        regs[register_1] = _dst = (regs[register_1] - 1) >> 0;
+                        regs[reg_idx1] = _dst = (regs[reg_idx1] - 1) >> 0;
                         _op = 30;
                     }
                     break Fd;
                 case 0x6b://IMUL Evqp Gvqp Signed Multiply
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
                         y = regs[mem8 & 7];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         y = ld_32bits_mem8_read();
                     }
-                    z = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                    regs[register_1] = Wc(y, z);
+                    z = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                    regs[reg_idx1] = Wc(y, z);
                     break Fd;
                 case 0x69://IMUL Evqp Gvqp Signed Multiply
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
                         y = regs[mem8 & 7];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         y = ld_32bits_mem8_read();
                     }
                     {
-                        z = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        z = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
-                    regs[register_1] = Wc(y, z);
+                    regs[reg_idx1] = Wc(y, z);
                     break Fd;
                 case 0x84://TEST Eb  Logical Compare
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                        reg_idx0 = mem8 & 7;
+                        x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_8bits_mem8_read();
                     }
-                    register_1 = (mem8 >> 3) & 7;
-                    y = (regs[register_1 & 3] >> ((register_1 & 4) << 1));
+                    reg_idx1 = (mem8 >> 3) & 7;
+                    y = (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1));
                     {
                         _dst = (((x & y) << 24) >> 24);
                         _op = 12;
                     }
                     break Fd;
                 case 0x85://TEST Evqp  Logical Compare
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
                         x = regs[mem8 & 7];
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_32bits_mem8_read();
                     }
                     y = regs[(mem8 >> 3) & 7];
@@ -6537,7 +6567,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0xa8://TEST AL  Logical Compare
-                    y = phys_mem8[mem_ptr++];
+                    y = phys_mem8[physmem8_ptr++];
                     {
                         _dst = (((regs[0] & y) << 24) >> 24);
                         _op = 12;
@@ -6545,8 +6575,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0xa9://TEST rAX  Logical Compare
                     {
-                        y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     {
                         _dst = regs[0] & y;
@@ -6554,18 +6584,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0xf6://TEST Eb  Logical Compare
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
                         case 0:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
-                            y = phys_mem8[mem_ptr++];
+                            y = phys_mem8[physmem8_ptr++];
                             {
                                 _dst = (((x & y) << 24) >> 24);
                                 _op = 12;
@@ -6573,10 +6603,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break;
                         case 2:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                set_either_two_bytes_of_reg_ABCD(register_0, ~(regs[register_0 & 3] >> ((register_0 & 4) << 1)));
+                                reg_idx0 = mem8 & 7;
+                                set_word_in_register(reg_idx0, ~(regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_write();
                                 x = ~x;
                                 st8_mem8_write(x);
@@ -6584,10 +6614,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break;
                         case 3:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                set_either_two_bytes_of_reg_ABCD(register_0, do_8bit_math(5, 0, (regs[register_0 & 3] >> ((register_0 & 4) << 1))));
+                                reg_idx0 = mem8 & 7;
+                                set_word_in_register(reg_idx0, do_8bit_math(5, 0, (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1))));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_write();
                                 x = do_8bit_math(5, 0, x);
                                 st8_mem8_write(x);
@@ -6595,40 +6625,40 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break;
                         case 4:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
-                            set_lower_two_bytes_of_register(0, Oc(regs[0], x));
+                            set_lower_word_in_register(0, Oc(regs[0], x));
                             break;
                         case 5:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
-                            set_lower_two_bytes_of_register(0, Pc(regs[0], x));
+                            set_lower_word_in_register(0, Pc(regs[0], x));
                             break;
                         case 6:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
                             Cc(x);
                             break;
                         case 7:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
                             Ec(x);
@@ -6638,19 +6668,19 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0xf7://TEST Evqp  Logical Compare
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
                         case 0:
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
                             {
-                                y = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                                mem_ptr += 4;
+                                y = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                                physmem8_ptr += 4;
                             }
                             {
                                 _dst = x & y;
@@ -6659,10 +6689,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break;
                         case 2:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                regs[register_0] = ~regs[register_0];
+                                reg_idx0 = mem8 & 7;
+                                regs[reg_idx0] = ~regs[reg_idx0];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
                                 x = ~x;
                                 st32_mem8_write(x);
@@ -6670,10 +6700,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break;
                         case 3:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                regs[register_0] = do_32bit_math(5, 0, regs[register_0]);
+                                reg_idx0 = mem8 & 7;
+                                regs[reg_idx0] = do_32bit_math(5, 0, regs[reg_idx0]);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
                                 x = do_32bit_math(5, 0, x);
                                 st32_mem8_write(x);
@@ -6683,7 +6713,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
                             regs[0] = Vc(regs[0], x);
@@ -6693,7 +6723,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
                             regs[0] = Wc(regs[0], x);
@@ -6703,7 +6733,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
                             regs[0] = Hc(regs[2], regs[0], x);
@@ -6713,7 +6743,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
                             regs[0] = Lc(regs[2], regs[0], x);
@@ -6725,84 +6755,84 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 //Rotate and Shift ops ---------------------------------------------------------------
                 case 0xc0://ROL Ib Eb Rotate
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        y = phys_mem8[mem_ptr++];
-                        register_0 = mem8 & 7;
-                        set_either_two_bytes_of_reg_ABCD(register_0, shift8(conditional_var, (regs[register_0 & 3] >> ((register_0 & 4) << 1)), y));
+                        y = phys_mem8[physmem8_ptr++];
+                        reg_idx0 = mem8 & 7;
+                        set_word_in_register(reg_idx0, shift8(conditional_var, (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)), y));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
-                        y = phys_mem8[mem_ptr++];
+                        mem8_loc = segment_translation(mem8);
+                        y = phys_mem8[physmem8_ptr++];
                         x = ld_8bits_mem8_write();
                         x = shift8(conditional_var, x, y);
                         st8_mem8_write(x);
                     }
                     break Fd;
                 case 0xc1://ROL Ib Evqp Rotate
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        y = phys_mem8[mem_ptr++];
-                        register_0 = mem8 & 7;
-                        regs[register_0] = shift32(conditional_var, regs[register_0], y);
+                        y = phys_mem8[physmem8_ptr++];
+                        reg_idx0 = mem8 & 7;
+                        regs[reg_idx0] = shift32(conditional_var, regs[reg_idx0], y);
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
-                        y = phys_mem8[mem_ptr++];
+                        mem8_loc = segment_translation(mem8);
+                        y = phys_mem8[physmem8_ptr++];
                         x = ld_32bits_mem8_write();
                         x = shift32(conditional_var, x, y);
                         st32_mem8_write(x);
                     }
                     break Fd;
                 case 0xd0://ROL 1 Eb Rotate
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        set_either_two_bytes_of_reg_ABCD(register_0, shift8(conditional_var, (regs[register_0 & 3] >> ((register_0 & 4) << 1)), 1));
+                        reg_idx0 = mem8 & 7;
+                        set_word_in_register(reg_idx0, shift8(conditional_var, (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)), 1));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_8bits_mem8_write();
                         x = shift8(conditional_var, x, 1);
                         st8_mem8_write(x);
                     }
                     break Fd;
                 case 0xd1://ROL 1 Evqp Rotate
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        regs[register_0] = shift32(conditional_var, regs[register_0], 1);
+                        reg_idx0 = mem8 & 7;
+                        regs[reg_idx0] = shift32(conditional_var, regs[reg_idx0], 1);
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_32bits_mem8_write();
                         x = shift32(conditional_var, x, 1);
                         st32_mem8_write(x);
                     }
                     break Fd;
                 case 0xd2://ROL CL Eb Rotate
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     y = regs[1] & 0xff;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        set_either_two_bytes_of_reg_ABCD(register_0, shift8(conditional_var, (regs[register_0 & 3] >> ((register_0 & 4) << 1)), y));
+                        reg_idx0 = mem8 & 7;
+                        set_word_in_register(reg_idx0, shift8(conditional_var, (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)), y));
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_8bits_mem8_write();
                         x = shift8(conditional_var, x, y);
                         st8_mem8_write(x);
                     }
                     break Fd;
                 case 0xd3://ROL CL Evqp Rotate
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     y = regs[1] & 0xff;
                     if ((mem8 >> 6) == 3) {
-                        register_0 = mem8 & 7;
-                        regs[register_0] = shift32(conditional_var, regs[register_0], y);
+                        reg_idx0 = mem8 & 7;
+                        regs[reg_idx0] = shift32(conditional_var, regs[reg_idx0], y);
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         x = ld_32bits_mem8_write();
                         x = shift32(conditional_var, x, y);
                         st32_mem8_write(x);
@@ -6864,7 +6894,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Mf();
                     break Fd;
                 case 0x8f://POP SS:[rSP] Ev Pop a Value from the Stack
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3) {
                         x = Ad();
                         Bd();
@@ -6874,7 +6904,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         y = regs[4];
                         Bd();
                         z = regs[4];
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                         regs[4] = y;
                         st32_mem8_write(x);
                         regs[4] = z;
@@ -6882,8 +6912,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0x68://PUSH Ivs SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
                     {
-                        x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
                     if (FS_usage_flag) {
                         mem8_loc = (regs[4] - 4) >> 0;
@@ -6894,7 +6924,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x6a://PUSH Ibss SS:[rSP] Push Word, Doubleword or Quadword Onto the Stack
-                    x = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                    x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     if (FS_usage_flag) {
                         mem8_loc = (regs[4] - 4) >> 0;
                         st32_mem8_write(x);
@@ -6966,22 +6996,22 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Bd();
                     break Fd;
                 case 0x8d://LEA M Gvqp Load Effective Address
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     if ((mem8 >> 6) == 3)
                         abort(6);
                     CS_flags = (CS_flags & ~0x000f) | (6 + 1);
-                    regs[(mem8 >> 3) & 7] = giant_get_mem8_loc_func(mem8);
+                    regs[(mem8 >> 3) & 7] = segment_translation(mem8);
                     break Fd;
                 case 0xfe://INC  Eb Increment by 1
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
                         case 0:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                set_either_two_bytes_of_reg_ABCD(register_0, increment_8bit((regs[register_0 & 3] >> ((register_0 & 4) << 1))));
+                                reg_idx0 = mem8 & 7;
+                                set_word_in_register(reg_idx0, increment_8bit((regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1))));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_write();
                                 x = increment_8bit(x);
                                 st8_mem8_write(x);
@@ -6989,10 +7019,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break;
                         case 1:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                set_either_two_bytes_of_reg_ABCD(register_0, decrement_8bit((regs[register_0 & 3] >> ((register_0 & 4) << 1))));
+                                reg_idx0 = mem8 & 7;
+                                set_word_in_register(reg_idx0, decrement_8bit((regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1))));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_write();
                                 x = decrement_8bit(x);
                                 st8_mem8_write(x);
@@ -7003,22 +7033,22 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0xff://INC  Evqp Increment by 1
-                    mem8 = phys_mem8[mem_ptr++];
+                    mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
                         case 0:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
+                                reg_idx0 = mem8 & 7;
                                 {
                                     if (_op < 25) {
                                         _op2 = _op;
                                         _dst2 = _dst;
                                     }
-                                    regs[register_0] = _dst = (regs[register_0] + 1) >> 0;
+                                    regs[reg_idx0] = _dst = (regs[reg_idx0] + 1) >> 0;
                                     _op = 27;
                                 }
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
                                 {
                                     if (_op < 25) {
@@ -7033,17 +7063,17 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break;
                         case 1:
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
+                                reg_idx0 = mem8 & 7;
                                 {
                                     if (_op < 25) {
                                         _op2 = _op;
                                         _dst2 = _dst;
                                     }
-                                    regs[register_0] = _dst = (regs[register_0] - 1) >> 0;
+                                    regs[reg_idx0] = _dst = (regs[reg_idx0] - 1) >> 0;
                                     _op = 30;
                                 }
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
                                 {
                                     if (_op < 25) {
@@ -7060,10 +7090,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
-                            y = (eip + mem_ptr - initial_mem_ptr);
+                            y = (eip + physmem8_ptr - initial_mem_ptr);
                             if (FS_usage_flag) {
                                 mem8_loc = (regs[4] - 4) >> 0;
                                 st32_mem8_write(y);
@@ -7071,22 +7101,22 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             } else {
                                 xd(y);
                             }
-                            eip = x, mem_ptr = initial_mem_ptr = 0;
+                            eip = x, physmem8_ptr = initial_mem_ptr = 0;
                             break;
                         case 4:
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
-                            eip = x, mem_ptr = initial_mem_ptr = 0;
+                            eip = x, physmem8_ptr = initial_mem_ptr = 0;
                             break;
                         case 6:
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
                             if (FS_usage_flag) {
@@ -7101,12 +7131,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 5:
                             if ((mem8 >> 6) == 3)
                                 abort(6);
-                            mem8_loc = giant_get_mem8_loc_func(mem8);
+                            mem8_loc = segment_translation(mem8);
                             x = ld_32bits_mem8_read();
                             mem8_loc = (mem8_loc + 4) >> 0;
                             y = ld_16bits_mem8_read();
                             if (conditional_var == 3)
-                                Ze(1, y, x, (eip + mem_ptr - initial_mem_ptr));
+                                Ze(1, y, x, (eip + physmem8_ptr - initial_mem_ptr));
                             else
                                 Oe(y, x);
                             break;
@@ -7115,21 +7145,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0xeb://JMP Jbs  Jump
-                    x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                    mem_ptr = (mem_ptr + x) >> 0;
+                    x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                    physmem8_ptr = (physmem8_ptr + x) >> 0;
                     break Fd;
                 case 0xe9://JMP Jvds  Jump
                     {
-                        x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
-                    mem_ptr = (mem_ptr + x) >> 0;
+                    physmem8_ptr = (physmem8_ptr + x) >> 0;
                     break Fd;
                 case 0xea://JMPF Ap  Jump
                     if ((((CS_flags >> 8) & 1) ^ 1)) {
                         {
-                            x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                            mem_ptr += 4;
+                            x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                            physmem8_ptr += 4;
                         }
                     } else {
                         x = ld16_mem8_direct();
@@ -7139,136 +7169,136 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0x70://JO Jbs  Jump short if overflow (OF=1)
                     if (check_overflow()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x71://JNO Jbs  Jump short if not overflow (OF=0)
                     if (!check_overflow()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x72://JB Jbs  Jump short if below/not above or equal/carry (CF=1)
                     if (check_carry()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x73://JNB Jbs  Jump short if not below/above or equal/not carry (CF=0)
                     if (!check_carry()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x74://JZ Jbs  Jump short if zero/equal (ZF=0)
                     if ((_dst == 0)) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x75://JNZ Jbs  Jump short if not zero/not equal (ZF=1)
                     if (!(_dst == 0)) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x76://JBE Jbs  Jump short if below or equal/not above (CF=1 AND ZF=1)
                     if (ad()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x77://JNBE Jbs  Jump short if not below or equal/above (CF=0 AND ZF=0)
                     if (!ad()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x78://JS Jbs  Jump short if sign (SF=1)
                     if ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0))) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x79://JNS Jbs  Jump short if not sign (SF=0)
                     if (!(_op == 24 ? ((_src >> 7) & 1) : (_dst < 0))) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x7a://JP Jbs  Jump short if parity/parity even (PF=1)
                     if (check_parity()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x7b://JNP Jbs  Jump short if not parity/parity odd
                     if (!check_parity()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x7c://JL Jbs  Jump short if less/not greater (SF!=OF)
                     if (cd()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x7d://JNL Jbs  Jump short if not less/greater or equal (SF=OF)
                     if (!cd()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x7e://JLE Jbs  Jump short if less or equal/not greater ((ZF=1) OR (SF!=OF))
                     if (dd()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0x7f://JNLE Jbs  Jump short if not less nor equal/greater ((ZF=0) AND (SF=OF))
                     if (!dd()) {
-                        x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                        mem_ptr = (mem_ptr + x) >> 0;
+                        x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                        physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
-                        mem_ptr = (mem_ptr + 1) >> 0;
+                        physmem8_ptr = (physmem8_ptr + 1) >> 0;
                     }
                     break Fd;
                 case 0xe0://LOOPNZ Jbs eCX Decrement count; Jump short if count!=0 and ZF=0
                 case 0xe1://LOOPZ Jbs eCX Decrement count; Jump short if count!=0 and ZF=1
                 case 0xe2://LOOP Jbs eCX Decrement count; Jump short if count!=0
-                    x = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                    x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     if (CS_flags & 0x0080)
                         conditional_var = 0xffff;
                     else
@@ -7284,23 +7314,23 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         z = 1;
                     if (y && z) {
                         if (CS_flags & 0x0100) {
-                            eip = (eip + mem_ptr - initial_mem_ptr + x) & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                            eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                         } else {
-                            mem_ptr = (mem_ptr + x) >> 0;
+                            physmem8_ptr = (physmem8_ptr + x) >> 0;
                         }
                     }
                     break Fd;
                 case 0xe3://JCXZ Jbs  Jump short if eCX register is 0
-                    x = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                    x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                     if (CS_flags & 0x0080)
                         conditional_var = 0xffff;
                     else
                         conditional_var = -1;
                     if ((regs[1] & conditional_var) == 0) {
                         if (CS_flags & 0x0100) {
-                            eip = (eip + mem_ptr - initial_mem_ptr + x) & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                            eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                         } else {
-                            mem_ptr = (mem_ptr + x) >> 0;
+                            physmem8_ptr = (physmem8_ptr + x) >> 0;
                         }
                     }
                     break Fd;
@@ -7308,7 +7338,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     y = (ld16_mem8_direct() << 16) >> 16;
                     x = Ad();
                     regs[4] = (regs[4] & ~SS_mask) | ((regs[4] + 4 + y) & SS_mask);
-                    eip = x, mem_ptr = initial_mem_ptr = 0;
+                    eip = x, physmem8_ptr = initial_mem_ptr = 0;
                     break Fd;
                 case 0xc3://RETN SS:[rSP]  Return from procedure
                     if (FS_usage_flag) {
@@ -7319,14 +7349,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         x = Ad();
                         Bd();
                     }
-                    eip = x, mem_ptr = initial_mem_ptr = 0;
+                    eip = x, physmem8_ptr = initial_mem_ptr = 0;
                     break Fd;
                 case 0xe8://CALL Jvds SS:[rSP] Call Procedure
                     {
-                        x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                        mem_ptr += 4;
+                        x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                        physmem8_ptr += 4;
                     }
-                    y = (eip + mem_ptr - initial_mem_ptr);
+                    y = (eip + physmem8_ptr - initial_mem_ptr);
                     if (FS_usage_flag) {
                         mem8_loc = (regs[4] - 4) >> 0;
                         st32_mem8_write(y);
@@ -7334,20 +7364,20 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     } else {
                         xd(y);
                     }
-                    mem_ptr = (mem_ptr + x) >> 0;
+                    physmem8_ptr = (physmem8_ptr + x) >> 0;
                     break Fd;
                 case 0x9a://CALLF Ap SS:[rSP] Call Procedure
                     z = (((CS_flags >> 8) & 1) ^ 1);
                     if (z) {
                         {
-                            x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                            mem_ptr += 4;
+                            x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                            physmem8_ptr += 4;
                         }
                     } else {
                         x = ld16_mem8_direct();
                     }
                     y = ld16_mem8_direct();
-                    Ze(z, y, x, (eip + mem_ptr - initial_mem_ptr));
+                    Ze(z, y, x, (eip + physmem8_ptr - initial_mem_ptr));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7378,19 +7408,19 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x90://XCHG  Zvqp Exchange Register/Memory with Register
                     break Fd;
                 case 0xcc://INT 3 SS:[rSP] Call to Interrupt Procedure
-                    y = (eip + mem_ptr - initial_mem_ptr);
+                    y = (eip + physmem8_ptr - initial_mem_ptr);
                     Ae(3, 1, 0, y, 0);
                     break Fd;
                 case 0xcd://INT Ib SS:[rSP] Call to Interrupt Procedure
-                    x = phys_mem8[mem_ptr++];
+                    x = phys_mem8[physmem8_ptr++];
                     if ((cpu.eflags & 0x00020000) && ((cpu.eflags >> 12) & 3) != 3)
                         abort(13);
-                    y = (eip + mem_ptr - initial_mem_ptr);
+                    y = (eip + physmem8_ptr - initial_mem_ptr);
                     Ae(x, 1, 0, y, 0);
                     break Fd;
                 case 0xce://INTO eFlags SS:[rSP] Call to Interrupt Procedure
                     if (check_overflow()) {
-                        y = (eip + mem_ptr - initial_mem_ptr);
+                        y = (eip + physmem8_ptr - initial_mem_ptr);
                         Ae(4, 1, 0, y, 0);
                     }
                     break Fd;
@@ -7441,7 +7471,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0x9f://LAHF  AH Load Status Flags into AH Register
                     x = id();
-                    set_either_two_bytes_of_reg_ABCD(4, x);
+                    set_word_in_register(4, x);
                     break Fd;
                 case 0xf4://HLT   Halt
                     if (cpu.cpl != 0)
@@ -7518,14 +7548,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     if (cpu.cr0 & ((1 << 2) | (1 << 3))) {
                         abort(7);
                     }
-                    mem8 = phys_mem8[mem_ptr++];
-                    register_1 = (mem8 >> 3) & 7;
-                    register_0 = mem8 & 7;
+                    mem8 = phys_mem8[physmem8_ptr++];
+                    reg_idx1 = (mem8 >> 3) & 7;
+                    reg_idx0 = mem8 & 7;
                     conditional_var = ((OPbyte & 7) << 3) | ((mem8 >> 3) & 7);
-                    set_lower_two_bytes_of_register(0, 0xffff);
+                    set_lower_word_in_register(0, 0xffff);
                     if ((mem8 >> 6) == 3) {
                     } else {
-                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                        mem8_loc = segment_translation(mem8);
                     }
                     break Fd;
                 case 0x9b://FWAIT   Check pending unmasked floating-point exceptions
@@ -7534,8 +7564,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         abort(13);
-                    x = phys_mem8[mem_ptr++];
-                    set_either_two_bytes_of_reg_ABCD(0, cpu.ld8_port(x));
+                    x = phys_mem8[physmem8_ptr++];
+                    set_word_in_register(0, cpu.ld8_port(x));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7545,7 +7575,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         abort(13);
-                    x = phys_mem8[mem_ptr++];
+                    x = phys_mem8[physmem8_ptr++];
                     regs[0] = cpu.ld32_port(x);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7556,7 +7586,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         abort(13);
-                    x = phys_mem8[mem_ptr++];
+                    x = phys_mem8[physmem8_ptr++];
                     cpu.st8_port(x, regs[0] & 0xff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7567,7 +7597,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         abort(13);
-                    x = phys_mem8[mem_ptr++];
+                    x = phys_mem8[physmem8_ptr++];
                     cpu.st32_port(x, regs[0]);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7578,7 +7608,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
                         abort(13);
-                    set_either_two_bytes_of_reg_ABCD(0, cpu.ld8_port(regs[2] & 0xffff));
+                    set_word_in_register(0, cpu.ld8_port(regs[2] & 0xffff));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break Bg;
@@ -7627,11 +7657,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Cf();
                     break Fd;
                 case 0xd4://AAM  AL ASCII Adjust AX After Multiply
-                    x = phys_mem8[mem_ptr++];
+                    x = phys_mem8[physmem8_ptr++];
                     vf(x);
                     break Fd;
                 case 0xd5://AAD  AL ASCII Adjust AX Before Division
-                    x = phys_mem8[mem_ptr++];
+                    x = phys_mem8[physmem8_ptr++];
                     yf(x);
                     break Fd;
                 case 0x63://ARPL Ew  Adjust RPL Field of Segment Selector
@@ -7647,7 +7677,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                    =====================================================================================================
                 */
                 case 0x0f:
-                    OPbyte = phys_mem8[mem_ptr++];
+                    OPbyte = phys_mem8[physmem8_ptr++];
                     switch (OPbyte) {
                         case 0x80://JO Jvds  Jump short if overflow (OF=1)
                         case 0x81://JNO Jvds  Jump short if not overflow (OF=0)
@@ -7666,11 +7696,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x8e://JLE Jvds  Jump short if less or equal/not greater ((ZF=1) OR (SF!=OF))
                         case 0x8f://JNLE Jvds  Jump short if not less nor equal/greater ((ZF=0) AND (SF=OF))
                             {
-                                x = phys_mem8[mem_ptr] | (phys_mem8[mem_ptr + 1] << 8) | (phys_mem8[mem_ptr + 2] << 16) | (phys_mem8[mem_ptr + 3] << 24);
-                                mem_ptr += 4;
+                                x = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
+                                physmem8_ptr += 4;
                             }
                             if (check_status_bits_for_jump(OPbyte & 0xf))
-                                mem_ptr = (mem_ptr + x) >> 0;
+                                physmem8_ptr = (physmem8_ptr + x) >> 0;
                             break Fd;
                         case 0x90://SETO  Eb Set Byte on Condition - overflow (OF=1)
                         case 0x91://SETNO  Eb Set Byte on Condition - not overflow (OF=0)
@@ -7688,12 +7718,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x9d://SETNL  Eb Set Byte on Condition - not less/greater or equal (SF=OF)
                         case 0x9e://SETLE  Eb Set Byte on Condition - less or equal/not greater ((ZF=1) OR (SF!=OF))
                         case 0x9f://SETNLE  Eb Set Byte on Condition - not less nor equal/greater ((ZF=0) AND (SF=OF))
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             x = check_status_bits_for_jump(OPbyte & 0xf);
                             if ((mem8 >> 6) == 3) {
-                                set_either_two_bytes_of_reg_ABCD(mem8 & 7, x);
+                                set_word_in_register(mem8 & 7, x);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 st8_mem8_write(x);
                             }
                             break Fd;
@@ -7713,66 +7743,66 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x4d://CMOVNL Evqp Gvqp Conditional Move - not less/greater or equal (SF=OF)
                         case 0x4e://CMOVLE Evqp Gvqp Conditional Move - less or equal/not greater ((ZF=1) OR (SF!=OF))
                         case 0x4f://CMOVNLE Evqp Gvqp Conditional Move - not less nor equal/greater ((ZF=0) AND (SF=OF))
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
                             if (check_status_bits_for_jump(OPbyte & 0xf))
                                 regs[(mem8 >> 3) & 7] = x;
                             break Fd;
                         case 0xb6://MOVZX Eb Gvqp Move with Zero-Extend
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1)) & 0xff;
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)) & 0xff;
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                             }
-                            regs[register_1] = x;
+                            regs[reg_idx1] = x;
                             break Fd;
                         case 0xb7://MOVZX Ew Gvqp Move with Zero-Extend
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7] & 0xffff;
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_16bits_mem8_read();
                             }
-                            regs[register_1] = x;
+                            regs[reg_idx1] = x;
                             break Fd;
                         case 0xbe://MOVSX Eb Gvqp Move with Sign-Extension
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                             }
-                            regs[register_1] = (((x) << 24) >> 24);
+                            regs[reg_idx1] = (((x) << 24) >> 24);
                             break Fd;
                         case 0xbf://MOVSX Ew Gvqp Move with Sign-Extension
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_16bits_mem8_read();
                             }
-                            regs[register_1] = (((x) << 16) >> 16);
+                            regs[reg_idx1] = (((x) << 16) >> 16);
                             break Fd;
                         case 0x00://SLDT LDTR Mw Store Local Descriptor Table Register
                             if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
                                 abort(6);
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             switch (conditional_var) {
                                 case 0:
@@ -7782,9 +7812,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     else
                                         x = cpu.tr.selector;
                                     if ((mem8 >> 6) == 3) {
-                                        set_lower_two_bytes_of_register(mem8 & 7, x);
+                                        set_lower_word_in_register(mem8 & 7, x);
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         st16_mem8_write(x);
                                     }
                                     break;
@@ -7795,7 +7825,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     if (conditional_var == 2)
@@ -7808,7 +7838,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     sf(x, conditional_var & 1);
@@ -7818,7 +7848,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             break Fd;
                         case 0x01://SGDT GDTR Ms Store Global Descriptor Table Register
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             switch (conditional_var) {
                                 case 2:
@@ -7827,7 +7857,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                         abort(6);
                                     if (this.cpl != 0)
                                         abort(13);
-                                    mem8_loc = giant_get_mem8_loc_func(mem8);
+                                    mem8_loc = segment_translation(mem8);
                                     x = ld_16bits_mem8_read();
                                     mem8_loc += 2;
                                     y = ld_32bits_mem8_read();
@@ -7844,7 +7874,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                         abort(13);
                                     if ((mem8 >> 6) == 3)
                                         abort(6);
-                                    mem8_loc = giant_get_mem8_loc_func(mem8);
+                                    mem8_loc = segment_translation(mem8);
                                     cpu.tlb_flush_page(mem8_loc & -4096);
                                     break;
                                 default:
@@ -7858,11 +7888,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x20://MOV Cd Rd Move to/from Control Registers
                             if (cpu.cpl != 0)
                                 abort(13);
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) != 3)
                                 abort(6);
-                            register_1 = (mem8 >> 3) & 7;
-                            switch (register_1) {
+                            reg_idx1 = (mem8 >> 3) & 7;
+                            switch (reg_idx1) {
                                 case 0:
                                     x = cpu.cr0;
                                     break;
@@ -7883,12 +7913,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x22://MOV Rd Cd Move to/from Control Registers
                             if (cpu.cpl != 0)
                                 abort(13);
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) != 3)
                                 abort(6);
-                            register_1 = (mem8 >> 3) & 7;
+                            reg_idx1 = (mem8 >> 3) & 7;
                             x = regs[mem8 & 7];
-                            switch (register_1) {
+                            switch (reg_idx1) {
                                 case 0:
                                     set_CR0(x);
                                     break;
@@ -7913,12 +7943,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x23://MOV Rd Dd Move to/from Debug Registers
                             if (cpu.cpl != 0)
                                 abort(13);
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) != 3)
                                 abort(6);
-                            register_1 = (mem8 >> 3) & 7;
+                            reg_idx1 = (mem8 >> 3) & 7;
                             x = regs[mem8 & 7];
-                            if (register_1 == 4 || register_1 == 5)
+                            if (reg_idx1 == 4 || reg_idx1 == 5)
                                 abort(6);
                             break Fd;
                         case 0xb2://LSS Mptp SS Load Far Pointer
@@ -7930,74 +7960,74 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             uf();
                             break Fd;
                         case 0xa4://SHLD Gvqp Evqp Double Precision Shift Left
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
-                                z = phys_mem8[mem_ptr++];
-                                register_0 = mem8 & 7;
-                                regs[register_0] = rc(regs[register_0], y, z);
+                                z = phys_mem8[physmem8_ptr++];
+                                reg_idx0 = mem8 & 7;
+                                regs[reg_idx0] = rc(regs[reg_idx0], y, z);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
-                                z = phys_mem8[mem_ptr++];
+                                mem8_loc = segment_translation(mem8);
+                                z = phys_mem8[physmem8_ptr++];
                                 x = ld_32bits_mem8_write();
                                 x = rc(x, y, z);
                                 st32_mem8_write(x);
                             }
                             break Fd;
                         case 0xa5://SHLD Gvqp Evqp Double Precision Shift Left
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             z = regs[1];
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                regs[register_0] = rc(regs[register_0], y, z);
+                                reg_idx0 = mem8 & 7;
+                                regs[reg_idx0] = rc(regs[reg_idx0], y, z);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
                                 x = rc(x, y, z);
                                 st32_mem8_write(x);
                             }
                             break Fd;
                         case 0xac://SHRD Gvqp Evqp Double Precision Shift Right
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
-                                z = phys_mem8[mem_ptr++];
-                                register_0 = mem8 & 7;
-                                regs[register_0] = sc(regs[register_0], y, z);
+                                z = phys_mem8[physmem8_ptr++];
+                                reg_idx0 = mem8 & 7;
+                                regs[reg_idx0] = sc(regs[reg_idx0], y, z);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
-                                z = phys_mem8[mem_ptr++];
+                                mem8_loc = segment_translation(mem8);
+                                z = phys_mem8[physmem8_ptr++];
                                 x = ld_32bits_mem8_write();
                                 x = sc(x, y, z);
                                 st32_mem8_write(x);
                             }
                             break Fd;
                         case 0xad://SHRD Gvqp Evqp Double Precision Shift Right
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             z = regs[1];
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                regs[register_0] = sc(regs[register_0], y, z);
+                                reg_idx0 = mem8 & 7;
+                                regs[reg_idx0] = sc(regs[reg_idx0], y, z);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
                                 x = sc(x, y, z);
                                 st32_mem8_write(x);
                             }
                             break Fd;
                         case 0xba://BT Evqp  Bit Test
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             switch (conditional_var) {
                                 case 4:
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
-                                        y = phys_mem8[mem_ptr++];
+                                        y = phys_mem8[physmem8_ptr++];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
-                                        y = phys_mem8[mem_ptr++];
+                                        mem8_loc = segment_translation(mem8);
+                                        y = phys_mem8[physmem8_ptr++];
                                         x = ld_32bits_mem8_read();
                                     }
                                     uc(x, y);
@@ -8006,12 +8036,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 6:
                                 case 7:
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        y = phys_mem8[mem_ptr++];
-                                        regs[register_0] = xc(conditional_var & 3, regs[register_0], y);
+                                        reg_idx0 = mem8 & 7;
+                                        y = phys_mem8[physmem8_ptr++];
+                                        regs[reg_idx0] = xc(conditional_var & 3, regs[reg_idx0], y);
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
-                                        y = phys_mem8[mem_ptr++];
+                                        mem8_loc = segment_translation(mem8);
+                                        y = phys_mem8[physmem8_ptr++];
                                         x = ld_32bits_mem8_write();
                                         x = xc(conditional_var & 3, x, y);
                                         st32_mem8_write(x);
@@ -8022,12 +8052,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             break Fd;
                         case 0xa3://BT Evqp  Bit Test
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 mem8_loc = (mem8_loc + ((y >> 5) << 2)) >> 0;
                                 x = ld_32bits_mem8_read();
                             }
@@ -8036,14 +8066,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0xab://BTS Gvqp Evqp Bit Test and Set
                         case 0xb3://BTR Gvqp Evqp Bit Test and Reset
                         case 0xbb://BTC Gvqp Evqp Bit Test and Complement
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             y = regs[(mem8 >> 3) & 7];
                             conditional_var = (OPbyte >> 3) & 3;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                regs[register_0] = xc(conditional_var, regs[register_0], y);
+                                reg_idx0 = mem8 & 7;
+                                regs[reg_idx0] = xc(conditional_var, regs[reg_idx0], y);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 mem8_loc = (mem8_loc + ((y >> 5) << 2)) >> 0;
                                 x = ld_32bits_mem8_write();
                                 x = xc(conditional_var, x, y);
@@ -8052,29 +8082,29 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Fd;
                         case 0xbc://BSF Evqp Gvqp Bit Scan Forward
                         case 0xbd://BSR Evqp Gvqp Bit Scan Reverse
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
                                 y = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 y = ld_32bits_mem8_read();
                             }
                             if (OPbyte & 1)
-                                regs[register_1] = Bc(regs[register_1], y);
+                                regs[reg_idx1] = Bc(regs[reg_idx1], y);
                             else
-                                regs[register_1] = zc(regs[register_1], y);
+                                regs[reg_idx1] = zc(regs[reg_idx1], y);
                             break Fd;
                         case 0xaf://IMUL Evqp Gvqp Signed Multiply
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
                                 y = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 y = ld_32bits_mem8_read();
                             }
-                            regs[register_1] = Wc(regs[register_1], y);
+                            regs[reg_idx1] = Wc(regs[reg_idx1], y);
                             break Fd;
                         case 0x31://RDTSC IA32_TIME_STAMP_COUNTER EAX Read Time-Stamp Counter
                             if ((cpu.cr4 & (1 << 2)) && cpu.cpl != 0)
@@ -8084,80 +8114,80 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             regs[2] = (x / 0x100000000) >>> 0;
                             break Fd;
                         case 0xc0://XADD  Eb Exchange and Add
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
-                                y = do_8bit_math(0, x, (regs[register_1 & 3] >> ((register_1 & 4) << 1)));
-                                set_either_two_bytes_of_reg_ABCD(register_1, x);
-                                set_either_two_bytes_of_reg_ABCD(register_0, y);
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
+                                y = do_8bit_math(0, x, (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)));
+                                set_word_in_register(reg_idx1, x);
+                                set_word_in_register(reg_idx0, y);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_write();
-                                y = do_8bit_math(0, x, (regs[register_1 & 3] >> ((register_1 & 4) << 1)));
+                                y = do_8bit_math(0, x, (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)));
                                 st8_mem8_write(y);
-                                set_either_two_bytes_of_reg_ABCD(register_1, x);
+                                set_word_in_register(reg_idx1, x);
                             }
                             break Fd;
                         case 0xc1://XADD  Evqp Exchange and Add
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = regs[register_0];
-                                y = do_32bit_math(0, x, regs[register_1]);
-                                regs[register_1] = x;
-                                regs[register_0] = y;
+                                reg_idx0 = mem8 & 7;
+                                x = regs[reg_idx0];
+                                y = do_32bit_math(0, x, regs[reg_idx1]);
+                                regs[reg_idx1] = x;
+                                regs[reg_idx0] = y;
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
-                                y = do_32bit_math(0, x, regs[register_1]);
+                                y = do_32bit_math(0, x, regs[reg_idx1]);
                                 st32_mem8_write(y);
-                                regs[register_1] = x;
+                                regs[reg_idx1] = x;
                             }
                             break Fd;
                         case 0xb0://CMPXCHG Gb Eb Compare and Exchange
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                reg_idx0 = mem8 & 7;
+                                x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                                 y = do_8bit_math(5, regs[0], x);
                                 if (y == 0) {
-                                    set_either_two_bytes_of_reg_ABCD(register_0, (regs[register_1 & 3] >> ((register_1 & 4) << 1)));
+                                    set_word_in_register(reg_idx0, (regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)));
                                 } else {
-                                    set_either_two_bytes_of_reg_ABCD(0, x);
+                                    set_word_in_register(0, x);
                                 }
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_write();
                                 y = do_8bit_math(5, regs[0], x);
                                 if (y == 0) {
-                                    st8_mem8_write((regs[register_1 & 3] >> ((register_1 & 4) << 1)));
+                                    st8_mem8_write((regs[reg_idx1 & 3] >> ((reg_idx1 & 4) << 1)));
                                 } else {
-                                    set_either_two_bytes_of_reg_ABCD(0, x);
+                                    set_word_in_register(0, x);
                                 }
                             }
                             break Fd;
                         case 0xb1://CMPXCHG Gvqp Evqp Compare and Exchange
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = regs[register_0];
+                                reg_idx0 = mem8 & 7;
+                                x = regs[reg_idx0];
                                 y = do_32bit_math(5, regs[0], x);
                                 if (y == 0) {
-                                    regs[register_0] = regs[register_1];
+                                    regs[reg_idx0] = regs[reg_idx1];
                                 } else {
                                     regs[0] = x;
                                 }
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_write();
                                 y = do_32bit_math(5, regs[0], x);
                                 if (y == 0) {
-                                    st32_mem8_write(regs[register_1]);
+                                    st32_mem8_write(regs[reg_idx1]);
                                 } else {
                                     regs[0] = x;
                                 }
@@ -8180,10 +8210,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0xcd:
                         case 0xce:
                         case 0xcf:
-                            register_1 = OPbyte & 7;
-                            x = regs[register_1];
+                            reg_idx1 = OPbyte & 7;
+                            x = regs[reg_idx1];
                             x = (x >>> 24) | ((x >> 8) & 0x0000ff00) | ((x << 8) & 0x00ff0000) | (x << 24);
-                            regs[register_1] = x;
+                            regs[reg_idx1] = x;
                             break Fd;
                         case 0x04:
                         case 0x05://LOADALL  AX Load All of the CPU Registers
@@ -8355,24 +8385,24 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 default:
                     switch (OPbyte) {
                         case 0x189:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             x = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
-                                set_lower_two_bytes_of_register(mem8 & 7, x);
+                                set_lower_word_in_register(mem8 & 7, x);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 st16_mem8_write(x);
                             }
                             break Fd;
                         case 0x18b:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_16bits_mem8_read();
                             }
-                            set_lower_two_bytes_of_register((mem8 >> 3) & 7, x);
+                            set_lower_word_in_register((mem8 >> 3) & 7, x);
                             break Fd;
                         case 0x1b8:
                         case 0x1b9:
@@ -8382,24 +8412,24 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x1bd:
                         case 0x1be:
                         case 0x1bf:
-                            set_lower_two_bytes_of_register(OPbyte & 7, ld16_mem8_direct());
+                            set_lower_word_in_register(OPbyte & 7, ld16_mem8_direct());
                             break Fd;
-                        case 0x1a1:
-                            mem8_loc = Ub();
+                        case 0x1a1://MOV EAX,moffs32            Move dword at (seg:offset) to EAX
+                            mem8_loc = segmented_mem8_loc_for_MOV();
                             x = ld_16bits_mem8_read();
-                            set_lower_two_bytes_of_register(0, x);
+                            set_lower_word_in_register(0, x);
                             break Fd;
-                        case 0x1a3:
-                            mem8_loc = Ub();
+                        case 0x1a3://MOV moffs16,AX             Move AX to (seg:offset)
+                            mem8_loc = segmented_mem8_loc_for_MOV();
                             st16_mem8_write(regs[0]);
                             break Fd;
                         case 0x1c7:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
                                 x = ld16_mem8_direct();
-                                set_lower_two_bytes_of_register(mem8 & 7, x);
+                                set_lower_word_in_register(mem8 & 7, x);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld16_mem8_direct();
                                 st16_mem8_write(x);
                             }
@@ -8411,24 +8441,24 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x195:
                         case 0x196:
                         case 0x197:
-                            register_1 = OPbyte & 7;
+                            reg_idx1 = OPbyte & 7;
                             x = regs[0];
-                            set_lower_two_bytes_of_register(0, regs[register_1]);
-                            set_lower_two_bytes_of_register(register_1, x);
+                            set_lower_word_in_register(0, regs[reg_idx1]);
+                            set_lower_word_in_register(reg_idx1, x);
                             break Fd;
                         case 0x187:
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                x = regs[register_0];
-                                set_lower_two_bytes_of_register(register_0, regs[register_1]);
+                                reg_idx0 = mem8 & 7;
+                                x = regs[reg_idx0];
+                                set_lower_word_in_register(reg_idx0, regs[reg_idx1]);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_16bits_mem8_write();
-                                st16_mem8_write(regs[register_1]);
+                                st16_mem8_write(regs[reg_idx1]);
                             }
-                            set_lower_two_bytes_of_register(register_1, x);
+                            set_lower_word_in_register(reg_idx1, x);
                             break Fd;
                         case 0x1c4:
                             Vf(0);
@@ -8444,14 +8474,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x129:
                         case 0x131:
                         case 0x139:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (OPbyte >> 3) & 7;
                             y = regs[(mem8 >> 3) & 7];
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                set_lower_two_bytes_of_register(register_0, do_16bit_math(conditional_var, regs[register_0], y));
+                                reg_idx0 = mem8 & 7;
+                                set_lower_word_in_register(reg_idx0, do_16bit_math(conditional_var, regs[reg_idx0], y));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 if (conditional_var != 7) {
                                     x = ld_16bits_mem8_write();
                                     x = do_16bit_math(conditional_var, x, y);
@@ -8470,16 +8500,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x12b:
                         case 0x133:
                         case 0x13b:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (OPbyte >> 3) & 7;
-                            register_1 = (mem8 >> 3) & 7;
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
                                 y = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 y = ld_16bits_mem8_read();
                             }
-                            set_lower_two_bytes_of_register(register_1, do_16bit_math(conditional_var, regs[register_1], y));
+                            set_lower_word_in_register(reg_idx1, do_16bit_math(conditional_var, regs[reg_idx1], y));
                             break Fd;
                         case 0x105:
                         case 0x10d:
@@ -8491,17 +8521,17 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x13d:
                             y = ld16_mem8_direct();
                             conditional_var = (OPbyte >> 3) & 7;
-                            set_lower_two_bytes_of_register(0, do_16bit_math(conditional_var, regs[0], y));
+                            set_lower_word_in_register(0, do_16bit_math(conditional_var, regs[0], y));
                             break Fd;
                         case 0x181:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
+                                reg_idx0 = mem8 & 7;
                                 y = ld16_mem8_direct();
-                                regs[register_0] = do_16bit_math(conditional_var, regs[register_0], y);
+                                regs[reg_idx0] = do_16bit_math(conditional_var, regs[reg_idx0], y);
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 y = ld16_mem8_direct();
                                 if (conditional_var != 7) {
                                     x = ld_16bits_mem8_write();
@@ -8514,15 +8544,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             break Fd;
                         case 0x183:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                y = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                                set_lower_two_bytes_of_register(register_0, do_16bit_math(conditional_var, regs[register_0], y));
+                                reg_idx0 = mem8 & 7;
+                                y = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                                set_lower_word_in_register(reg_idx0, do_16bit_math(conditional_var, regs[reg_idx0], y));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
-                                y = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                                mem8_loc = segment_translation(mem8);
+                                y = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                                 if (conditional_var != 7) {
                                     x = ld_16bits_mem8_write();
                                     x = do_16bit_math(conditional_var, x, y);
@@ -8541,8 +8571,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x145:
                         case 0x146:
                         case 0x147:
-                            register_1 = OPbyte & 7;
-                            set_lower_two_bytes_of_register(register_1, increment_16bit(regs[register_1]));
+                            reg_idx1 = OPbyte & 7;
+                            set_lower_word_in_register(reg_idx1, increment_16bit(regs[reg_idx1]));
                             break Fd;
                         case 0x148:
                         case 0x149:
@@ -8552,39 +8582,39 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x14d:
                         case 0x14e:
                         case 0x14f:
-                            register_1 = OPbyte & 7;
-                            set_lower_two_bytes_of_register(register_1, decrement_16bit(regs[register_1]));
+                            reg_idx1 = OPbyte & 7;
+                            set_lower_word_in_register(reg_idx1, decrement_16bit(regs[reg_idx1]));
                             break Fd;
                         case 0x16b:
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
                                 y = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 y = ld_16bits_mem8_read();
                             }
-                            z = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                            set_lower_two_bytes_of_register(register_1, Rc(y, z));
+                            z = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                            set_lower_word_in_register(reg_idx1, Rc(y, z));
                             break Fd;
                         case 0x169:
-                            mem8 = phys_mem8[mem_ptr++];
-                            register_1 = (mem8 >> 3) & 7;
+                            mem8 = phys_mem8[physmem8_ptr++];
+                            reg_idx1 = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
                                 y = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 y = ld_16bits_mem8_read();
                             }
                             z = ld16_mem8_direct();
-                            set_lower_two_bytes_of_register(register_1, Rc(y, z));
+                            set_lower_word_in_register(reg_idx1, Rc(y, z));
                             break Fd;
                         case 0x185:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_16bits_mem8_read();
                             }
                             y = regs[(mem8 >> 3) & 7];
@@ -8601,14 +8631,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             break Fd;
                         case 0x1f7:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             switch (conditional_var) {
                                 case 0:
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     y = ld16_mem8_direct();
@@ -8619,10 +8649,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     break;
                                 case 2:
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        set_lower_two_bytes_of_register(register_0, ~regs[register_0]);
+                                        reg_idx0 = mem8 & 7;
+                                        set_lower_word_in_register(reg_idx0, ~regs[reg_idx0]);
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
                                         x = ~x;
                                         st16_mem8_write(x);
@@ -8630,10 +8660,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     break;
                                 case 3:
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        set_lower_two_bytes_of_register(register_0, do_16bit_math(5, 0, regs[register_0]));
+                                        reg_idx0 = mem8 & 7;
+                                        set_lower_word_in_register(reg_idx0, do_16bit_math(5, 0, regs[reg_idx0]));
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
                                         x = do_16bit_math(5, 0, x);
                                         st16_mem8_write(x);
@@ -8643,29 +8673,29 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     x = Qc(regs[0], x);
-                                    set_lower_two_bytes_of_register(0, x);
-                                    set_lower_two_bytes_of_register(2, x >> 16);
+                                    set_lower_word_in_register(0, x);
+                                    set_lower_word_in_register(2, x >> 16);
                                     break;
                                 case 5:
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     x = Rc(regs[0], x);
-                                    set_lower_two_bytes_of_register(0, x);
-                                    set_lower_two_bytes_of_register(2, x >> 16);
+                                    set_lower_word_in_register(0, x);
+                                    set_lower_word_in_register(2, x >> 16);
                                     break;
                                 case 6:
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     Fc(x);
@@ -8674,7 +8704,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     Gc(x);
@@ -8684,52 +8714,52 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             break Fd;
                         case 0x1c1:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                y = phys_mem8[mem_ptr++];
-                                register_0 = mem8 & 7;
-                                set_lower_two_bytes_of_register(register_0, shift16(conditional_var, regs[register_0], y));
+                                y = phys_mem8[physmem8_ptr++];
+                                reg_idx0 = mem8 & 7;
+                                set_lower_word_in_register(reg_idx0, shift16(conditional_var, regs[reg_idx0], y));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
-                                y = phys_mem8[mem_ptr++];
+                                mem8_loc = segment_translation(mem8);
+                                y = phys_mem8[physmem8_ptr++];
                                 x = ld_16bits_mem8_write();
                                 x = shift16(conditional_var, x, y);
                                 st16_mem8_write(x);
                             }
                             break Fd;
                         case 0x1d1:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                set_lower_two_bytes_of_register(register_0, shift16(conditional_var, regs[register_0], 1));
+                                reg_idx0 = mem8 & 7;
+                                set_lower_word_in_register(reg_idx0, shift16(conditional_var, regs[reg_idx0], 1));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_16bits_mem8_write();
                                 x = shift16(conditional_var, x, 1);
                                 st16_mem8_write(x);
                             }
                             break Fd;
                         case 0x1d3:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             y = regs[1] & 0xff;
                             if ((mem8 >> 6) == 3) {
-                                register_0 = mem8 & 7;
-                                set_lower_two_bytes_of_register(register_0, shift16(conditional_var, regs[register_0], y));
+                                reg_idx0 = mem8 & 7;
+                                set_lower_word_in_register(reg_idx0, shift16(conditional_var, regs[reg_idx0], y));
                             } else {
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 x = ld_16bits_mem8_write();
                                 x = shift16(conditional_var, x, y);
                                 st16_mem8_write(x);
                             }
                             break Fd;
                         case 0x198:
-                            set_lower_two_bytes_of_register(0, (regs[0] << 24) >> 24);
+                            set_lower_word_in_register(0, (regs[0] << 24) >> 24);
                             break Fd;
                         case 0x199:
-                            set_lower_two_bytes_of_register(2, (regs[0] << 16) >> 31);
+                            set_lower_word_in_register(2, (regs[0] << 16) >> 31);
                             break Fd;
                         case 0x190:
                             break Fd;
@@ -8753,7 +8783,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x15f:
                             x = yd();
                             zd();
-                            set_lower_two_bytes_of_register(OPbyte & 7, x);
+                            set_lower_word_in_register(OPbyte & 7, x);
                             break Fd;
                         case 0x160:
                             Jf();
@@ -8762,17 +8792,17 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             Lf();
                             break Fd;
                         case 0x18f:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3) {
                                 x = yd();
                                 zd();
-                                set_lower_two_bytes_of_register(mem8 & 7, x);
+                                set_lower_word_in_register(mem8 & 7, x);
                             } else {
                                 x = yd();
                                 y = regs[4];
                                 zd();
                                 z = regs[4];
-                                mem8_loc = giant_get_mem8_loc_func(mem8);
+                                mem8_loc = segment_translation(mem8);
                                 regs[4] = y;
                                 st16_mem8_write(x);
                                 regs[4] = z;
@@ -8783,7 +8813,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             vd(x);
                             break Fd;
                         case 0x16a:
-                            x = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                            x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                             vd(x);
                             break Fd;
                         case 0x1c8:
@@ -8805,22 +8835,22 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             zd();
                             break Fd;
                         case 0x18d:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             if ((mem8 >> 6) == 3)
                                 abort(6);
                             CS_flags = (CS_flags & ~0x000f) | (6 + 1);
-                            set_lower_two_bytes_of_register((mem8 >> 3) & 7, giant_get_mem8_loc_func(mem8));
+                            set_lower_word_in_register((mem8 >> 3) & 7, segment_translation(mem8));
                             break Fd;
                         case 0x1ff:
-                            mem8 = phys_mem8[mem_ptr++];
+                            mem8 = phys_mem8[physmem8_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             switch (conditional_var) {
                                 case 0:
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        set_lower_two_bytes_of_register(register_0, increment_16bit(regs[register_0]));
+                                        reg_idx0 = mem8 & 7;
+                                        set_lower_word_in_register(reg_idx0, increment_16bit(regs[reg_idx0]));
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
                                         x = increment_16bit(x);
                                         st16_mem8_write(x);
@@ -8828,10 +8858,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     break;
                                 case 1:
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        set_lower_two_bytes_of_register(register_0, decrement_16bit(regs[register_0]));
+                                        reg_idx0 = mem8 & 7;
+                                        set_lower_word_in_register(reg_idx0, decrement_16bit(regs[reg_idx0]));
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
                                         x = decrement_16bit(x);
                                         st16_mem8_write(x);
@@ -8841,26 +8871,26 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
-                                    vd((eip + mem_ptr - initial_mem_ptr));
-                                    eip = x, mem_ptr = initial_mem_ptr = 0;
+                                    vd((eip + physmem8_ptr - initial_mem_ptr));
+                                    eip = x, physmem8_ptr = initial_mem_ptr = 0;
                                     break;
                                 case 4:
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7] & 0xffff;
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
-                                    eip = x, mem_ptr = initial_mem_ptr = 0;
+                                    eip = x, physmem8_ptr = initial_mem_ptr = 0;
                                     break;
                                 case 6:
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     vd(x);
@@ -8869,12 +8899,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 5:
                                     if ((mem8 >> 6) == 3)
                                         abort(6);
-                                    mem8_loc = giant_get_mem8_loc_func(mem8);
+                                    mem8_loc = segment_translation(mem8);
                                     x = ld_16bits_mem8_read();
                                     mem8_loc = (mem8_loc + 2) >> 0;
                                     y = ld_16bits_mem8_read();
                                     if (conditional_var == 3)
-                                        Ze(0, y, x, (eip + mem_ptr - initial_mem_ptr));
+                                        Ze(0, y, x, (eip + physmem8_ptr - initial_mem_ptr));
                                     else
                                         Oe(y, x);
                                     break;
@@ -8883,12 +8913,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             break Fd;
                         case 0x1eb:
-                            x = ((phys_mem8[mem_ptr++] << 24) >> 24);
-                            eip = (eip + mem_ptr - initial_mem_ptr + x) & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                            x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
+                            eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                             break Fd;
                         case 0x1e9:
                             x = ld16_mem8_direct();
-                            eip = (eip + mem_ptr - initial_mem_ptr + x) & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                            eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                             break Fd;
                         case 0x170:
                         case 0x171:
@@ -8906,26 +8936,26 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x17d:
                         case 0x17e:
                         case 0x17f:
-                            x = ((phys_mem8[mem_ptr++] << 24) >> 24);
+                            x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                             y = check_status_bits_for_jump(OPbyte & 0xf);
                             if (y)
-                                eip = (eip + mem_ptr - initial_mem_ptr + x) & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                                eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                             break Fd;
                         case 0x1c2:
                             y = (ld16_mem8_direct() << 16) >> 16;
                             x = yd();
                             regs[4] = (regs[4] & ~SS_mask) | ((regs[4] + 2 + y) & SS_mask);
-                            eip = x, mem_ptr = initial_mem_ptr = 0;
+                            eip = x, physmem8_ptr = initial_mem_ptr = 0;
                             break Fd;
                         case 0x1c3:
                             x = yd();
                             zd();
-                            eip = x, mem_ptr = initial_mem_ptr = 0;
+                            eip = x, physmem8_ptr = initial_mem_ptr = 0;
                             break Fd;
                         case 0x1e8:
                             x = ld16_mem8_direct();
-                            vd((eip + mem_ptr - initial_mem_ptr));
-                            eip = (eip + mem_ptr - initial_mem_ptr + x) & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                            vd((eip + physmem8_ptr - initial_mem_ptr));
+                            eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                             break Fd;
                         case 0x162:
                             If();
@@ -8963,8 +8993,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
                                 abort(13);
-                            x = phys_mem8[mem_ptr++];
-                            set_lower_two_bytes_of_register(0, cpu.ld16_port(x));
+                            x = phys_mem8[physmem8_ptr++];
+                            set_lower_word_in_register(0, cpu.ld16_port(x));
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                                     break Bg;
@@ -8974,7 +9004,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
                                 abort(13);
-                            x = phys_mem8[mem_ptr++];
+                            x = phys_mem8[physmem8_ptr++];
                             cpu.st16_port(x, regs[0] & 0xffff);
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -8985,7 +9015,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
                                 abort(13);
-                            set_lower_two_bytes_of_register(0, cpu.ld16_port(regs[2] & 0xffff));
+                            set_lower_word_in_register(0, cpu.ld16_port(regs[2] & 0xffff));
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                                     break Bg;
@@ -9120,7 +9150,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         default:
                             abort(6);
                         case 0x10f:
-                            OPbyte = phys_mem8[mem_ptr++];
+                            OPbyte = phys_mem8[physmem8_ptr++];
                             OPbyte |= 0x0100;
                             switch (OPbyte) {
                                 case 0x180:
@@ -9141,7 +9171,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x18f:
                                     x = ld16_mem8_direct();
                                     if (check_status_bits_for_jump(OPbyte & 0xf))
-                                        eip = (eip + mem_ptr - initial_mem_ptr + x) & 0xffff, mem_ptr = initial_mem_ptr = 0;
+                                        eip = (eip + physmem8_ptr - initial_mem_ptr + x) & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                                     break Fd;
                                 case 0x140:
                                 case 0x141:
@@ -9159,66 +9189,66 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x14d:
                                 case 0x14e:
                                 case 0x14f:
-                                    mem8 = phys_mem8[mem_ptr++];
+                                    mem8 = phys_mem8[physmem8_ptr++];
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
                                     if (check_status_bits_for_jump(OPbyte & 0xf))
-                                        set_lower_two_bytes_of_register((mem8 >> 3) & 7, x);
+                                        set_lower_word_in_register((mem8 >> 3) & 7, x);
                                     break Fd;
                                 case 0x1b6:
-                                    mem8 = phys_mem8[mem_ptr++];
-                                    register_1 = (mem8 >> 3) & 7;
+                                    mem8 = phys_mem8[physmem8_ptr++];
+                                    reg_idx1 = (mem8 >> 3) & 7;
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        x = (regs[register_0 & 3] >> ((register_0 & 4) << 1)) & 0xff;
+                                        reg_idx0 = mem8 & 7;
+                                        x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1)) & 0xff;
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_8bits_mem8_read();
                                     }
-                                    set_lower_two_bytes_of_register(register_1, x);
+                                    set_lower_word_in_register(reg_idx1, x);
                                     break Fd;
                                 case 0x1be:
-                                    mem8 = phys_mem8[mem_ptr++];
-                                    register_1 = (mem8 >> 3) & 7;
+                                    mem8 = phys_mem8[physmem8_ptr++];
+                                    reg_idx1 = (mem8 >> 3) & 7;
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        x = (regs[register_0 & 3] >> ((register_0 & 4) << 1));
+                                        reg_idx0 = mem8 & 7;
+                                        x = (regs[reg_idx0 & 3] >> ((reg_idx0 & 4) << 1));
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_8bits_mem8_read();
                                     }
-                                    set_lower_two_bytes_of_register(register_1, (((x) << 24) >> 24));
+                                    set_lower_word_in_register(reg_idx1, (((x) << 24) >> 24));
                                     break Fd;
                                 case 0x1af:
-                                    mem8 = phys_mem8[mem_ptr++];
-                                    register_1 = (mem8 >> 3) & 7;
+                                    mem8 = phys_mem8[physmem8_ptr++];
+                                    reg_idx1 = (mem8 >> 3) & 7;
                                     if ((mem8 >> 6) == 3) {
                                         y = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         y = ld_16bits_mem8_read();
                                     }
-                                    set_lower_two_bytes_of_register(register_1, Rc(regs[register_1], y));
+                                    set_lower_word_in_register(reg_idx1, Rc(regs[reg_idx1], y));
                                     break Fd;
                                 case 0x1c1:
-                                    mem8 = phys_mem8[mem_ptr++];
-                                    register_1 = (mem8 >> 3) & 7;
+                                    mem8 = phys_mem8[physmem8_ptr++];
+                                    reg_idx1 = (mem8 >> 3) & 7;
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        x = regs[register_0];
-                                        y = do_16bit_math(0, x, regs[register_1]);
-                                        set_lower_two_bytes_of_register(register_1, x);
-                                        set_lower_two_bytes_of_register(register_0, y);
+                                        reg_idx0 = mem8 & 7;
+                                        x = regs[reg_idx0];
+                                        y = do_16bit_math(0, x, regs[reg_idx1]);
+                                        set_lower_word_in_register(reg_idx1, x);
+                                        set_lower_word_in_register(reg_idx0, y);
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
-                                        y = do_16bit_math(0, x, regs[register_1]);
+                                        y = do_16bit_math(0, x, regs[reg_idx1]);
                                         st16_mem8_write(y);
-                                        set_lower_two_bytes_of_register(register_1, x);
+                                        set_lower_word_in_register(reg_idx1, x);
                                     }
                                     break Fd;
                                 case 0x1a0:
@@ -9237,16 +9267,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     break Fd;
                                 case 0x1a4:
                                 case 0x1ac:
-                                    mem8 = phys_mem8[mem_ptr++];
+                                    mem8 = phys_mem8[physmem8_ptr++];
                                     y = regs[(mem8 >> 3) & 7];
                                     conditional_var = (OPbyte >> 3) & 1;
                                     if ((mem8 >> 6) == 3) {
-                                        z = phys_mem8[mem_ptr++];
-                                        register_0 = mem8 & 7;
-                                        set_lower_two_bytes_of_register(register_0, oc(conditional_var, regs[register_0], y, z));
+                                        z = phys_mem8[physmem8_ptr++];
+                                        reg_idx0 = mem8 & 7;
+                                        set_lower_word_in_register(reg_idx0, oc(conditional_var, regs[reg_idx0], y, z));
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
-                                        z = phys_mem8[mem_ptr++];
+                                        mem8_loc = segment_translation(mem8);
+                                        z = phys_mem8[physmem8_ptr++];
                                         x = ld_16bits_mem8_write();
                                         x = oc(conditional_var, x, y, z);
                                         st16_mem8_write(x);
@@ -9254,31 +9284,31 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     break Fd;
                                 case 0x1a5:
                                 case 0x1ad:
-                                    mem8 = phys_mem8[mem_ptr++];
+                                    mem8 = phys_mem8[physmem8_ptr++];
                                     y = regs[(mem8 >> 3) & 7];
                                     z = regs[1];
                                     conditional_var = (OPbyte >> 3) & 1;
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        set_lower_two_bytes_of_register(register_0, oc(conditional_var, regs[register_0], y, z));
+                                        reg_idx0 = mem8 & 7;
+                                        set_lower_word_in_register(reg_idx0, oc(conditional_var, regs[reg_idx0], y, z));
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
                                         x = oc(conditional_var, x, y, z);
                                         st16_mem8_write(x);
                                     }
                                     break Fd;
                                 case 0x1ba:
-                                    mem8 = phys_mem8[mem_ptr++];
+                                    mem8 = phys_mem8[physmem8_ptr++];
                                     conditional_var = (mem8 >> 3) & 7;
                                     switch (conditional_var) {
                                         case 4:
                                             if ((mem8 >> 6) == 3) {
                                                 x = regs[mem8 & 7];
-                                                y = phys_mem8[mem_ptr++];
+                                                y = phys_mem8[physmem8_ptr++];
                                             } else {
-                                                mem8_loc = giant_get_mem8_loc_func(mem8);
-                                                y = phys_mem8[mem_ptr++];
+                                                mem8_loc = segment_translation(mem8);
+                                                y = phys_mem8[physmem8_ptr++];
                                                 x = ld_16bits_mem8_read();
                                             }
                                             tc(x, y);
@@ -9287,12 +9317,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                         case 6:
                                         case 7:
                                             if ((mem8 >> 6) == 3) {
-                                                register_0 = mem8 & 7;
-                                                y = phys_mem8[mem_ptr++];
-                                                regs[register_0] = vc(conditional_var & 3, regs[register_0], y);
+                                                reg_idx0 = mem8 & 7;
+                                                y = phys_mem8[physmem8_ptr++];
+                                                regs[reg_idx0] = vc(conditional_var & 3, regs[reg_idx0], y);
                                             } else {
-                                                mem8_loc = giant_get_mem8_loc_func(mem8);
-                                                y = phys_mem8[mem_ptr++];
+                                                mem8_loc = segment_translation(mem8);
+                                                y = phys_mem8[physmem8_ptr++];
                                                 x = ld_16bits_mem8_write();
                                                 x = vc(conditional_var & 3, x, y);
                                                 st16_mem8_write(x);
@@ -9303,12 +9333,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     }
                                     break Fd;
                                 case 0x1a3:
-                                    mem8 = phys_mem8[mem_ptr++];
+                                    mem8 = phys_mem8[physmem8_ptr++];
                                     y = regs[(mem8 >> 3) & 7];
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         mem8_loc = (mem8_loc + (((y & 0xffff) >> 4) << 1)) >> 0;
                                         x = ld_16bits_mem8_read();
                                     }
@@ -9317,14 +9347,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x1ab:
                                 case 0x1b3:
                                 case 0x1bb:
-                                    mem8 = phys_mem8[mem_ptr++];
+                                    mem8 = phys_mem8[physmem8_ptr++];
                                     y = regs[(mem8 >> 3) & 7];
                                     conditional_var = (OPbyte >> 3) & 3;
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        set_lower_two_bytes_of_register(register_0, vc(conditional_var, regs[register_0], y));
+                                        reg_idx0 = mem8 & 7;
+                                        set_lower_word_in_register(reg_idx0, vc(conditional_var, regs[reg_idx0], y));
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         mem8_loc = (mem8_loc + (((y & 0xffff) >> 4) << 1)) >> 0;
                                         x = ld_16bits_mem8_write();
                                         x = vc(conditional_var, x, y);
@@ -9333,41 +9363,41 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     break Fd;
                                 case 0x1bc:
                                 case 0x1bd:
-                                    mem8 = phys_mem8[mem_ptr++];
-                                    register_1 = (mem8 >> 3) & 7;
+                                    mem8 = phys_mem8[physmem8_ptr++];
+                                    reg_idx1 = (mem8 >> 3) & 7;
                                     if ((mem8 >> 6) == 3) {
                                         y = regs[mem8 & 7];
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         y = ld_16bits_mem8_read();
                                     }
-                                    x = regs[register_1];
+                                    x = regs[reg_idx1];
                                     if (OPbyte & 1)
                                         x = Ac(x, y);
                                     else
                                         x = yc(x, y);
-                                    set_lower_two_bytes_of_register(register_1, x);
+                                    set_lower_word_in_register(reg_idx1, x);
                                     break Fd;
                                 case 0x1b1:
-                                    mem8 = phys_mem8[mem_ptr++];
-                                    register_1 = (mem8 >> 3) & 7;
+                                    mem8 = phys_mem8[physmem8_ptr++];
+                                    reg_idx1 = (mem8 >> 3) & 7;
                                     if ((mem8 >> 6) == 3) {
-                                        register_0 = mem8 & 7;
-                                        x = regs[register_0];
+                                        reg_idx0 = mem8 & 7;
+                                        x = regs[reg_idx0];
                                         y = do_16bit_math(5, regs[0], x);
                                         if (y == 0) {
-                                            set_lower_two_bytes_of_register(register_0, regs[register_1]);
+                                            set_lower_word_in_register(reg_idx0, regs[reg_idx1]);
                                         } else {
-                                            set_lower_two_bytes_of_register(0, x);
+                                            set_lower_word_in_register(0, x);
                                         }
                                     } else {
-                                        mem8_loc = giant_get_mem8_loc_func(mem8);
+                                        mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
                                         y = do_16bit_math(5, regs[0], x);
                                         if (y == 0) {
-                                            st16_mem8_write(regs[register_1]);
+                                            st16_mem8_write(regs[reg_idx1]);
                                         } else {
-                                            set_lower_two_bytes_of_register(0, x);
+                                            set_lower_word_in_register(0, x);
                                         }
                                     }
                                     break Fd;
@@ -9399,7 +9429,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x19f:
                                 case 0x1b0:
                                     OPbyte = 0x0f;
-                                    mem_ptr--;
+                                    physmem8_ptr--;
                                     break;
                                 case 0x104:
                                 case 0x105:
@@ -9522,7 +9552,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
     } while (--cycles_left); //End Giant Core DO WHILE Execution Loop
     this.cycle_count += (N_cycles - cycles_left);
-    this.eip           = (eip + mem_ptr - initial_mem_ptr);
+    this.eip           = (eip + physmem8_ptr - initial_mem_ptr);
     this.cc_src        = _src;
     this.cc_dst        = _dst;
     this.cc_op         = _op;
@@ -9613,6 +9643,18 @@ CPU_X86.prototype.load_binary = function(Gg, mem8_loc) {
     }
     return tg;
 };
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
