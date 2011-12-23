@@ -507,7 +507,7 @@ CPU_X86.prototype.dump = function() {
     console.log(str);
 };
 
-CPU_X86.prototype.exec_internal = function(N_cycles, va) {
+CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     /*
       x,y,z,v are either just general non-local values or their exact specialization is unclear,
       esp. x,y look like they're used for everything
@@ -1281,7 +1281,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb &= 0xff;
                     kc = Yb;
                     Yb = (Yb << Zb) | (Yb >>> (8 - Zb));
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (Yb & 0x0001) | (((kc ^ Yb) << 4) & 0x0800);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1293,7 +1293,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb &= 0xff;
                     kc = Yb;
                     Yb = (Yb >>> Zb) | (Yb << (8 - Zb));
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= ((Yb >> 7) & 0x0001) | (((kc ^ Yb) << 4) & 0x0800);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1308,7 +1308,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb = (Yb << Zb) | (ac << (Zb - 1));
                     if (Zb > 1)
                         Yb |= kc >>> (9 - Zb);
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (((kc ^ Yb) << 4) & 0x0800) | ((kc >> (8 - Zb)) & 0x0001);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1323,7 +1323,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb = (Yb >>> Zb) | (ac << (8 - Zb));
                     if (Zb > 1)
                         Yb |= kc << (9 - Zb);
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (((kc ^ Yb) << 4) & 0x0800) | ((kc >> (Zb - 1)) & 0x0001);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1370,7 +1370,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb &= 0xffff;
                     kc = Yb;
                     Yb = (Yb << Zb) | (Yb >>> (16 - Zb));
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (Yb & 0x0001) | (((kc ^ Yb) >> 4) & 0x0800);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1382,7 +1382,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb &= 0xffff;
                     kc = Yb;
                     Yb = (Yb >>> Zb) | (Yb << (16 - Zb));
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= ((Yb >> 15) & 0x0001) | (((kc ^ Yb) >> 4) & 0x0800);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1397,7 +1397,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb = (Yb << Zb) | (ac << (Zb - 1));
                     if (Zb > 1)
                         Yb |= kc >>> (17 - Zb);
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (((kc ^ Yb) >> 4) & 0x0800) | ((kc >> (16 - Zb)) & 0x0001);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1412,7 +1412,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb = (Yb >>> Zb) | (ac << (16 - Zb));
                     if (Zb > 1)
                         Yb |= kc << (17 - Zb);
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (((kc ^ Yb) >> 4) & 0x0800) | ((kc >> (Zb - 1)) & 0x0001);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1458,7 +1458,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 if (Zb) {
                     kc = Yb;
                     Yb = (Yb << Zb) | (Yb >>> (32 - Zb));
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (Yb & 0x0001) | (((kc ^ Yb) >> 20) & 0x0800);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1469,7 +1469,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 if (Zb) {
                     kc = Yb;
                     Yb = (Yb >>> Zb) | (Yb << (32 - Zb));
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= ((Yb >> 31) & 0x0001) | (((kc ^ Yb) >> 20) & 0x0800);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1483,7 +1483,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb = (Yb << Zb) | (ac << (Zb - 1));
                     if (Zb > 1)
                         Yb |= kc >>> (33 - Zb);
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (((kc ^ Yb) >> 20) & 0x0800) | ((kc >> (32 - Zb)) & 0x0001);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1497,7 +1497,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     Yb = (Yb >>> Zb) | (ac << (32 - Zb));
                     if (Zb > 1)
                         Yb |= kc << (33 - Zb);
-                    _src = lc();
+                    _src = conditional_flags_for_rot_shift_ops();
                     _src |= (((kc ^ Yb) >> 20) & 0x0800) | ((kc >> (Zb - 1)) & 0x0001);
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
@@ -1899,52 +1899,52 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         return r;
     }
     function check_carry() {
-        var Yb, qc, Xc, Yc;
+        var Yb, qc, current_op, relevant_dst;
         if (_op >= 25) {
-            Xc = _op2;
-            Yc = _dst2;
+            current_op = _op2;
+            relevant_dst = _dst2;
         } else {
-            Xc = _op;
-            Yc = _dst;
+            current_op = _op;
+            relevant_dst = _dst;
         }
-        switch (Xc) {
+        switch (current_op) {
             case 0:
-                qc = (Yc & 0xff) < (_src & 0xff);
+                qc = (relevant_dst & 0xff) < (_src & 0xff);
                 break;
             case 1:
-                qc = (Yc & 0xffff) < (_src & 0xffff);
+                qc = (relevant_dst & 0xffff) < (_src & 0xffff);
                 break;
             case 2:
-                qc = (Yc >>> 0) < (_src >>> 0);
+                qc = (relevant_dst >>> 0) < (_src >>> 0);
                 break;
             case 3:
-                qc = (Yc & 0xff) <= (_src & 0xff);
+                qc = (relevant_dst & 0xff) <= (_src & 0xff);
                 break;
             case 4:
-                qc = (Yc & 0xffff) <= (_src & 0xffff);
+                qc = (relevant_dst & 0xffff) <= (_src & 0xffff);
                 break;
             case 5:
-                qc = (Yc >>> 0) <= (_src >>> 0);
+                qc = (relevant_dst >>> 0) <= (_src >>> 0);
                 break;
             case 6:
-                qc = ((Yc + _src) & 0xff) < (_src & 0xff);
+                qc = ((relevant_dst + _src) & 0xff) < (_src & 0xff);
                 break;
             case 7:
-                qc = ((Yc + _src) & 0xffff) < (_src & 0xffff);
+                qc = ((relevant_dst + _src) & 0xffff) < (_src & 0xffff);
                 break;
             case 8:
-                qc = ((Yc + _src) >>> 0) < (_src >>> 0);
+                qc = ((relevant_dst + _src) >>> 0) < (_src >>> 0);
                 break;
             case 9:
-                Yb = (Yc + _src + 1) & 0xff;
+                Yb = (relevant_dst + _src + 1) & 0xff;
                 qc = Yb <= (_src & 0xff);
                 break;
             case 10:
-                Yb = (Yc + _src + 1) & 0xffff;
+                Yb = (relevant_dst + _src + 1) & 0xffff;
                 qc = Yb <= (_src & 0xffff);
                 break;
             case 11:
-                Yb = (Yc + _src + 1) >>> 0;
+                Yb = (relevant_dst + _src + 1) >>> 0;
                 qc = Yb <= (_src >>> 0);
                 break;
             case 12:
@@ -2078,7 +2078,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
         return qc;
     }
-    function ad() {
+    function check_below_or_equal() {
         var qc;
         switch (_op) {
             case 6:
@@ -2106,7 +2106,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             return parity_LUT[_dst & 0xff];
         }
     }
-    function cd() {
+    function check_less_than() {
         var qc;
         switch (_op) {
             case 6:
@@ -2138,7 +2138,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
         return qc;
     }
-    function dd() {
+    function check_less_or_equal() {
         var qc;
         switch (_op) {
             case 6:
@@ -2170,7 +2170,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
         return qc;
     }
-    function ed() {
+    function check_adjust_flag() {
         var Yb, qc;
         switch (_op) {
             case 0:
@@ -2244,7 +2244,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 qc = (_dst == 0);
                 break;
             case 3:
-                qc = ad();
+                qc = check_below_or_equal();
                 break;
             case 4:
                 qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0));
@@ -2253,25 +2253,25 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 qc = check_parity();
                 break;
             case 6:
-                qc = cd();
+                qc = check_less_than();
                 break;
             case 7:
-                qc = dd();
+                qc = check_less_or_equal();
                 break;
             default:
                 throw "unsupported cond: " + gd;
         }
         return qc ^ (gd & 1);
     }
-    function lc() {
-        return (check_parity() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | ed();
+    function conditional_flags_for_rot_shift_ops() {
+        return (check_parity() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | check_adjust_flag();
     }
-    function hd() {
-        return (check_carry() << 0) | (check_parity() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | (check_overflow() << 11) | ed();
+    function get_conditional_flags() {
+        return (check_carry() << 0) | (check_parity() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | (check_overflow() << 11) | check_adjust_flag();
     }
     function id() {
         var jd;
-        jd = hd();
+        jd = get_conditional_flags();
         jd |= cpu.df & 0x00000400;
         jd |= cpu.eflags;
         return jd;
@@ -2415,7 +2415,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             Ed = 2;
         else
             Ed = 4;
-        Fd: for (; ; ) {
+        EXEC_LOOP: for (; ; ) {
             switch (OPbyte) {
                 case 0x66:
                     if (init_CS_flags & 0x0100) {
@@ -3585,19 +3585,20 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
       Segment Handling Functions
       ------------------------------
     */
-    function Zd(Yd, Wd) {
+    function calculate_descriptor_limit(Yd, Wd) {
         var limit;
         limit = (Yd & 0xffff) | (Wd & 0x000f0000);
         if (Wd & (1 << 23))
             limit = (limit << 12) | 0xfff;
         return limit;
     }
-    function ae(Yd, Wd) {
+    function calculate_descriptor_base(Yd, Wd) {
         return (((Yd >>> 16) | ((Wd & 0xff) << 16) | (Wd & 0xff000000))) & -1;
     }
-    function be(sa, Yd, Wd) {
-        sa.base = ae(Yd, Wd);
-        sa.limit = Zd(Yd, Wd);
+    /* Used to set TR and LDTR */
+    function set_descriptor_register(sa, Yd, Wd) {
+        sa.base = calculate_descriptor_base(Yd, Wd);
+        sa.limit = calculate_descriptor_limit(Yd, Wd);
         sa.flags = Wd;
     }
     function init_segment_local_vars() {
@@ -3645,7 +3646,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         ke = ld16_mem8_kernel_read();
         return [ke, le];
     }
-    function me(intno, ne, error_code, oe, pe) {
+    function do_interrupt_paged_mode(intno, ne, error_code, oe, pe) {
         var sa, qe, ie, he, selector, re, se;
         var te, ue, je;
         var e, Yd, Wd, ve, ke, le, we, xe;
@@ -3732,7 +3733,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 abort_with_error_code(10, ke & 0xfffc);
             ue = 1;
             SS_mask = SS_mask_from_flags(xe);
-            qe = ae(we, xe);
+            qe = calculate_descriptor_base(we, xe);
         } else if ((Wd & (1 << 10)) || he == se) {
             if (cpu.eflags & 0x00020000)
                 abort_with_error_code(13, selector & 0xfffc);
@@ -3872,11 +3873,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 set_segment_vars(5, 0, 0, 0, 0);
             }
             ke = (ke & ~3) | he;
-            set_segment_vars(2, ke, qe, Zd(we, xe), xe);
+            set_segment_vars(2, ke, qe, calculate_descriptor_limit(we, xe), xe);
         }
         regs[4] = (regs[4] & ~SS_mask) | ((le) & SS_mask);
         selector = (selector & ~3) | he;
-        set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+        set_segment_vars(1, selector, calculate_descriptor_base(Yd, Wd), calculate_descriptor_limit(Yd, Wd), Wd);
         change_permission_level(he);
         eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         if ((ie & 1) == 0) {
@@ -3884,7 +3885,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         }
         cpu.eflags &= ~(0x00000100 | 0x00020000 | 0x00010000 | 0x00004000);
     }
-    function ze(intno, ne, error_code, oe, pe) {
+    function do_interrupt_not_paged_mode(intno, ne, error_code, oe, pe) {
         var sa, qe, selector, ve, le, ye;
         sa = cpu.idt;
         if (intno * 4 + 3 > sa.limit)
@@ -3919,11 +3920,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         cpu.segs[1].base = (selector << 4);
         cpu.eflags &= ~(0x00000200 | 0x00000100 | 0x00040000 | 0x00010000);
     }
-    function Ae(intno, ne, error_code, oe, pe) {
+    function do_interrupt(intno, ne, error_code, oe, pe) {
         if (intno == 0x06) {
             var Be = eip;
             var Nb;
-            str = "do_interrupt: intno=" + _2_bytes_(intno) + " error_code=" + _4_bytes_(error_code) + " EIP=" + _4_bytes_(Be) + " ESP=" + _4_bytes_(regs[4]) + " EAX=" + _4_bytes_(regs[0]) + " EBX=" + _4_bytes_(regs[3]) + " ECX=" + _4_bytes_(regs[1]);
+            str = "do_interrupt: intno=" + _2_bytes_(intno) + " error_code=" + _4_bytes_(error_code)
+                + " EIP=" + _4_bytes_(Be) + " ESP=" + _4_bytes_(regs[4]) + " EAX=" + _4_bytes_(regs[0])
+                + " EBX=" + _4_bytes_(regs[3]) + " ECX=" + _4_bytes_(regs[1]);
             if (intno == 0x0e) {
                 str += " CR2=" + _4_bytes_(cpu.cr2);
             }
@@ -3943,9 +3946,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             }
         }
         if (cpu.cr0 & (1 << 0)) {
-            me(intno, ne, error_code, oe, pe);
+            do_interrupt_paged_mode(intno, ne, error_code, oe, pe);
         } else {
-            ze(intno, ne, error_code, oe, pe);
+            do_interrupt_not_paged_mode(intno, ne, error_code, oe, pe);
         }
     }
     function Ce(selector) {
@@ -3970,7 +3973,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 abort_with_error_code(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
                 abort_with_error_code(11, selector & 0xfffc);
-            be(cpu.ldt, Yd, Wd);
+            set_descriptor_register(cpu.ldt, Yd, Wd);
         }
         cpu.ldt.selector = selector;
     }
@@ -3998,7 +4001,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 abort_with_error_code(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
                 abort_with_error_code(11, selector & 0xfffc);
-            be(cpu.tr, Yd, Wd);
+            set_descriptor_register(cpu.tr, Yd, Wd);
             Wd |= (1 << 9);
             st32_mem8_kernel_write(Wd);
         }
@@ -4050,7 +4053,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 Wd |= (1 << 8);
                 st32_mem8_kernel_write(Wd);
             }
-            set_segment_vars(Ge, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(Ge, selector, calculate_descriptor_base(Yd, Wd), calculate_descriptor_limit(Yd, Wd), Wd);
         }
     }
     function Ie(Ge, selector) {
@@ -4098,10 +4101,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             }
             if (!(Wd & (1 << 15)))
                 abort_with_error_code(11, Ke & 0xfffc);
-            limit = Zd(Yd, Wd);
+            limit = calculate_descriptor_limit(Yd, Wd);
             if ((Le >>> 0) > (limit >>> 0))
                 abort_with_error_code(13, Ke & 0xfffc);
-            set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
+            set_segment_vars(1, (Ke & 0xfffc) | se, calculate_descriptor_base(Yd, Wd), limit, Wd);
             eip = Le, physmem8_ptr = initial_mem_ptr = 0;
         } else {
             cpu_abort("unsupported jump to call or task gate");
@@ -4216,11 +4219,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         st16_mem8_kernel_write(oe);
                     }
                 }
-                limit = Zd(Yd, Wd);
+                limit = calculate_descriptor_limit(Yd, Wd);
                 if (Le > limit)
                     abort_with_error_code(13, Ke & 0xfffc);
                 regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
-                set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
+                set_segment_vars(1, (Ke & 0xfffc) | se, calculate_descriptor_base(Yd, Wd), limit, Wd);
                 eip = Le, physmem8_ptr = initial_mem_ptr = 0;
             }
         } else {
@@ -4285,7 +4288,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 Ue = SS_mask_from_flags(cpu.segs[2].flags);
                 Ve = cpu.segs[2].base;
                 SS_mask = SS_mask_from_flags(xe);
-                qe = ae(we, xe);
+                qe = calculate_descriptor_base(we, xe);
                 if (je) {
                     {
                         Te = (Te - 4) & -1;
@@ -4357,10 +4360,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             }
             if (ue) {
                 ke = (ke & ~3) | he;
-                set_segment_vars(2, ke, qe, Zd(we, xe), xe);
+                set_segment_vars(2, ke, qe, calculate_descriptor_limit(we, xe), xe);
             }
             selector = (selector & ~3) | he;
-            set_segment_vars(1, selector, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(1, selector, calculate_descriptor_base(Yd, Wd), calculate_descriptor_limit(Yd, Wd), Wd);
             change_permission_level(he);
             regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
             eip = ve, physmem8_ptr = initial_mem_ptr = 0;
@@ -4541,7 +4544,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             abort_with_error_code(11, Ke & 0xfffc);
         Te = (Te + cf) & -1;
         if (He == se) {
-            set_segment_vars(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(1, Ke, calculate_descriptor_base(Yd, Wd), calculate_descriptor_limit(Yd, Wd), Wd);
         } else {
             if (je == 1) {
                 {
@@ -4584,9 +4587,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     abort_with_error_code(13, gf & 0xfffc);
                 if (!(xe & (1 << 15)))
                     abort_with_error_code(11, gf & 0xfffc);
-                set_segment_vars(2, gf, ae(we, xe), Zd(we, xe), xe);
+                set_segment_vars(2, gf, calculate_descriptor_base(we, xe), calculate_descriptor_limit(we, xe), xe);
             }
-            set_segment_vars(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
+            set_segment_vars(1, Ke, calculate_descriptor_base(Yd, Wd), calculate_descriptor_limit(Yd, Wd), Wd);
             change_permission_level(He);
             Te = wd;
             SS_mask = SS_mask_from_flags(xe);
@@ -4674,7 +4677,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 return null;
         }
         if (pf) {
-            return Zd(Yd, Wd);
+            return calculate_descriptor_limit(Yd, Wd);
         } else {
             return Wd & 0x00f0ff00;
         }
@@ -4692,7 +4695,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             selector = ld_16bits_mem8_read();
         }
         x = of(selector, pf);
-        _src = hd();
+        _src = get_conditional_flags();
         if (x === null) {
             _src &= ~0x0040;
         } else {
@@ -4741,7 +4744,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function sf(selector, ud) {
         var z;
         z = rf(selector, ud);
-        _src = hd();
+        _src = get_conditional_flags();
         if (z)
             _src |= 0x0040;
         else
@@ -4762,7 +4765,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             x = ld_16bits_mem8_write();
         }
         y = regs[(mem8 >> 3) & 7];
-        _src = hd();
+        _src = get_conditional_flags();
         if ((x & 3) < (y & 3)) {
             x = (x & ~3) | (y & 3);
             if ((mem8 >> 6) == 3) {
@@ -4818,7 +4821,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
     function zf() {
         var Af, wf, xf, Bf, jd;
-        jd = hd();
+        jd = get_conditional_flags();
         Bf = jd & 0x0010;
         wf = regs[0] & 0xff;
         xf = (regs[0] >> 8) & 0xff;
@@ -4838,7 +4841,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
     function Cf() {
         var Af, wf, xf, Bf, jd;
-        jd = hd();
+        jd = get_conditional_flags();
         Bf = jd & 0x0010;
         wf = regs[0] & 0xff;
         xf = (regs[0] >> 8) & 0xff;
@@ -4858,7 +4861,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
     function Df() {
         var wf, Bf, Ef, jd;
-        jd = hd();
+        jd = get_conditional_flags();
         Ef = jd & 0x0001;
         Bf = jd & 0x0010;
         wf = regs[0] & 0xff;
@@ -4881,7 +4884,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
     function Ff() {
         var wf, Gf, Bf, Ef, jd;
-        jd = hd();
+        jd = get_conditional_flags();
         Ef = jd & 0x0001;
         Bf = jd & 0x0010;
         wf = regs[0] & 0xff;
@@ -5814,13 +5817,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     }
 
     cpu = this;
-    phys_mem8 = this.phys_mem8;
-    phys_mem16 = this.phys_mem16;
-    phys_mem32 = this.phys_mem32;
-    tlb_read_user = this.tlb_read_user;
-    tlb_write_user = this.tlb_write_user;
-    tlb_read_kernel = this.tlb_read_kernel;
+    phys_mem8        = this.phys_mem8;
+    phys_mem16       = this.phys_mem16;
+    phys_mem32       = this.phys_mem32;
+    tlb_read_user    = this.tlb_read_user;
+    tlb_write_user   = this.tlb_write_user;
+    tlb_read_kernel  = this.tlb_read_kernel;
     tlb_write_kernel = this.tlb_write_kernel;
+
     if (cpu.cpl == 3) {  //current privilege level
         _tlb_read_ = tlb_read_user;
         _tlb_write_ = tlb_write_user;
@@ -5828,6 +5832,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         _tlb_read_ = tlb_read_kernel;
         _tlb_write_ = tlb_write_kernel;
     }
+
     if (cpu.halted) {
         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200)) {
             cpu.halted = 0;
@@ -5835,28 +5840,32 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             return 257;
         }
     }
+
     regs = this.regs;
     _src = this.cc_src;
     _dst = this.cc_dst;
     _op = this.cc_op;
     _op2 = this.cc_op2;
     _dst2 = this.cc_dst2;
+
     eip = this.eip;
     init_segment_local_vars();
     exit_code = 256;
     cycles_left = N_cycles;
-    if (va) {
-        Ae(va.intno, 0, va.error_code, 0, 0);
+
+    if (interrupt) {
+        do_interrupt(interrupt.intno, 0, interrupt.error_code, 0, 0);
     }
     if (cpu.hard_intno >= 0) {
-        Ae(cpu.hard_intno, 0, 0, 0, 1);
+        do_interrupt(cpu.hard_intno, 0, 0, 0, 1);
         cpu.hard_intno = -1;
     }
     if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200)) {
         cpu.hard_intno = cpu.get_hard_intno();
-        Ae(cpu.hard_intno, 0, 0, 0, 1);
+        do_interrupt(cpu.hard_intno, 0, 0, 0, 1);
         cpu.hard_intno = -1;
     }
+
     physmem8_ptr = 0;
     initial_mem_ptr = 0;
 
@@ -5888,7 +5897,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             OPbyte = phys_mem8[physmem8_ptr++];
         }
         OPbyte |= (CS_flags = init_CS_flags) & 0x0100;
-        Fd: for (; ; ) {
+
+        EXEC_LOOP: for (; ; ) {
             switch (OPbyte) {
                 case 0x66://   Operand-size override prefix
                     if (CS_flags == init_CS_flags)
@@ -7216,7 +7226,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x76://JBE Jbs  Jump short if below or equal/not above (CF=1 AND ZF=1)
-                    if (ad()) {
+                    if (check_below_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
@@ -7224,7 +7234,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x77://JNBE Jbs  Jump short if not below or equal/above (CF=0 AND ZF=0)
-                    if (!ad()) {
+                    if (!check_below_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
@@ -7264,7 +7274,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x7c://JL Jbs  Jump short if less/not greater (SF!=OF)
-                    if (cd()) {
+                    if (check_less_than()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
@@ -7272,7 +7282,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x7d://JNL Jbs  Jump short if not less/greater or equal (SF=OF)
-                    if (!cd()) {
+                    if (!check_less_than()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
@@ -7280,7 +7290,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x7e://JLE Jbs  Jump short if less or equal/not greater ((ZF=1) OR (SF!=OF))
-                    if (dd()) {
+                    if (check_less_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
@@ -7288,7 +7298,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     break Fd;
                 case 0x7f://JNLE Jbs  Jump short if not less nor equal/greater ((ZF=0) AND (SF=OF))
-                    if (!dd()) {
+                    if (!check_less_or_equal()) {
                         x = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
                         physmem8_ptr = (physmem8_ptr + x) >> 0;
                     } else {
@@ -7409,36 +7419,36 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0xcc://INT 3 SS:[rSP] Call to Interrupt Procedure
                     y = (eip + physmem8_ptr - initial_mem_ptr);
-                    Ae(3, 1, 0, y, 0);
+                    do_interrupt(3, 1, 0, y, 0);
                     break Fd;
                 case 0xcd://INT Ib SS:[rSP] Call to Interrupt Procedure
                     x = phys_mem8[physmem8_ptr++];
                     if ((cpu.eflags & 0x00020000) && ((cpu.eflags >> 12) & 3) != 3)
                         abort(13);
                     y = (eip + physmem8_ptr - initial_mem_ptr);
-                    Ae(x, 1, 0, y, 0);
+                    do_interrupt(x, 1, 0, y, 0);
                     break Fd;
                 case 0xce://INTO eFlags SS:[rSP] Call to Interrupt Procedure
                     if (check_overflow()) {
                         y = (eip + physmem8_ptr - initial_mem_ptr);
-                        Ae(4, 1, 0, y, 0);
+                        do_interrupt(4, 1, 0, y, 0);
                     }
                     break Fd;
                 case 0x62://BOUND Gv SS:[rSP] Check Array Index Against Bounds
                     checkOp_BOUND();
                     break Fd;
                 case 0xf5://CMC   Complement Carry Flag
-                    _src = hd() ^ 0x0001;
+                    _src = get_conditional_flags() ^ 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
                 case 0xf8://CLC   Clear Carry Flag
-                    _src = hd() & ~0x0001;
+                    _src = get_conditional_flags() & ~0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
                 case 0xf9://STC   Set Carry Flag
-                    _src = hd() | 0x0001;
+                    _src = get_conditional_flags() | 0x0001;
                     _dst = ((_src >> 6) & 1) ^ 1;
                     _op = 24;
                     break Fd;
@@ -9563,19 +9573,19 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
 
 
 CPU_X86.prototype.exec = function(N_cycles) {
-    var Dg, exit_code, final_cycle_count, va;
+    var Dg, exit_code, final_cycle_count, interrupt;
     final_cycle_count = this.cycle_count + N_cycles;
     exit_code = 256;
-    va = null;
+    interrupt = null;
     while (this.cycle_count < final_cycle_count) {
         try {
-            exit_code = this.exec_internal(final_cycle_count - this.cycle_count, va);
+            exit_code = this.exec_internal(final_cycle_count - this.cycle_count, interrupt);
             if (exit_code != 256)
                 break;
-            va = null;
+            interrupt = null;
         } catch (Fg) {
             if (Fg.hasOwnProperty("intno")) {
-                va = Fg;
+                interrupt = Fg;
             } else {
                 throw Fg;
             }
@@ -9643,6 +9653,22 @@ CPU_X86.prototype.load_binary = function(Gg, mem8_loc) {
     }
     return tg;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
