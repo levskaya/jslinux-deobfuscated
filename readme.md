@@ -5,10 +5,16 @@ I wanted to understand how the amazing [JsLinux][1] worked.  However,  Mr Bellar
 
 So in order to better understand the code, I started transforming all the symbols and commenting it up, which isn't all that hard a thing to do given that it's been built to imitate a very well-specified piece of hardware.
 
-In the tiny off-chance someone else might be interested I'm posting this "cheat sheet" version of the code here.
+In the off-chance someone else might be interested in this code as a
+basis for further weird in-browser x86 hacking I'm posting this redacted version of the code here.
 
 ### Status
-It's still absolutely ungainly, but not nearly so ungainly as the original.  About a third to a half of the variables/function names have been redescribed.  The names are basically long comments and will ultimately need to be redone once the whole is understood.
+
+It's still a dense code base, it's an emulator of a rather
+complicated architecture, after all.  However this version is nowhere
+near so incomprehensible as the original.  Nearly all of the variables
+and function names have been named somewhat sensibly.  It's been
+heavily commented.  It's all still a bit hectic, but readable.
 
 The core opcode execution loop has been autocommented to indicate what instruction operation the opcode refers to.
 
@@ -17,12 +23,14 @@ I highly recommend, by the way, the excellent [JSShaper][2] library for transfor
 ### Caveat Coder
 This is a pedagogical reinterpretation of the original JSLinux code Copyright (c) 2011 Fabrice Bellard.
 
-There's no alteration in the algorithmic content.  I do check that that it still runs, but I won't guarantee anything else.
+There's no alteration in the algorithmic content.  I do check that
+that it still runs as the original.
 
 ### References
 Some other helpful references for understanding what's going on:
 
 #### x86
+- http://pdos.csail.mit.edu/6.828/2005/readings/i386/
 - http://ref.x86asm.net/coder32.html
 - http://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
 - http://en.wikipedia.org/wiki/X86
