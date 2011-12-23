@@ -546,6 +546,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     var phys_mem16, phys_mem32;
     var tlb_read_kernel, tlb_write_kernel, tlb_read_user, tlb_write_user, _tlb_read_, _tlb_write_;
 
+
+    /*
+       Paged Memory Mode Access Routines
+       ================================================================================
+    */
+
     /* Storing XOR values as small lookup table is software equivalent of a Translation Lookaside Buffer (TLB) */
     function __ld_8bits_mem8_read() {
         var tlb_lookup;
@@ -1922,6 +1928,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _op = 23;
         return r;
     }
+
+
+    /*
+      Status bits and Flags Routines
+      ================================================================================
+    */
+
     function check_carry() {
         var Yb, qc, current_op, relevant_dst;
         if (_op >= 25) {
@@ -2307,6 +2320,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         cpu.df = 1 - (2 * ((jd >> 10) & 1));
         cpu.eflags = (cpu.eflags & ~ld) | (jd & ld);
     }
+
+
+    /*
+      Basic Debug Routines
+      ================================================================================
+    */
+
     function current_cycle_count() {
         return cpu.cycle_count + (N_cycles - cycles_left);
     }
@@ -2386,7 +2406,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             _tlb_write_ = tlb_write_kernel;
         }
     }
-    function td(mem8_loc, ud) {
+    function do_tlb_lookup(mem8_loc, ud) {
         var tlb_lookup;
         if (ud) {
             tlb_lookup = _tlb_write_[mem8_loc >>> 12];
@@ -3574,14 +3594,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         cpu.cr0 = Qd | (1 << 4); //keep bit 4 set to 1
     }
-    function set_CR3(Sd) {
-        cpu.cr3 = Sd;
-        if (cpu.cr0 & (1 << 31)) {
+    function set_CR3(new_pdb) { // page directory base register PDBR
+        cpu.cr3 = new_pdb;
+        if (cpu.cr0 & (1 << 31)) { //if in paging mode must reset tables
             cpu.tlb_flush_all();
         }
     }
-    function set_CR4(Ud) {
-        cpu.cr4 = Ud;
+    function set_CR4(newval) {
+        cpu.cr4 = newval;
     }
     function SS_mask_from_flags(Wd) {
         if (Wd & (1 << 22))
@@ -4153,7 +4173,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
         }
     }
-    function Qe(je, Ke, Le, oe) {
+    function op_CALLF_not_paged_mode(je, Ke, Le, oe) {
         var le;
         le = regs[4];
         if (je) {
@@ -4185,7 +4205,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         cpu.segs[1].base = (Ke << 4);
         init_segment_local_vars();
     }
-    function Re(je, Ke, Le, oe) {
+    function op_CALLF_paged_mode(je, Ke, Le, oe) {
         var ue, i, e;
         var Yd, Wd, se, he, He, selector, ve, Se;
         var ke, we, xe, Te, ie, re, SS_mask;
@@ -4393,11 +4413,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         }
     }
-    function Ze(je, Ke, Le, oe) {
+    function op_CALLF(je, Ke, Le, oe) {
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
-            Qe(je, Ke, Le, oe);
+            op_CALLF_not_paged_mode(je, Ke, Le, oe);
         } else {
-            Re(je, Ke, Le, oe);
+            op_CALLF_paged_mode(je, Ke, Le, oe);
         }
     }
     function af(je, bf, cf) {
@@ -5657,24 +5677,24 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             if ((ag & Xf) == 0)
                 return;
             if (Xf == -1 && cpu.df == 1 && ((mem8_loc | eg) & 3) == 0) {
-                var tg, l, ug, vg, i, wg;
-                tg = ag >>> 0;
+                var len, l, ug, vg, i, wg;
+                len = ag >>> 0;
                 l = (4096 - (mem8_loc & 0xfff)) >> 2;
-                if (tg > l)
-                    tg = l;
+                if (len > l)
+                    len = l;
                 l = (4096 - (eg & 0xfff)) >> 2;
-                if (tg > l)
-                    tg = l;
-                ug = td(mem8_loc, 0);
-                vg = td(eg, 1);
-                wg = tg << 2;
+                if (len > l)
+                    len = l;
+                ug = do_tlb_lookup(mem8_loc, 0);
+                vg = do_tlb_lookup(eg, 1);
+                wg = len << 2;
                 vg >>= 2;
                 ug >>= 2;
-                for (i = 0; i < tg; i++)
+                for (i = 0; i < len; i++)
                     phys_mem32[vg + i] = phys_mem32[ug + i];
                 regs[6] = (cg + wg) >> 0;
                 regs[7] = (Yf + wg) >> 0;
-                regs[1] = ag = (ag - tg) >> 0;
+                regs[1] = ag = (ag - len) >> 0;
                 if (ag)
                     physmem8_ptr = initial_mem_ptr;
             } else {
@@ -5708,19 +5728,19 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             if ((ag & Xf) == 0)
                 return;
             if (Xf == -1 && cpu.df == 1 && (mem8_loc & 3) == 0) {
-                var tg, l, vg, i, wg, x;
-                tg = ag >>> 0;
+                var len, l, vg, i, wg, x;
+                len = ag >>> 0;
                 l = (4096 - (mem8_loc & 0xfff)) >> 2;
-                if (tg > l)
-                    tg = l;
-                vg = td(regs[7], 1);
+                if (len > l)
+                    len = l;
+                vg = do_tlb_lookup(regs[7], 1);
                 x = regs[0];
                 vg >>= 2;
-                for (i = 0; i < tg; i++)
+                for (i = 0; i < len; i++)
                     phys_mem32[vg + i] = x;
-                wg = tg << 2;
+                wg = len << 2;
                 regs[7] = (Yf + wg) >> 0;
-                regs[1] = ag = (ag - tg) >> 0;
+                regs[1] = ag = (ag - len) >> 0;
                 if (ag)
                     physmem8_ptr = initial_mem_ptr;
             } else {
@@ -7066,11 +7086,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             abort(6);
                     }
                     break EXEC_LOOP;
-                case 0xff://INC  Evqp Increment by 1
+                case 0xff://INC DEC CALL CALLF JMP JMPF PUSH
                     mem8 = phys_mem8[physmem8_ptr++];
                     conditional_var = (mem8 >> 3) & 7;
                     switch (conditional_var) {
-                        case 0:
+                        case 0://INC  Evqp Increment by 1
                             if ((mem8 >> 6) == 3) {
                                 reg_idx0 = mem8 & 7;
                                 {
@@ -7095,7 +7115,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 st32_mem8_write(x);
                             }
                             break;
-                        case 1:
+                        case 1://DEC
                             if ((mem8 >> 6) == 3) {
                                 reg_idx0 = mem8 & 7;
                                 {
@@ -7120,7 +7140,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 st32_mem8_write(x);
                             }
                             break;
-                        case 2:
+                        case 2://CALL
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
@@ -7137,7 +7157,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                             eip = x, physmem8_ptr = initial_mem_ptr = 0;
                             break;
-                        case 4:
+                        case 4://JMP
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
@@ -7146,7 +7166,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             }
                             eip = x, physmem8_ptr = initial_mem_ptr = 0;
                             break;
-                        case 6:
+                        case 6://PUSH
                             if ((mem8 >> 6) == 3) {
                                 x = regs[mem8 & 7];
                             } else {
@@ -7161,8 +7181,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 xd(x);
                             }
                             break;
-                        case 3:
-                        case 5:
+                        case 3://CALLF
+                        case 5://JMPF
                             if ((mem8 >> 6) == 3)
                                 abort(6);
                             mem8_loc = segment_translation(mem8);
@@ -7170,7 +7190,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             mem8_loc = (mem8_loc + 4) >> 0;
                             y = ld_16bits_mem8_read();
                             if (conditional_var == 3)
-                                Ze(1, y, x, (eip + physmem8_ptr - initial_mem_ptr));
+                                op_CALLF(1, y, x, (eip + physmem8_ptr - initial_mem_ptr));
                             else
                                 Oe(y, x);
                             break;
@@ -7411,7 +7431,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         x = ld16_mem8_direct();
                     }
                     y = ld16_mem8_direct();
-                    Ze(z, y, x, (eip + physmem8_ptr - initial_mem_ptr));
+                    op_CALLF(z, y, x, (eip + physmem8_ptr - initial_mem_ptr));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
                             break OUTER_LOOP;
@@ -8416,6 +8436,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             abort(6);
                     }
                     break;
+
+                /*
+                  16bit Compatibility Mode Operator Routines
+                  ==========================================================================================
+                  (
+                   I'm almost positive that's what all the below is:
+                   0x1XX  corresponds to the 16-bit compat operator corresponding to the usual 0xXX
+                  )
+                */
                 default:
                     switch (OPbyte) {
                         case 0x189:
@@ -8938,7 +8967,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     mem8_loc = (mem8_loc + 2) >> 0;
                                     y = ld_16bits_mem8_read();
                                     if (conditional_var == 3)
-                                        Ze(0, y, x, (eip + physmem8_ptr - initial_mem_ptr));
+                                        op_CALLF(0, y, x, (eip + physmem8_ptr - initial_mem_ptr));
                                     else
                                         Oe(y, x);
                                     break;
@@ -9596,8 +9625,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
 };
 
 
+/*
+  Execution Wrapper
+  ==========================================================================================
+  This seems to primarily catch internal interrupts.
+*/
+
 CPU_X86.prototype.exec = function(N_cycles) {
-    var Dg, exit_code, final_cycle_count, interrupt;
+    var exit_code, final_cycle_count, interrupt;
     final_cycle_count = this.cycle_count + N_cycles;
     exit_code = 256;
     interrupt = null;
@@ -9607,108 +9642,80 @@ CPU_X86.prototype.exec = function(N_cycles) {
             if (exit_code != 256)
                 break;
             interrupt = null;
-        } catch (Fg) {
-            if (Fg.hasOwnProperty("intno")) {
-                interrupt = Fg;
+        } catch (cpu_exception) {
+            if (cpu_exception.hasOwnProperty("intno")) { //an interrupt
+                interrupt = cpu_exception;
             } else {
-                throw Fg;
+                throw cpu_exception;
             }
         }
     }
     return exit_code;
 };
 
-CPU_X86.prototype.load_binary_ie9 = function(Gg, mem8_loc) {
-    var Hg, Ig, tg, i;
-    Hg = new XMLHttpRequest();
-    Hg.open('GET', Gg, false);
-    Hg.send(null);
-    if (Hg.status != 200 && Hg.status != 0) {
-        throw "Error while loading " + Gg;
+
+/*
+  Binary Loaders
+  ==========================================================================================
+  These routines load binary files into memory via AJAX.
+*/
+
+CPU_X86.prototype.load_binary_ie9 = function(url, mem8_loc) {
+    var req, binary_array, len, i;
+    req = new XMLHttpRequest();
+    req.open('GET', url, false);
+    req.send(null);
+    if (req.status != 200 && req.status != 0) {
+        throw "Error while loading " + url;
     }
-    Ig = new VBArray(Hg.responseBody).toArray();
-    tg = Ig.length;
-    for (i = 0; i < tg; i++) {
-        this.st8_phys(mem8_loc + i, Ig[i]);
+    binary_array = new VBArray(req.responseBody).toArray();
+    len = binary_array.length;
+    for (i = 0; i < len; i++) {
+        this.st8_phys(mem8_loc + i, binary_array[i]);
     }
-    return tg;
+    return len;
 };
 
-CPU_X86.prototype.load_binary = function(Gg, mem8_loc) {
-    var Hg, Ig, tg, i, Jg, Kg;
+CPU_X86.prototype.load_binary = function(url, mem8_loc) {
+    var req, binary_array, len, i, typed_binary_array, typed_arrays_exist;
     if (typeof ActiveXObject == "function")
-        return this.load_binary_ie9(Gg, mem8_loc);
-    Hg = new XMLHttpRequest();
-    Hg.open('GET', Gg, false);
-    Kg = ('ArrayBuffer' in window && 'Uint8Array' in window);
-    if (Kg && 'mozResponseType' in Hg) {
-        Hg.mozResponseType = 'arraybuffer';
-    } else if (Kg && 'responseType' in Hg) {
-        Hg.responseType = 'arraybuffer';
+        return this.load_binary_ie9(url, mem8_loc);
+    req = new XMLHttpRequest();
+    req.open('GET', url, false);
+    typed_arrays_exist = ('ArrayBuffer' in window && 'Uint8Array' in window);
+    if (typed_arrays_exist && 'mozResponseType' in req) {
+        req.mozResponseType = 'arraybuffer';
+    } else if (typed_arrays_exist && 'responseType' in req) {
+        req.responseType = 'arraybuffer';
     } else {
-        Hg.overrideMimeType('text/plain; charset=x-user-defined');
-        Kg = false;
+        req.overrideMimeType('text/plain; charset=x-user-defined');
+        typed_arrays_exist = false;
     }
-    Hg.send(null);
-    if (Hg.status != 200 && Hg.status != 0) {
-        throw "Error while loading " + Gg;
+    req.send(null);
+    if (req.status != 200 && req.status != 0) {
+        throw "Error while loading " + url;
     }
-    if (Kg && 'mozResponse' in Hg) {
-        Ig = Hg.mozResponse;
-    } else if (Kg && Hg.mozResponseArrayBuffer) {
-        Ig = Hg.mozResponseArrayBuffer;
-    } else if ('responseType' in Hg) {
-        Ig = Hg.response;
+    if (typed_arrays_exist && 'mozResponse' in req) {
+        binary_array = req.mozResponse;
+    } else if (typed_arrays_exist && req.mozResponseArrayBuffer) {
+        binary_array = req.mozResponseArrayBuffer;
+    } else if ('responseType' in req) {
+        binary_array = req.response;
     } else {
-        Ig = Hg.responseText;
-        Kg = false;
+        binary_array = req.responseText;
+        typed_arrays_exist = false;
     }
-    if (Kg) {
-        tg = Ig.byteLength;
-        Jg = new Uint8Array(Ig, 0, tg);
-        for (i = 0; i < tg; i++) {
-            this.st8_phys(mem8_loc + i, Jg[i]);
+    if (typed_arrays_exist) {
+        len = binary_array.byteLength;
+        typed_binary_array = new Uint8Array(binary_array, 0, len);
+        for (i = 0; i < len; i++) {
+            this.st8_phys(mem8_loc + i, typed_binary_array[i]);
         }
     } else {
-        tg = Ig.length;
-        for (i = 0; i < tg; i++) {
-            this.st8_phys(mem8_loc + i, Ig.charCodeAt(i));
+        len = binary_array.length;
+        for (i = 0; i < len; i++) {
+            this.st8_phys(mem8_loc + i, binary_array.charCodeAt(i));
         }
     }
-    return tg;
+    return len;
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
