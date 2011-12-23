@@ -1,11 +1,14 @@
 /*
-Fabrix - An annotated version of the original JSLinux which is Copyright (c) 2011 Fabrice Bellard
+Fabrix - An annotated version of the original JSLinux Copyright (c) 2011 Fabrice Bellard
+==================================================================================================
 
-x86 CPU (circa 486 sans FPU) Emulator
------------------------------------------
+A x86 CPU (circa 486 sans FPU) Emulator
 
 Useful references:
-------------------------------
+======================================================================
+
+http://pdos.csail.mit.edu/6.828/2005/readings/i386/   <-- super useful
+
 http://ref.x86asm.net/coder32.html#xC4
 http://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
 http://en.wikipedia.org/wiki/X86
@@ -14,23 +17,84 @@ http://en.wikipedia.org/wiki/X86_assembly_language
 http://en.wikipedia.org/wiki/Translation_lookaside_buffer
 
 http://bellard.org/jslinux/tech.html :
+"""
+The exact restrictions of the emulated CPU are:
+- No FPU/MMX/SSE
+- No segment limit and right checks when accessing memory (Linux does not rely on them for memory protection,
+so it is not an issue. The x86 emulator of QEMU has the same restriction).
+- No single-stepping
 
-""
-The exact restrictions of the emulated
-CPU are: No FPU/MMX/SSE No segment limit and right checks when
-accessing memory (Linux does not rely on them for memory protection,
-so it is not an issue. The x86 emulator of QEMU has the same
-restriction).  No single-stepping I added some tricks which are not
-present in QEMU to be more precise when emulating unaligned
-load/stores at page boundaries. The condition code emulation is also
-more efficient than the one in QEMU.
-""
+I added some tricks which are not present in QEMU to be more precise
+when emulating unaligned load/stores at page boundaries. The condition
+code emulation is also more efficient than the one in QEMU.
+"""
+
+
+Memory Modes
+=====================================================================
+
+The x86 transforms logical addresses (i.e., addresses as viewed by
+programmers) into physical address (i.e., actual addresses in physical
+memory) in two steps:
+
+- Segment translation, in which a logical address (consisting of a
+segment selector and segment offset) are converted to a linear
+address.
+
+- Page translation, in which a linear address is converted to
+a physical address. This step is optional, at the discretion of
+systems-software designers.
+
+
+Segmented Memory
+-----------------
+x86 memory segmentation refers to the implementation of memory
+segmentation on the x86 architecture. Memory is divided into portions
+that may be addressed by a single index register without changing a
+16-bit segment selector. In real mode or V86 mode, a segment is always
+64 kilobytes in size (using 16-bit offsets). In protected mode, a
+segment can have variable length. Segments can overlap.
+
+Within the x86 architectures, when operating in the real (compatible)
+mode, physical address is computed as:
+
+  Address = 16*segment + offset
+
+The 16-bit segment register is shifted
+left by 4 bits and added to a 16-bit offset, resulting in a 20-bit
+address.
+
+When the 80386 is used to execute software designed for architectures
+that don't have segments, it may be expedient to effectively "turn
+off" the segmentation features of the 80386. The 80386 does not have a
+mode that disables segmentation, but the same effect can be achieved
+by initially loading the segment registers with selectors for
+descriptors that encompass the entire 32-bit linear address
+space. Once loaded, the segment registers don't need to be
+changed. The 32-bit offsets used by 80386 instructions are adequate to
+address the entire linear-address space.
+
+Paged Memory
+--------------
+A page table is simply an array of 32-bit page specifiers. A page
+table is itself a page, and therefore contains 4 Kilobytes of memory
+or at most 1K 32-bit entries.  Two levels of tables are used to
+address a page of memory. At the higher level is a page directory. The
+page directory addresses up to 1K page tables of the second level. A
+page table of the second level addresses up to 1K pages. All the
+tables addressed by one page directory, therefore, can address 1M
+pages (2^(20)). Because each page contains 4K bytes 2^(12) bytes), the
+tables of one page directory can span the entire physical address
+space of the 80386 (2^(20) times 2^(12) = 2^(32)).
 
 
 Hints for Bit Twiddling
------------------------------------------------------
+=========================================================
 X & -65281  = mask for lower 8 bits for 32bit X
 X & 3       = mask for lower 2 bits for single byte X
+
+((x << 16) >> 16)  = clears top 16bits, enforces word-size data
+((x << 24) >> 24)  = clears top 24bits, enforces byte-size data
 
 */
 
@@ -65,8 +129,10 @@ function CPU_X86() {
     for (i = 0; i < 8; i++) {
         this.regs[i] = 0;
     }
+
     /* IP/EIP/RIP: Instruction pointer. Holds the program counter, the current instruction address. */
     this.eip         = 0; //instruction pointer
+
     this.cc_op       = 0; // current op
     this.cc_dst      = 0; // current dest
     this.cc_src      = 0; // current src
@@ -108,28 +174,31 @@ function CPU_X86() {
        Control Registers
        ==========================================================================================
     */
-    /*
-      31    PG  Paging             If 1, enable paging and use the CR3 register, else disable paging
-      30    CD  Cache disable      Globally enables/disable the memory cache
-      29    NW  Not-write through  Globally enables/disable write-back caching
-      18    AM  Alignment mask     Alignment check enabled if AM set, AC flag (in EFLAGS register) set, and privilege level is 3
-      16    WP  Write protect      Determines whether the CPU can write to pages marked read-only
-      5     NE  Numeric error      Enable internal x87 floating point error reporting when set, else enables PC style x87 error detection
-      4     ET  Extension type     On the 386, it allowed to specify whether the external math coprocessor was an 80287 or 80387
-      3     TS  Task switched      Allows saving x87 task context only after x87 instruction used after task switch
-      2     EM  Emulation          If set, no x87 floating point unit present, if clear, x87 FPU present
-      1     MP  Monitor co-processor   Controls interaction of WAIT/FWAIT instructions with TS flag in CR0
-      0     PE  Protected Mode Enable  If 1, system is in protected mode, else system is in real mode
+    /* CR0
+       ---
+       31    PG  Paging             If 1, enable paging and use the CR3 register, else disable paging
+       30    CD  Cache disable      Globally enables/disable the memory cache
+       29    NW  Not-write through  Globally enables/disable write-back caching
+       18    AM  Alignment mask     Alignment check enabled if AM set, AC flag (in EFLAGS register) set, and privilege level is 3
+       16    WP  Write protect      Determines whether the CPU can write to pages marked read-only
+       5     NE  Numeric error      Enable internal x87 floating point error reporting when set, else enables PC style x87 error detection
+       4     ET  Extension type     On the 386, it allowed to specify whether the external math coprocessor was an 80287 or 80387
+       3     TS  Task switched      Allows saving x87 task context only after x87 instruction used after task switch
+       2     EM  Emulation          If set, no x87 floating point unit present, if clear, x87 FPU present
+       1     MP  Monitor co-processor   Controls interaction of WAIT/FWAIT instructions with TS flag in CR0
+       0     PE  Protected Mode Enable  If 1, system is in protected mode, else system is in real mode
     */
-    this.cr0         = (1 << 0); //control register 0:
+    this.cr0 = (1 << 0); //PE-mode ON
 
     /* CR2
+       ---
        Page Fault Linear Address (PFLA) When a page fault occurs,
        the address the program attempted to access is stored in the
        CR2 register. */
-    this.cr2         = 0; // control register 2
+    this.cr2 = 0;
 
     /* CR3
+       ---
        Used when virtual addressing is enabled, hence when the PG
        bit is set in CR0.  CR3 enables the processor to translate
        virtual addresses into physical addresses by locating the page
@@ -137,9 +206,10 @@ function CPU_X86() {
        upper 20 bits of CR3 become the page directory base register
        (PDBR), which stores the physical address of the first page
        directory entry.  */
-    this.cr3         = 0; // control register 3:
+    this.cr3 = 0;
 
     /* CR4
+       ---
        Used in protected mode to control operations such as virtual-8086 support, enabling I/O breakpoints,
        page size extension and machine check exceptions.
        Bit  Name    Full Name   Description
@@ -162,41 +232,125 @@ function CPU_X86() {
        1    PVI Protected-mode Virtual Interrupts   If set, enables support for the virtual interrupt flag (VIF) in protected mode.
        0    VME Virtual 8086 Mode Extensions    If set, enables support for the virtual interrupt flag (VIF) in virtual-8086 mode.
      */
-    this.cr4         = 0; // control register 4
-
+    this.cr4 = 0;
 
     /*
       Segment registers:
+      --------------------
       ES: Extra
       CS: Code
       SS: Stack
       DS: Data
       FS: Extra
       GS: Extra
-      (and in this VM,
-      LDT
-      TR
-      )
-      Fun facts, these are rarely used in the wild due to nearly exclusive use of paging in protected and long mode.
-      However, chrome's Native Client uses them to sandbox native code memory access.
+
+      In memory addressing for Intel x86 computer architectures,
+      segment descriptors are a part of the segmentation unit, used for
+      translating a logical address to a linear address. Segment descriptors
+      describe the memory segment referred to in the logical address.
+
+      The segment descriptor (8 bytes long in 80286) contains the following
+      fields:
+
+      - A segment base address
+      - The segment limit which specifies the segment limit
+      - Access rights byte containing the protection mechanism information
+      - Control bits
+
     */
+    /* NOTE: Only segs 0->5 appear to be used in the code, so only ES->GS */
     this.segs = new Array();   //   [" ES", " CS", " SS", " DS", " FS", " GS", "LDT", " TR"]
     for (i = 0; i < 7; i++) {
         this.segs[i] = {selector: 0, base: 0, limit: 0, flags: 0};
     }
-    this.segs[2].flags = (1 << 22);
-    this.segs[1].flags = (1 << 22);
+    this.segs[2].flags = (1 << 22); // SS
+    this.segs[1].flags = (1 << 22); // CS
 
-    // descriptor registers (GDTR, LDTR, IDTR) ?
+    /* Interrupt Descriptor Table
+       ---------------------------
+       The interrupt descriptor table (IDT) associates each interrupt
+       or exception identifier with a descriptor for the instructions
+       that service the associated event. Like the GDT and LDTs, the
+       IDT is an array of 8-byte descriptors. Unlike the GDT and LDTs,
+       the first entry of the IDT may contain a descriptor.
+
+       To form an index into the IDT, the processor multiplies the
+       interrupt or exception identifier by eight. Because there are
+       only 256 identifiers, the IDT need not contain more than 256
+       descriptors. It can contain fewer than 256 entries; entries are
+       required only for interrupt identifiers that are actually used. */
     this.idt         = {base: 0, limit: 0};
+
+    // The Global Descriptor Table
     this.gdt         = {base: 0, limit: 0};
+
+    // The Local Descriptor Table
     this.ldt = {selector: 0, base: 0, limit: 0, flags: 0};
 
-    //task register?
+    /* Task Register
+       --------------
+       The task register (TR) identifies the currently executing task
+       by pointing to the TSS.
+
+       The task register has both a "visible" portion (i.e., can be
+       read and changed by instructions) and an "invisible" portion
+       (maintained by the processor to correspond to the visible
+       portion; cannot be read by any instruction). The selector in
+       the visible portion selects a TSS descriptor in the GDT. The
+       processor uses the invisible portion to cache the base and
+       limit values from the TSS descriptor. Holding the base and
+       limit in a register makes execution of the task more efficient,
+       because the processor does not need to repeatedly fetch these
+       values from memory when it references the TSS of the current
+       task.
+
+       The instructions LTR and STR are used to modify and read the
+       visible portion of the task register. Both instructions take
+       one operand, a 16-bit selector located in memory or in a
+       general register.
+
+       LTR (Load task register) loads the visible portion of the task
+       register with the selector operand, which must select a TSS
+       descriptor in the GDT. LTR also loads the invisible portion
+       with information from the TSS descriptor selected by the
+       operand. LTR is a privileged instruction; it may be executed
+       only when CPL is zero. LTR is generally used during system
+       initialization to give an initial value to the task register;
+       thereafter, the contents of TR are changed by task switch
+       operations.
+
+       STR (Store task register) stores the visible portion of the task
+       register in a general register or memory word. STR is not privileged.
+
+      All the information the processor needs in order to manage a
+      task is stored in a special type of segment, a task state
+      segment (TSS). The fields of a TSS belong to two classes:
+
+	  1. A dynamic set that the processor updates with each switch from the
+	  task. This set includes the fields that store:
+
+      - The general registers (EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI).
+      - The segment registers (ES, CS, SS, DS, FS, GS).
+      - The flags register (EFLAGS).
+      - The instruction pointer (EIP).
+      - The selector of the TSS of the previously executing task (updated only when a return is expected).
+
+      2. A static set that the processor reads but does not change. This
+      set includes the fields that store:
+
+      - The selector of the task's LDT.
+      - The register (PDBR) that contains the base address of the task's
+        page directory (read only when paging is enabled).
+      - Pointers to the stacks for privilege levels 0-2.
+      - The T-bit (debug trap bit) which causes the processor to raise a
+        debug exception when a task switch occurs.
+      - The I/O map base
+    */
     this.tr  = {selector: 0, base: 0, limit: 0, flags: 0};
 
     this.halted = 0;
-    this.phys_mem = null;
+
+    this.phys_mem = null;  //pointer to raw memory buffer allocated by browser
 
     /*
        A translation lookaside buffer (TLB) is a CPU cache that memory
@@ -213,7 +367,7 @@ function CPU_X86() {
        stored.
      */
 
-    tlb_size = 0x100000; //1e6*4096 ~= 4GB total memory possible?
+    tlb_size = 0x100000; //2^20=1048576 * 4096 ~= 4GB total memory possible
     this.tlb_read_kernel  = new Int32Array(tlb_size);
     this.tlb_write_kernel = new Int32Array(tlb_size);
     this.tlb_read_user    = new Int32Array(tlb_size);
@@ -227,6 +381,7 @@ function CPU_X86() {
     this.tlb_pages = new Int32Array(2048);
     this.tlb_pages_count = 0;
 }
+
 /* Allocates a memory chunnk new_mem_size bytes long and makes 8,16,32 bit array references into it */
 CPU_X86.prototype.phys_mem_resize = function(new_mem_size) {
     this.mem_size = new_mem_size;
@@ -237,10 +392,12 @@ CPU_X86.prototype.phys_mem_resize = function(new_mem_size) {
     this.phys_mem32 = new Int32Array(this.phys_mem, 0, new_mem_size / 4);
 };
 
-CPU_X86.prototype.ld8_phys = function(mem8_loc) {      return this.phys_mem8[mem8_loc]; };
-CPU_X86.prototype.st8_phys = function(mem8_loc, x) {         this.phys_mem8[mem8_loc] = x; };
-CPU_X86.prototype.ld32_phys = function(mem8_loc) {     return this.phys_mem32[mem8_loc >> 2]; };
-CPU_X86.prototype.st32_phys = function(mem8_loc, x) {        this.phys_mem32[mem8_loc >> 2] = x; };
+/* Raw, low level memory access routines to alter the host-stored memory, these are called by the higher-level
+   memory access emulation routines */
+CPU_X86.prototype.ld8_phys  = function(mem8_loc)    {  return this.phys_mem8[mem8_loc]; };
+CPU_X86.prototype.st8_phys  = function(mem8_loc, x) {         this.phys_mem8[mem8_loc] = x; };
+CPU_X86.prototype.ld32_phys = function(mem8_loc)    {  return this.phys_mem32[mem8_loc >> 2]; };
+CPU_X86.prototype.st32_phys = function(mem8_loc, x) {         this.phys_mem32[mem8_loc >> 2] = x; };
 
 CPU_X86.prototype.tlb_set_page = function(mem8_loc, ha, ia, ja) {
     var i, x, j;
@@ -316,10 +473,10 @@ CPU_X86.prototype.tlb_flush_all1 = function(la) {
 };
 
 /* writes ASCII string in na into memory location mem8_loc */
-CPU_X86.prototype.write_string = function(mem8_loc, na) {
+CPU_X86.prototype.write_string = function(mem8_loc, str) {
     var i;
-    for (i = 0; i < na.length; i++) {
-        this.st8_phys(mem8_loc++, na.charCodeAt(i) & 0xff);
+    for (i = 0; i < str.length; i++) {
+        this.st8_phys(mem8_loc++, str.charCodeAt(i) & 0xff);
     }
     this.st8_phys(mem8_loc, 0);
 };
@@ -334,7 +491,6 @@ function hex_rep(x, n) {
     }
     return s;
 }
-
 function _4_bytes_(n) { return hex_rep(n, 8);} // Represents 8-hex bytes of n
 function _2_bytes_(n) { return hex_rep(n, 2);} // Represents 4-hex bytes of n
 function _1_byte_(n) { return hex_rep(n, 4);}  // Represents 2-hex bytes of n
@@ -347,7 +503,7 @@ CPU_X86.prototype.dump_short = function() {
 };
 
 CPU_X86.prototype.dump = function() {
-    var i, sa, na;
+    var i, sa, str;
     var ta = [" ES", " CS", " SS", " DS", " FS", " GS", "LDT", " TR"];
     this.dump_short();
     console.log("TSC=" + _4_bytes_(this.cycle_count) + " OP=" + _2_bytes_(this.cc_op)
@@ -355,7 +511,7 @@ CPU_X86.prototype.dump = function() {
                 + " OP2=" + _2_bytes_(this.cc_op2) + " DST2=" + _4_bytes_(this.cc_dst2));
     console.log("CPL=" + this.cpl + " CR0=" + _4_bytes_(this.cr0)
                 + " CR2=" + _4_bytes_(this.cr2) + " CR3=" + _4_bytes_(this.cr3) + " CR4=" + _4_bytes_(this.cr4));
-    na = "";
+    str = "";
     for (i = 0; i < 8; i++) {
         if (i == 6)
             sa = this.ldt;
@@ -363,20 +519,20 @@ CPU_X86.prototype.dump = function() {
             sa = this.tr;
         else
             sa = this.segs[i];
-        na += ta[i] + "=" + _1_byte_(sa.selector) + " " + _4_bytes_(sa.base) + " "
+        str += ta[i] + "=" + _1_byte_(sa.selector) + " " + _4_bytes_(sa.base) + " "
             + _4_bytes_(sa.limit) + " " + _1_byte_((sa.flags >> 8) & 0xf0ff);
         if (i & 1) {
-            console.log(na);
-            na = "";
+            console.log(str);
+            str = "";
         } else {
-            na += " ";
+            str += " ";
         }
     }
     sa = this.gdt;
-    na = "GDT=     " + _4_bytes_(sa.base) + " " + _4_bytes_(sa.limit) + "      ";
+    str = "GDT=     " + _4_bytes_(sa.base) + " " + _4_bytes_(sa.limit) + "      ";
     sa = this.idt;
-    na += "IDT=     " + _4_bytes_(sa.base) + " " + _4_bytes_(sa.limit);
-    console.log(na);
+    str += "IDT=     " + _4_bytes_(sa.base) + " " + _4_bytes_(sa.limit);
+    console.log(str);
 };
 
 CPU_X86.prototype.exec_internal = function(N_cycles, va) {
@@ -1510,7 +1666,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         a = regs[0] & 0xffff;
         OPbyte &= 0xff;
         if ((a >> 8) >= OPbyte)
-            blow_up_errcode0(0);
+            abort(0);
         q = (a / OPbyte) >> 0;
         r = (a % OPbyte);
         set_lower_two_bytes_of_register(0, (q & 0xff) | (r << 8));
@@ -1520,10 +1676,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         a = (regs[0] << 16) >> 16;
         OPbyte = (OPbyte << 24) >> 24;
         if (OPbyte == 0)
-            blow_up_errcode0(0);
+            abort(0);
         q = (a / OPbyte) >> 0;
         if (((q << 24) >> 24) != q)
-            blow_up_errcode0(0);
+            abort(0);
         r = (a % OPbyte);
         set_lower_two_bytes_of_register(0, (q & 0xff) | (r << 8));
     }
@@ -1532,7 +1688,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         a = (regs[2] << 16) | (regs[0] & 0xffff);
         OPbyte &= 0xffff;
         if ((a >>> 16) >= OPbyte)
-            blow_up_errcode0(0);
+            abort(0);
         q = (a / OPbyte) >> 0;
         r = (a % OPbyte);
         set_lower_two_bytes_of_register(0, q);
@@ -1543,10 +1699,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         a = (regs[2] << 16) | (regs[0] & 0xffff);
         OPbyte = (OPbyte << 16) >> 16;
         if (OPbyte == 0)
-            blow_up_errcode0(0);
+            abort(0);
         q = (a / OPbyte) >> 0;
         if (((q << 16) >> 16) != q)
-            blow_up_errcode0(0);
+            abort(0);
         r = (a % OPbyte);
         set_lower_two_bytes_of_register(0, q);
         set_lower_two_bytes_of_register(2, r);
@@ -1557,7 +1713,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         Jc = Jc >>> 0;
         OPbyte = OPbyte >>> 0;
         if (Ic >= OPbyte) {
-            blow_up_errcode0(0);
+            abort(0);
         }
         if (Ic >= 0 && Ic <= 0x200000) {
             a = Ic * 4294967296 + Jc;
@@ -1599,11 +1755,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         Nc ^= Mc;
         if (Nc) {
             if ((q >>> 0) > 0x80000000)
-                blow_up_errcode0(0);
+                abort(0);
             q = (-q) >> 0;
         } else {
             if ((q >>> 0) >= 0x80000000)
-                blow_up_errcode0(0);
+                abort(0);
         }
         if (Mc) {
             v = (-v) >> 0;
@@ -2100,8 +2256,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function current_cycle_count() {
         return cpu.cycle_count + (N_cycles - cycles_left);
     }
-    function cpu_abort(na) {
-        throw "CPU abort: " + na;
+    function cpu_abort(str) {
+        throw "CPU abort: " + str;
     }
     function cpu_dump() {
         cpu.eip = eip;
@@ -2122,8 +2278,37 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         cpu.dump_short();
     }
 
-    /* Oh Noes! */
-    function blow_up(intno, error_code) {
+    /* Oh No You Didn't!
+       Identifier   Description
+       0            Divide error
+       1            Debug exceptions
+       2            Nonmaskable interrupt
+       3            Breakpoint (one-byte INT 3 instruction)
+       4            Overflow (INTO instruction)
+       5            Bounds check (BOUND instruction)
+       6            Invalid opcode
+       7            Coprocessor not available
+       8            Double fault
+       9            (reserved)
+       10           Invalid TSS
+       11           Segment not present
+       12           Stack exception
+       13           General protection
+       14           Page fault
+       15           (reserved)
+       16           Coprecessor error
+       17-31        (reserved)
+       32-255       Available for external interrupts via INTR pin
+
+       The identifiers of the maskable interrupts are determined by external
+       interrupt controllers (such as Intel's 8259A Programmable Interrupt
+       Controller) and communicated to the processor during the processor's
+       interrupt-acknowledge sequence. The numbers assigned by an 8259A PIC
+       can be specified by software. Any numbers in the range 32 through 255
+       can be used. Table 9-1 shows the assignment of interrupt and exception
+       identifiers.
+     */
+    function abort_with_error_code(intno, error_code) { //used only for errors 10,11,12,13,14
         cpu.cycle_count += (N_cycles - cycles_left);
         cpu.eip = eip;
         cpu.cc_src = _src;
@@ -2133,8 +2318,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         cpu.cc_dst2 = _dst2;
         throw {intno: intno, error_code: error_code};
     }
-    function blow_up_errcode0(intno) {
-        blow_up(intno, 0);
+    function abort(intno) { //used only for errors 0, 5, 6, 7, 13
+        abort_with_error_code(intno, 0);
     }
 
     function change_permission_level(sd) {
@@ -2221,7 +2406,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x65:
                     {
                         if ((n + 1) > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                         mem8_loc = (Nb + (n++)) >> 0;
                         OPbyte = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                     }
@@ -2234,7 +2419,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     }
                     {
                         if ((n + 1) > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                         mem8_loc = (Nb + (n++)) >> 0;
                         OPbyte = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                     }
@@ -2381,7 +2566,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xd5:
                     n++;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0xb8:
                 case 0xb9:
@@ -2405,7 +2590,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xe8:
                     n += Ed;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0x88:
                 case 0x89:
@@ -2472,7 +2657,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     {
                         {
                             if ((n + 1) > 15)
-                                blow_up_errcode0(6);
+                                abort(6);
                             mem8_loc = (Nb + (n++)) >> 0;
                             mem8 = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                         }
@@ -2494,7 +2679,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            blow_up_errcode0(6);
+                                            abort(6);
                                         mem8_loc = (Nb + (n++)) >> 0;
                                         Dd = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                     }
@@ -2539,7 +2724,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                         }
                         if (n > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break Fd;
                 case 0xa0:
@@ -2551,7 +2736,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     else
                         n += 4;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0xc6:
                 case 0x80:
@@ -2563,7 +2748,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     {
                         {
                             if ((n + 1) > 15)
-                                blow_up_errcode0(6);
+                                abort(6);
                             mem8_loc = (Nb + (n++)) >> 0;
                             mem8 = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                         }
@@ -2585,7 +2770,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            blow_up_errcode0(6);
+                                            abort(6);
                                         mem8_loc = (Nb + (n++)) >> 0;
                                         Dd = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                     }
@@ -2630,11 +2815,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                         }
                         if (n > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     n++;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0xc7:
                 case 0x81:
@@ -2642,7 +2827,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     {
                         {
                             if ((n + 1) > 15)
-                                blow_up_errcode0(6);
+                                abort(6);
                             mem8_loc = (Nb + (n++)) >> 0;
                             mem8 = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                         }
@@ -2664,7 +2849,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            blow_up_errcode0(6);
+                                            abort(6);
                                         mem8_loc = (Nb + (n++)) >> 0;
                                         Dd = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                     }
@@ -2709,17 +2894,17 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                         }
                         if (n > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     n += Ed;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0xf6:
                     {
                         {
                             if ((n + 1) > 15)
-                                blow_up_errcode0(6);
+                                abort(6);
                             mem8_loc = (Nb + (n++)) >> 0;
                             mem8 = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                         }
@@ -2741,7 +2926,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            blow_up_errcode0(6);
+                                            abort(6);
                                         mem8_loc = (Nb + (n++)) >> 0;
                                         Dd = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                     }
@@ -2786,20 +2971,20 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                         }
                         if (n > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     conditional_var = (mem8 >> 3) & 7;
                     if (conditional_var == 0) {
                         n++;
                         if (n > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break Fd;
                 case 0xf7:
                     {
                         {
                             if ((n + 1) > 15)
-                                blow_up_errcode0(6);
+                                abort(6);
                             mem8_loc = (Nb + (n++)) >> 0;
                             mem8 = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                         }
@@ -2821,7 +3006,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x04:
                                     {
                                         if ((n + 1) > 15)
-                                            blow_up_errcode0(6);
+                                            abort(6);
                                         mem8_loc = (Nb + (n++)) >> 0;
                                         Dd = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                     }
@@ -2866,40 +3051,40 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                         }
                         if (n > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     conditional_var = (mem8 >> 3) & 7;
                     if (conditional_var == 0) {
                         n += Ed;
                         if (n > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break Fd;
                 case 0xea:
                 case 0x9a:
                     n += 2 + Ed;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0xc2:
                 case 0xca:
                     n += 2;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0xc8:
                     n += 3;
                     if (n > 15)
-                        blow_up_errcode0(6);
+                        abort(6);
                     break Fd;
                 case 0xd6:
                 case 0xf1:
                 default:
-                    blow_up_errcode0(6);
+                    abort(6);
                 case 0x0f:
                     {
                         if ((n + 1) > 15)
-                            blow_up_errcode0(6);
+                            abort(6);
                         mem8_loc = (Nb + (n++)) >> 0;
                         OPbyte = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                     }
@@ -2938,7 +3123,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x8f:
                             n += Ed;
                             if (n > 15)
-                                blow_up_errcode0(6);
+                                abort(6);
                             break Fd;
                         case 0x90:
                         case 0x91:
@@ -3002,7 +3187,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             {
                                 {
                                     if ((n + 1) > 15)
-                                        blow_up_errcode0(6);
+                                        abort(6);
                                     mem8_loc = (Nb + (n++)) >> 0;
                                     mem8 = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                 }
@@ -3024,7 +3209,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                         case 0x04:
                                             {
                                                 if ((n + 1) > 15)
-                                                    blow_up_errcode0(6);
+                                                    abort(6);
                                                 mem8_loc = (Nb + (n++)) >> 0;
                                                 Dd = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                             }
@@ -3069,7 +3254,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     }
                                 }
                                 if (n > 15)
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break Fd;
                         case 0xa4:
@@ -3078,7 +3263,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             {
                                 {
                                     if ((n + 1) > 15)
-                                        blow_up_errcode0(6);
+                                        abort(6);
                                     mem8_loc = (Nb + (n++)) >> 0;
                                     mem8 = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                 }
@@ -3100,7 +3285,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                         case 0x04:
                                             {
                                                 if ((n + 1) > 15)
-                                                    blow_up_errcode0(6);
+                                                    abort(6);
                                                 mem8_loc = (Nb + (n++)) >> 0;
                                                 Dd = (((last_tlb_val = _tlb_read_[mem8_loc >>> 12]) == -1) ? __ld_8bits_mem8_read() : phys_mem8[mem8_loc ^ last_tlb_val]);
                                             }
@@ -3145,11 +3330,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     }
                                 }
                                 if (n > 15)
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             n++;
                             if (n > 15)
-                                blow_up_errcode0(6);
+                                abort(6);
                             break Fd;
                         case 0x04:
                         case 0x05:
@@ -3267,7 +3452,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0xc6:
                         case 0xc7:
                         default:
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break;
             }
@@ -3323,7 +3508,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             if (ja)
                 error_code |= 0x04;
             cpu.cr2 = Gd;
-            blow_up(14, error_code);
+            abort_with_error_code(14, error_code);
         }
     }
     function set_CR0(Qd) {
@@ -3411,14 +3596,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function ge(he) {
         var ie, Rb, je, ke, le;
         if (!(cpu.tr.flags & (1 << 15)))
-            cpu_abort("invalid tss");
+            cpu_abort("invalid tss");  //task state segment
         ie = (cpu.tr.flags >> 8) & 0xf;
         if ((ie & 7) != 1)
             cpu_abort("invalid tss type");
         je = ie >> 3;
         Rb = (he * 4 + 2) << je;
         if (Rb + (4 << je) - 1 > cpu.tr.limit)
-            blow_up(10, cpu.tr.selector & 0xfffc);
+            abort_with_error_code(10, cpu.tr.selector & 0xfffc);
         mem8_loc = (cpu.tr.base + Rb) & -1;
         if (je == 0) {
             le = ld16_mem8_kernel_read();
@@ -3455,7 +3640,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             ye = eip;
         sa = cpu.idt;
         if (intno * 8 + 7 > sa.limit)
-            blow_up(13, intno * 8 + 2);
+            abort_with_error_code(13, intno * 8 + 2);
         mem8_loc = (sa.base + intno * 8) & -1;
         Yd = ld32_mem8_kernel_read();
         mem8_loc += 4;
@@ -3470,64 +3655,64 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             case 15:
                 break;
             default:
-                blow_up(13, intno * 8 + 2);
+                abort_with_error_code(13, intno * 8 + 2);
                 break;
         }
         he = (Wd >> 13) & 3;
         se = cpu.cpl;
         if (ne && he < se)
-            blow_up(13, intno * 8 + 2);
+            abort_with_error_code(13, intno * 8 + 2);
         if (!(Wd & (1 << 15)))
-            blow_up(11, intno * 8 + 2);
+            abort_with_error_code(11, intno * 8 + 2);
         selector = Yd >> 16;
         ve = (Wd & -65536) | (Yd & 0x0000ffff);
         if ((selector & 0xfffc) == 0)
-            blow_up(13, 0);
+            abort_with_error_code(13, 0);
         e = Xd(selector);
         if (!e)
-            blow_up(13, selector & 0xfffc);
+            abort_with_error_code(13, selector & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         if (!(Wd & (1 << 12)) || !(Wd & ((1 << 11))))
-            blow_up(13, selector & 0xfffc);
+            abort_with_error_code(13, selector & 0xfffc);
         he = (Wd >> 13) & 3;
         if (he > se)
-            blow_up(13, selector & 0xfffc);
+            abort_with_error_code(13, selector & 0xfffc);
         if (!(Wd & (1 << 15)))
-            blow_up(11, selector & 0xfffc);
+            abort_with_error_code(11, selector & 0xfffc);
         if (!(Wd & (1 << 10)) && he < se) {
             e = ge(he);
             ke = e[0];
             le = e[1];
             if ((ke & 0xfffc) == 0)
-                blow_up(10, ke & 0xfffc);
+                abort_with_error_code(10, ke & 0xfffc);
             if ((ke & 3) != he)
-                blow_up(10, ke & 0xfffc);
+                abort_with_error_code(10, ke & 0xfffc);
             e = Xd(ke);
             if (!e)
-                blow_up(10, ke & 0xfffc);
+                abort_with_error_code(10, ke & 0xfffc);
             we = e[0];
             xe = e[1];
             re = (xe >> 13) & 3;
             if (re != he)
-                blow_up(10, ke & 0xfffc);
+                abort_with_error_code(10, ke & 0xfffc);
             if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
-                blow_up(10, ke & 0xfffc);
+                abort_with_error_code(10, ke & 0xfffc);
             if (!(xe & (1 << 15)))
-                blow_up(10, ke & 0xfffc);
+                abort_with_error_code(10, ke & 0xfffc);
             ue = 1;
             SS_mask = SS_mask_from_flags(xe);
             qe = ae(we, xe);
         } else if ((Wd & (1 << 10)) || he == se) {
             if (cpu.eflags & 0x00020000)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             ue = 0;
             SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
             qe = cpu.segs[2].base;
             le = regs[4];
             he = se;
         } else {
-            blow_up(13, selector & 0xfffc);
+            abort_with_error_code(13, selector & 0xfffc);
             ue = 0;
             SS_mask = 0;
             qe = 0;
@@ -3673,7 +3858,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var sa, qe, selector, ve, le, ye;
         sa = cpu.idt;
         if (intno * 4 + 3 > sa.limit)
-            blow_up(13, intno * 8 + 2);
+            abort_with_error_code(13, intno * 8 + 2);
         mem8_loc = (sa.base + (intno << 2)) >> 0;
         ve = ld16_mem8_kernel_read();
         mem8_loc = (mem8_loc + 2) >> 0;
@@ -3708,23 +3893,23 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         if (intno == 0x06) {
             var Be = eip;
             var Nb;
-            na = "do_interrupt: intno=" + _2_bytes_(intno) + " error_code=" + _4_bytes_(error_code) + " EIP=" + _4_bytes_(Be) + " ESP=" + _4_bytes_(regs[4]) + " EAX=" + _4_bytes_(regs[0]) + " EBX=" + _4_bytes_(regs[3]) + " ECX=" + _4_bytes_(regs[1]);
+            str = "do_interrupt: intno=" + _2_bytes_(intno) + " error_code=" + _4_bytes_(error_code) + " EIP=" + _4_bytes_(Be) + " ESP=" + _4_bytes_(regs[4]) + " EAX=" + _4_bytes_(regs[0]) + " EBX=" + _4_bytes_(regs[3]) + " ECX=" + _4_bytes_(regs[1]);
             if (intno == 0x0e) {
-                na += " CR2=" + _4_bytes_(cpu.cr2);
+                str += " CR2=" + _4_bytes_(cpu.cr2);
             }
-            console.log(na);
+            console.log(str);
             if (intno == 0x06) {
-                var na, i, n;
-                na = "Code:";
+                var str, i, n;
+                str = "Code:";
                 Nb = (Be + CS_base) >> 0;
                 n = 4096 - (Nb & 0xfff);
                 if (n > 15)
                     n = 15;
                 for (i = 0; i < n; i++) {
                     mem8_loc = (Nb + i) & -1;
-                    na += " " + _2_bytes_(ld_8bits_mem8_read());
+                    str += " " + _2_bytes_(ld_8bits_mem8_read());
                 }
-                console.log(na);
+                console.log(str);
             }
         }
         if (cpu.cr0 & (1 << 0)) {
@@ -3741,20 +3926,20 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             cpu.ldt.limit = 0;
         } else {
             if (selector & 0x4)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             sa = cpu.gdt;
             Rb = selector & ~7;
             De = 7;
             if ((Rb + De) > sa.limit)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             mem8_loc = (sa.base + Rb) & -1;
             Yd = ld32_mem8_kernel_read();
             mem8_loc += 4;
             Wd = ld32_mem8_kernel_read();
             if ((Wd & (1 << 12)) || ((Wd >> 8) & 0xf) != 2)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
-                blow_up(11, selector & 0xfffc);
+                abort_with_error_code(11, selector & 0xfffc);
             be(cpu.ldt, Yd, Wd);
         }
         cpu.ldt.selector = selector;
@@ -3768,21 +3953,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             cpu.tr.flags = 0;
         } else {
             if (selector & 0x4)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             sa = cpu.gdt;
             Rb = selector & ~7;
             De = 7;
             if ((Rb + De) > sa.limit)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             mem8_loc = (sa.base + Rb) & -1;
             Yd = ld32_mem8_kernel_read();
             mem8_loc += 4;
             Wd = ld32_mem8_kernel_read();
             ie = (Wd >> 8) & 0xf;
             if ((Wd & (1 << 12)) || (ie != 1 && ie != 9))
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
-                blow_up(11, selector & 0xfffc);
+                abort_with_error_code(11, selector & 0xfffc);
             be(cpu.tr, Yd, Wd);
             Wd |= (1 << 9);
             st32_mem8_kernel_write(Wd);
@@ -3794,7 +3979,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         se = cpu.cpl;
         if ((selector & 0xfffc) == 0) {
             if (Ge == 2)
-                blow_up(13, 0);
+                abort_with_error_code(13, 0);
             set_segment_vars(Ge, selector, 0, 0, 0);
         } else {
             if (selector & 0x4)
@@ -3803,33 +3988,33 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 sa = cpu.gdt;
             Rb = selector & ~7;
             if ((Rb + 7) > sa.limit)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             mem8_loc = (sa.base + Rb) & -1;
             Yd = ld32_mem8_kernel_read();
             mem8_loc += 4;
             Wd = ld32_mem8_kernel_read();
             if (!(Wd & (1 << 12)))
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             He = selector & 3;
             he = (Wd >> 13) & 3;
             if (Ge == 2) {
                 if ((Wd & (1 << 11)) || !(Wd & (1 << 9)))
-                    blow_up(13, selector & 0xfffc);
+                    abort_with_error_code(13, selector & 0xfffc);
                 if (He != se || he != se)
-                    blow_up(13, selector & 0xfffc);
+                    abort_with_error_code(13, selector & 0xfffc);
             } else {
                 if ((Wd & ((1 << 11) | (1 << 9))) == (1 << 11))
-                    blow_up(13, selector & 0xfffc);
+                    abort_with_error_code(13, selector & 0xfffc);
                 if (!(Wd & (1 << 11)) || !(Wd & (1 << 10))) {
                     if (he < se || he < He)
-                        blow_up(13, selector & 0xfffc);
+                        abort_with_error_code(13, selector & 0xfffc);
                 }
             }
             if (!(Wd & (1 << 15))) {
                 if (Ge == 2)
-                    blow_up(12, selector & 0xfffc);
+                    abort_with_error_code(12, selector & 0xfffc);
                 else
-                    blow_up(11, selector & 0xfffc);
+                    abort_with_error_code(11, selector & 0xfffc);
             }
             if (!(Wd & (1 << 8))) {
                 Wd |= (1 << 8);
@@ -3860,32 +4045,32 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function Me(Ke, Le) {
         var Ne, ie, Yd, Wd, se, he, He, limit, e;
         if ((Ke & 0xfffc) == 0)
-            blow_up(13, 0);
+            abort_with_error_code(13, 0);
         e = Xd(Ke);
         if (!e)
-            blow_up(13, Ke & 0xfffc);
+            abort_with_error_code(13, Ke & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         se = cpu.cpl;
         if (Wd & (1 << 12)) {
             if (!(Wd & (1 << 11)))
-                blow_up(13, Ke & 0xfffc);
+                abort_with_error_code(13, Ke & 0xfffc);
             he = (Wd >> 13) & 3;
             if (Wd & (1 << 10)) {
                 if (he > se)
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
             } else {
                 He = Ke & 3;
                 if (He > se)
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
                 if (he != se)
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
             }
             if (!(Wd & (1 << 15)))
-                blow_up(11, Ke & 0xfffc);
+                abort_with_error_code(11, Ke & 0xfffc);
             limit = Zd(Yd, Wd);
             if ((Le >>> 0) > (limit >>> 0))
-                blow_up(13, Ke & 0xfffc);
+                abort_with_error_code(13, Ke & 0xfffc);
             set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
             eip = Le, mem_ptr = initial_mem_ptr = 0;
         } else {
@@ -3950,30 +4135,30 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var x, limit, Ue;
         var qe, Ve, We;
         if ((Ke & 0xfffc) == 0)
-            blow_up(13, 0);
+            abort_with_error_code(13, 0);
         e = Xd(Ke);
         if (!e)
-            blow_up(13, Ke & 0xfffc);
+            abort_with_error_code(13, Ke & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         se = cpu.cpl;
         We = regs[4];
         if (Wd & (1 << 12)) {
             if (!(Wd & (1 << 11)))
-                blow_up(13, Ke & 0xfffc);
+                abort_with_error_code(13, Ke & 0xfffc);
             he = (Wd >> 13) & 3;
             if (Wd & (1 << 10)) {
                 if (he > se)
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
             } else {
                 He = Ke & 3;
                 if (He > se)
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
                 if (he != se)
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
             }
             if (!(Wd & (1 << 15)))
-                blow_up(11, Ke & 0xfffc);
+                abort_with_error_code(11, Ke & 0xfffc);
             {
                 Te = We;
                 SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
@@ -4003,7 +4188,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 }
                 limit = Zd(Yd, Wd);
                 if (Le > limit)
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
                 regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
                 set_segment_vars(1, (Ke & 0xfffc) | se, ae(Yd, Wd), limit, Wd);
                 eip = Le, mem_ptr = initial_mem_ptr = 0;
@@ -4022,51 +4207,51 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 12:
                     break;
                 default:
-                    blow_up(13, Ke & 0xfffc);
+                    abort_with_error_code(13, Ke & 0xfffc);
                     break;
             }
             je = ie >> 3;
             if (he < se || he < He)
-                blow_up(13, Ke & 0xfffc);
+                abort_with_error_code(13, Ke & 0xfffc);
             if (!(Wd & (1 << 15)))
-                blow_up(11, Ke & 0xfffc);
+                abort_with_error_code(11, Ke & 0xfffc);
             selector = Yd >> 16;
             ve = (Wd & 0xffff0000) | (Yd & 0x0000ffff);
             Se = Wd & 0x1f;
             if ((selector & 0xfffc) == 0)
-                blow_up(13, 0);
+                abort_with_error_code(13, 0);
             e = Xd(selector);
             if (!e)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             Yd = e[0];
             Wd = e[1];
             if (!(Wd & (1 << 12)) || !(Wd & ((1 << 11))))
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             he = (Wd >> 13) & 3;
             if (he > se)
-                blow_up(13, selector & 0xfffc);
+                abort_with_error_code(13, selector & 0xfffc);
             if (!(Wd & (1 << 15)))
-                blow_up(11, selector & 0xfffc);
+                abort_with_error_code(11, selector & 0xfffc);
             if (!(Wd & (1 << 10)) && he < se) {
                 e = ge(he);
                 ke = e[0];
                 Te = e[1];
                 if ((ke & 0xfffc) == 0)
-                    blow_up(10, ke & 0xfffc);
+                    abort_with_error_code(10, ke & 0xfffc);
                 if ((ke & 3) != he)
-                    blow_up(10, ke & 0xfffc);
+                    abort_with_error_code(10, ke & 0xfffc);
                 e = Xd(ke);
                 if (!e)
-                    blow_up(10, ke & 0xfffc);
+                    abort_with_error_code(10, ke & 0xfffc);
                 we = e[0];
                 xe = e[1];
                 re = (xe >> 13) & 3;
                 if (re != he)
-                    blow_up(10, ke & 0xfffc);
+                    abort_with_error_code(10, ke & 0xfffc);
                 if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
-                    blow_up(10, ke & 0xfffc);
+                    abort_with_error_code(10, ke & 0xfffc);
                 if (!(xe & (1 << 15)))
-                    blow_up(10, ke & 0xfffc);
+                    abort_with_error_code(10, ke & 0xfffc);
                 Ue = SS_mask_from_flags(cpu.segs[2].flags);
                 Ve = cpu.segs[2].base;
                 SS_mask = SS_mask_from_flags(xe);
@@ -4302,28 +4487,28 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             }
         }
         if ((Ke & 0xfffc) == 0)
-            blow_up(13, Ke & 0xfffc);
+            abort_with_error_code(13, Ke & 0xfffc);
         e = Xd(Ke);
         if (!e)
-            blow_up(13, Ke & 0xfffc);
+            abort_with_error_code(13, Ke & 0xfffc);
         Yd = e[0];
         Wd = e[1];
         if (!(Wd & (1 << 12)) || !(Wd & (1 << 11)))
-            blow_up(13, Ke & 0xfffc);
+            abort_with_error_code(13, Ke & 0xfffc);
         se = cpu.cpl;
         He = Ke & 3;
         if (He < se)
-            blow_up(13, Ke & 0xfffc);
+            abort_with_error_code(13, Ke & 0xfffc);
         he = (Wd >> 13) & 3;
         if (Wd & (1 << 10)) {
             if (he > He)
-                blow_up(13, Ke & 0xfffc);
+                abort_with_error_code(13, Ke & 0xfffc);
         } else {
             if (he != He)
-                blow_up(13, Ke & 0xfffc);
+                abort_with_error_code(13, Ke & 0xfffc);
         }
         if (!(Wd & (1 << 15)))
-            blow_up(11, Ke & 0xfffc);
+            abort_with_error_code(11, Ke & 0xfffc);
         Te = (Te + cf) & -1;
         if (He == se) {
             set_segment_vars(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
@@ -4353,22 +4538,22 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 }
             }
             if ((gf & 0xfffc) == 0) {
-                blow_up(13, 0);
+                abort_with_error_code(13, 0);
             } else {
                 if ((gf & 3) != He)
-                    blow_up(13, gf & 0xfffc);
+                    abort_with_error_code(13, gf & 0xfffc);
                 e = Xd(gf);
                 if (!e)
-                    blow_up(13, gf & 0xfffc);
+                    abort_with_error_code(13, gf & 0xfffc);
                 we = e[0];
                 xe = e[1];
                 if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
-                    blow_up(13, gf & 0xfffc);
+                    abort_with_error_code(13, gf & 0xfffc);
                 he = (xe >> 13) & 3;
                 if (he != He)
-                    blow_up(13, gf & 0xfffc);
+                    abort_with_error_code(13, gf & 0xfffc);
                 if (!(xe & (1 << 15)))
-                    blow_up(11, gf & 0xfffc);
+                    abort_with_error_code(11, gf & 0xfffc);
                 set_segment_vars(2, gf, ae(we, xe), Zd(we, xe), xe);
             }
             set_segment_vars(1, Ke, ae(Yd, Wd), Zd(Yd, Wd), Wd);
@@ -4401,7 +4586,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
             if (cpu.eflags & 0x00020000) {
                 iopl = (cpu.eflags >> 12) & 3;
                 if (iopl != 3)
-                    blow_up_errcode0(13);
+                    abort(13);
             }
             af(je, 1, 0);
         } else {
@@ -4467,7 +4652,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function qf(je, pf) {
         var x, mem8, register_1, selector;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
-            blow_up_errcode0(6);
+            abort(6);
         mem8 = phys_mem8[mem_ptr++];
         register_1 = (mem8 >> 3) & 7;
         if ((mem8 >> 6) == 3) {
@@ -4537,7 +4722,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function tf() {
         var mem8, x, y, register_0;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
-            blow_up_errcode0(6);
+            abort(6);
         mem8 = phys_mem8[mem_ptr++];
         if ((mem8 >> 6) == 3) {
             register_0 = mem8 & 7;
@@ -4584,7 +4769,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
     function vf(base) {
         var wf, xf;
         if (base == 0)
-            blow_up_errcode0(0);
+            abort(0);
         wf = regs[0] & 0xff;
         xf = (wf / base) & -1;
         wf = (wf % base);
@@ -4694,7 +4879,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var mem8, x, y, z;
         mem8 = phys_mem8[mem_ptr++];
         if ((mem8 >> 3) == 3)
-            blow_up_errcode0(6);
+            abort(6);
         mem8_loc = giant_get_mem8_loc_func(mem8);
         x = ld_32bits_mem8_read();
         mem8_loc = (mem8_loc + 4) & -1;
@@ -4702,13 +4887,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         register_1 = (mem8 >> 3) & 7;
         z = regs[register_1];
         if (z < x || z > y)
-            blow_up_errcode0(5);
+            abort(5);
     }
     function If() {
         var mem8, x, y, z;
         mem8 = phys_mem8[mem_ptr++];
         if ((mem8 >> 3) == 3)
-            blow_up_errcode0(6);
+            abort(6);
         mem8_loc = giant_get_mem8_loc_func(mem8);
         x = (ld_16bits_mem8_read() << 16) >> 16;
         mem8_loc = (mem8_loc + 2) & -1;
@@ -4716,7 +4901,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         register_1 = (mem8 >> 3) & 7;
         z = (regs[register_1] << 16) >> 16;
         if (z < x || z > y)
-            blow_up_errcode0(5);
+            abort(5);
     }
     function Jf() {
         var x, y, register_1;
@@ -4856,7 +5041,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var x, y, mem8;
         mem8 = phys_mem8[mem_ptr++];
         if ((mem8 >> 3) == 3)
-            blow_up_errcode0(6);
+            abort(6);
         mem8_loc = giant_get_mem8_loc_func(mem8);
         x = ld_32bits_mem8_read();
         mem8_loc += 4;
@@ -4868,7 +5053,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var x, y, mem8;
         mem8 = phys_mem8[mem_ptr++];
         if ((mem8 >> 3) == 3)
-            blow_up_errcode0(6);
+            abort(6);
         mem8_loc = giant_get_mem8_loc_func(mem8);
         x = ld_16bits_mem8_read();
         mem8_loc += 2;
@@ -4880,7 +5065,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var Xf, Yf, Zf, ag, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
-            blow_up_errcode0(13);
+            abort(13);
         if (CS_flags & 0x0080)
             Xf = 0xffff;
         else
@@ -4909,7 +5094,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var Xf, cg, Sb, ag, Zf, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
-            blow_up_errcode0(13);
+            abort(13);
         if (CS_flags & 0x0080)
             Xf = 0xffff;
         else
@@ -5108,7 +5293,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var Xf, Yf, Zf, ag, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
-            blow_up_errcode0(13);
+            abort(13);
         if (CS_flags & 0x0080)
             Xf = 0xffff;
         else
@@ -5137,7 +5322,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var Xf, cg, Sb, ag, Zf, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
-            blow_up_errcode0(13);
+            abort(13);
         if (CS_flags & 0x0080)
             Xf = 0xffff;
         else
@@ -5336,7 +5521,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var Xf, Yf, Zf, ag, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
-            blow_up_errcode0(13);
+            abort(13);
         if (CS_flags & 0x0080)
             Xf = 0xffff;
         else
@@ -5365,7 +5550,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
         var Xf, cg, Sb, ag, Zf, iopl, x;
         iopl = (cpu.eflags >> 12) & 3;
         if (cpu.cpl > iopl)
-            blow_up_errcode0(13);
+            abort(13);
         if (CS_flags & 0x0080)
             Xf = 0xffff;
         else
@@ -5924,7 +6109,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     mem8 = phys_mem8[mem_ptr++];
                     register_1 = (mem8 >> 3) & 7;
                     if (register_1 >= 6 || register_1 == 1)
-                        blow_up_errcode0(6);
+                        abort(6);
                     if ((mem8 >> 6) == 3) {
                         x = regs[mem8 & 7] & 0xffff;
                     } else {
@@ -5937,7 +6122,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     mem8 = phys_mem8[mem_ptr++];
                     register_1 = (mem8 >> 3) & 7;
                     if (register_1 >= 6)
-                        blow_up_errcode0(6);
+                        abort(6);
                     x = cpu.segs[register_1].selector;
                     if ((mem8 >> 6) == 3) {
                         if ((((CS_flags >> 8) & 1) ^ 1)) {
@@ -6449,7 +6634,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             Ec(x);
                             break;
                         default:
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break Fd;
                 case 0xf7://TEST Evqp  Logical Compare
@@ -6535,7 +6720,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             regs[2] = v;
                             break;
                         default:
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break Fd;
                 //Rotate and Shift ops ---------------------------------------------------------------
@@ -6734,7 +6919,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x9c://PUSHF Flags SS:[rSP] Push FLAGS Register onto the Stack
                     iopl = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && iopl != 3)
-                        blow_up_errcode0(13);
+                        abort(13);
                     x = id() & ~(0x00020000 | 0x00010000);
                     if ((((CS_flags >> 8) & 1) ^ 1)) {
                         xd(x);
@@ -6745,7 +6930,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x9d://POPF SS:[rSP] Flags Pop Stack into FLAGS Register
                     iopl = (cpu.eflags >> 12) & 3;
                     if ((cpu.eflags & 0x00020000) && iopl != 3)
-                        blow_up_errcode0(13);
+                        abort(13);
                     if ((((CS_flags >> 8) & 1) ^ 1)) {
                         x = Ad();
                         Bd();
@@ -6783,7 +6968,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0x8d://LEA M Gvqp Load Effective Address
                     mem8 = phys_mem8[mem_ptr++];
                     if ((mem8 >> 6) == 3)
-                        blow_up_errcode0(6);
+                        abort(6);
                     CS_flags = (CS_flags & ~0x000f) | (6 + 1);
                     regs[(mem8 >> 3) & 7] = giant_get_mem8_loc_func(mem8);
                     break Fd;
@@ -6814,7 +6999,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             }
                             break;
                         default:
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break Fd;
                 case 0xff://INC  Evqp Increment by 1
@@ -6915,7 +7100,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 3:
                         case 5:
                             if ((mem8 >> 6) == 3)
-                                blow_up_errcode0(6);
+                                abort(6);
                             mem8_loc = giant_get_mem8_loc_func(mem8);
                             x = ld_32bits_mem8_read();
                             mem8_loc = (mem8_loc + 4) >> 0;
@@ -6926,7 +7111,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 Oe(y, x);
                             break;
                         default:
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break Fd;
                 case 0xeb://JMP Jbs  Jump
@@ -7199,7 +7384,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xcd://INT Ib SS:[rSP] Call to Interrupt Procedure
                     x = phys_mem8[mem_ptr++];
                     if ((cpu.eflags & 0x00020000) && ((cpu.eflags >> 12) & 3) != 3)
-                        blow_up_errcode0(13);
+                        abort(13);
                     y = (eip + mem_ptr - initial_mem_ptr);
                     Ae(x, 1, 0, y, 0);
                     break Fd;
@@ -7236,13 +7421,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xfa://CLI   Clear Interrupt Flag
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     cpu.eflags &= ~0x00000200;
                     break Fd;
                 case 0xfb://STI   Set Interrupt Flag
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     cpu.eflags |= 0x00000200;
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7260,7 +7445,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0xf4://HLT   Halt
                     if (cpu.cpl != 0)
-                        blow_up_errcode0(13);
+                        abort(13);
                     cpu.halted = 1;
                     exit_code = 257;
                     break Bg;
@@ -7331,7 +7516,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xde://FIADD Mwi ST Add
                 case 0xdf://FILD Mwi ST Load Integer
                     if (cpu.cr0 & ((1 << 2) | (1 << 3))) {
-                        blow_up_errcode0(7);
+                        abort(7);
                     }
                     mem8 = phys_mem8[mem_ptr++];
                     register_1 = (mem8 >> 3) & 7;
@@ -7348,7 +7533,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xe4://IN Ib AL Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     x = phys_mem8[mem_ptr++];
                     set_either_two_bytes_of_reg_ABCD(0, cpu.ld8_port(x));
                     {
@@ -7359,7 +7544,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xe5://IN Ib eAX Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     x = phys_mem8[mem_ptr++];
                     regs[0] = cpu.ld32_port(x);
                     {
@@ -7370,7 +7555,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xe6://OUT AL Ib Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     x = phys_mem8[mem_ptr++];
                     cpu.st8_port(x, regs[0] & 0xff);
                     {
@@ -7381,7 +7566,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xe7://OUT eAX Ib Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     x = phys_mem8[mem_ptr++];
                     cpu.st32_port(x, regs[0]);
                     {
@@ -7392,7 +7577,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xec://IN DX AL Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     set_either_two_bytes_of_reg_ABCD(0, cpu.ld8_port(regs[2] & 0xffff));
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7402,7 +7587,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xed://IN DX eAX Input from Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     regs[0] = cpu.ld32_port(regs[2] & 0xffff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7412,7 +7597,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xee://OUT AL DX Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     cpu.st8_port(regs[2] & 0xffff, regs[0] & 0xff);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7422,7 +7607,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                 case 0xef://OUT eAX DX Output to Port
                     iopl = (cpu.eflags >> 12) & 3;
                     if (cpu.cpl > iopl)
-                        blow_up_errcode0(13);
+                        abort(13);
                     cpu.st32_port(regs[2] & 0xffff, regs[0]);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -7454,7 +7639,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                     break Fd;
                 case 0xd6://SALC   Undefined and Reserved; Does not Generate #UD
                 case 0xf1://INT1   Undefined and Reserved; Does not Generate #UD
-                    blow_up_errcode0(6);
+                    abort(6);
                     break;
 
                 /*
@@ -7586,7 +7771,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Fd;
                         case 0x00://SLDT LDTR Mw Store Local Descriptor Table Register
                             if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
-                                blow_up_errcode0(6);
+                                abort(6);
                             mem8 = phys_mem8[mem_ptr++];
                             conditional_var = (mem8 >> 3) & 7;
                             switch (conditional_var) {
@@ -7606,7 +7791,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 2:
                                 case 3:
                                     if (cpu.cpl != 0)
-                                        blow_up_errcode0(13);
+                                        abort(13);
                                     if ((mem8 >> 6) == 3) {
                                         x = regs[mem8 & 7] & 0xffff;
                                     } else {
@@ -7629,7 +7814,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     sf(x, conditional_var & 1);
                                     break;
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break Fd;
                         case 0x01://SGDT GDTR Ms Store Global Descriptor Table Register
@@ -7639,9 +7824,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 2:
                                 case 3:
                                     if ((mem8 >> 6) == 3)
-                                        blow_up_errcode0(6);
+                                        abort(6);
                                     if (this.cpl != 0)
-                                        blow_up_errcode0(13);
+                                        abort(13);
                                     mem8_loc = giant_get_mem8_loc_func(mem8);
                                     x = ld_16bits_mem8_read();
                                     mem8_loc += 2;
@@ -7656,14 +7841,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     break;
                                 case 7:
                                     if (this.cpl != 0)
-                                        blow_up_errcode0(13);
+                                        abort(13);
                                     if ((mem8 >> 6) == 3)
-                                        blow_up_errcode0(6);
+                                        abort(6);
                                     mem8_loc = giant_get_mem8_loc_func(mem8);
                                     cpu.tlb_flush_page(mem8_loc & -4096);
                                     break;
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break Fd;
                         case 0x02://LAR Mw Gvqp Load Access Rights Byte
@@ -7672,10 +7857,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Fd;
                         case 0x20://MOV Cd Rd Move to/from Control Registers
                             if (cpu.cpl != 0)
-                                blow_up_errcode0(13);
+                                abort(13);
                             mem8 = phys_mem8[mem_ptr++];
                             if ((mem8 >> 6) != 3)
-                                blow_up_errcode0(6);
+                                abort(6);
                             register_1 = (mem8 >> 3) & 7;
                             switch (register_1) {
                                 case 0:
@@ -7691,16 +7876,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     x = cpu.cr4;
                                     break;
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             regs[mem8 & 7] = x;
                             break Fd;
                         case 0x22://MOV Rd Cd Move to/from Control Registers
                             if (cpu.cpl != 0)
-                                blow_up_errcode0(13);
+                                abort(13);
                             mem8 = phys_mem8[mem_ptr++];
                             if ((mem8 >> 6) != 3)
-                                blow_up_errcode0(6);
+                                abort(6);
                             register_1 = (mem8 >> 3) & 7;
                             x = regs[mem8 & 7];
                             switch (register_1) {
@@ -7717,24 +7902,24 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     set_CR4(x);
                                     break;
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break Fd;
                         case 0x06://CLTS  CR0 Clear Task-Switched Flag in CR0
                             if (cpu.cpl != 0)
-                                blow_up_errcode0(13);
+                                abort(13);
                             set_CR0(cpu.cr0 & ~(1 << 3)); //Clear Task-Switched Flag in CR0
                             break Fd;
                         case 0x23://MOV Rd Dd Move to/from Debug Registers
                             if (cpu.cpl != 0)
-                                blow_up_errcode0(13);
+                                abort(13);
                             mem8 = phys_mem8[mem_ptr++];
                             if ((mem8 >> 6) != 3)
-                                blow_up_errcode0(6);
+                                abort(6);
                             register_1 = (mem8 >> 3) & 7;
                             x = regs[mem8 & 7];
                             if (register_1 == 4 || register_1 == 5)
-                                blow_up_errcode0(6);
+                                abort(6);
                             break Fd;
                         case 0xb2://LSS Mptp SS Load Far Pointer
                         case 0xb4://LFS Mptp FS Load Far Pointer
@@ -7833,7 +8018,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     }
                                     break;
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break Fd;
                         case 0xa3://BT Evqp  Bit Test
@@ -7893,7 +8078,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                             break Fd;
                         case 0x31://RDTSC IA32_TIME_STAMP_COUNTER EAX Read Time-Stamp Counter
                             if ((cpu.cr4 & (1 << 2)) && cpu.cpl != 0)
-                                blow_up_errcode0(13);
+                                abort(13);
                             x = current_cycle_count();
                             regs[0] = x >>> 0;
                             regs[2] = (x / 0x100000000) >>> 0;
@@ -8164,7 +8349,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0xfe://PADDD Qq Pq Add Packed Integers
                         case 0xff:
                         default:
-                            blow_up_errcode0(6);
+                            abort(6);
                     }
                     break;
                 default:
@@ -8495,7 +8680,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                     Gc(x);
                                     break;
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break Fd;
                         case 0x1c1:
@@ -8622,7 +8807,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x18d:
                             mem8 = phys_mem8[mem_ptr++];
                             if ((mem8 >> 6) == 3)
-                                blow_up_errcode0(6);
+                                abort(6);
                             CS_flags = (CS_flags & ~0x000f) | (6 + 1);
                             set_lower_two_bytes_of_register((mem8 >> 3) & 7, giant_get_mem8_loc_func(mem8));
                             break Fd;
@@ -8683,7 +8868,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 3:
                                 case 5:
                                     if ((mem8 >> 6) == 3)
-                                        blow_up_errcode0(6);
+                                        abort(6);
                                     mem8_loc = giant_get_mem8_loc_func(mem8);
                                     x = ld_16bits_mem8_read();
                                     mem8_loc = (mem8_loc + 2) >> 0;
@@ -8694,7 +8879,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                         Oe(y, x);
                                     break;
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break Fd;
                         case 0x1eb:
@@ -8777,7 +8962,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x1e5:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
-                                blow_up_errcode0(13);
+                                abort(13);
                             x = phys_mem8[mem_ptr++];
                             set_lower_two_bytes_of_register(0, cpu.ld16_port(x));
                             {
@@ -8788,7 +8973,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x1e7:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
-                                blow_up_errcode0(13);
+                                abort(13);
                             x = phys_mem8[mem_ptr++];
                             cpu.st16_port(x, regs[0] & 0xffff);
                             {
@@ -8799,7 +8984,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x1ed:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
-                                blow_up_errcode0(13);
+                                abort(13);
                             set_lower_two_bytes_of_register(0, cpu.ld16_port(regs[2] & 0xffff));
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -8809,7 +8994,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x1ef:
                             iopl = (cpu.eflags >> 12) & 3;
                             if (cpu.cpl > iopl)
-                                blow_up_errcode0(13);
+                                abort(13);
                             cpu.st16_port(regs[2] & 0xffff, regs[0] & 0xffff);
                             {
                                 if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
@@ -8933,7 +9118,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                         case 0x1d6:
                         case 0x1f1:
                         default:
-                            blow_up_errcode0(6);
+                            abort(6);
                         case 0x10f:
                             OPbyte = phys_mem8[mem_ptr++];
                             OPbyte |= 0x0100;
@@ -9114,7 +9299,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                             }
                                             break;
                                         default:
-                                            blow_up_errcode0(6);
+                                            abort(6);
                                     }
                                     break Fd;
                                 case 0x1a3:
@@ -9329,7 +9514,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, va) {
                                 case 0x1bf:
                                 case 0x1c0:
                                 default:
-                                    blow_up_errcode0(6);
+                                    abort(6);
                             }
                             break;
                     }
@@ -9428,5 +9613,8 @@ CPU_X86.prototype.load_binary = function(Gg, mem8_loc) {
     }
     return tg;
 };
+
+
+
 
 
