@@ -3,7 +3,7 @@ Fabrix - An annotated version of the original JSLinux which is Copyright (c) 201
 
 PIT Emulator
 */
-function PIT(Ng, ah, bh) {
+function PIT(PC, ah, bh) {
     var s, i;
     this.pit_channels = new Array();
     for (i = 0; i < 3; i++) {
@@ -15,10 +15,10 @@ function PIT(Ng, ah, bh) {
     }
     this.speaker_data_on = 0;
     this.set_irq = ah;
-    Ng.register_ioport_write(0x40, 4, 1, this.ioport_write.bind(this));
-    Ng.register_ioport_read(0x40, 3, 1, this.ioport_read.bind(this));
-    Ng.register_ioport_read(0x61, 1, 1, this.speaker_ioport_read.bind(this));
-    Ng.register_ioport_write(0x61, 1, 1, this.speaker_ioport_write.bind(this));
+    PC.register_ioport_write(0x40, 4, 1, this.ioport_write.bind(this));
+    PC.register_ioport_read(0x40, 3, 1, this.ioport_read.bind(this));
+    PC.register_ioport_read(0x61, 1, 1, this.speaker_ioport_read.bind(this));
+    PC.register_ioport_write(0x61, 1, 1, this.speaker_ioport_write.bind(this));
 }
 
 
@@ -214,3 +214,4 @@ PIT.prototype.update_irq = function() {
     this.set_irq(1);
     this.set_irq(0);
 };
+

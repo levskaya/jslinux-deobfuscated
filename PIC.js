@@ -3,9 +3,9 @@ Fabrix - An annotated version of the original JSLinux which is Copyright (c) 201
 
 8259 PIC (Programmable Interrupt Controller) Emulation Code
 */
-function PIC(Ng, Zf) {
-    Ng.register_ioport_write(Zf, 2, 1, this.ioport_write.bind(this));
-    Ng.register_ioport_read(Zf, 2, 1, this.ioport_read.bind(this));
+function PIC(PC, port_num) {
+    PC.register_ioport_write(port_num, 2, 1, this.ioport_write.bind(this));
+    PC.register_ioport_read(port_num, 2, 1, this.ioport_read.bind(this));
     this.reset();
 }
 PIC.prototype.reset = function() {
@@ -173,10 +173,10 @@ PIC.prototype.ioport_read = function(Ug) {
 };
 
 
-function PIC_Controller(Ng, Wg, Ug, Xg) {
+function PIC_Controller(PC, Wg, Ug, Xg) {
     this.pics = new Array();
-    this.pics[0] = new PIC(Ng, Wg);
-    this.pics[1] = new PIC(Ng, Ug);
+    this.pics[0] = new PIC(PC, Wg);
+    this.pics[1] = new PIC(PC, Ug);
     this.pics[0].elcr_mask = 0xf8;
     this.pics[1].elcr_mask = 0xde;
     this.irq_requested = 0;
@@ -226,3 +226,5 @@ PIC_Controller.prototype.get_hard_intno = function() {
     this.update_irq();
     return intno;
 };
+
+
