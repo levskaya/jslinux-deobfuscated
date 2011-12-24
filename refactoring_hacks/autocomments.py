@@ -67,19 +67,29 @@ outfile.close()
 
 # now transform source file --------------------------------------------------------------------------------
 
+# - for weird exec counting function
+caseline = re.compile("(                        case )(0x[0-9a-f]+):.*")
+def strip_1(str):
+    return str
+onebyte_start = 3176
+twobyte_start = 3177
+twobyte_end = 3546
+
 # - for normal instruction format: 0xXX
 #caseline = re.compile("(\s+case )(0x[0-9a-f]+):.*")
+#def strip_1(str):
+#    return str
 #onebyte_start = 5662
 #twobyte_start = 7551
 #twobyte_end = 8291
 
 # - for 16bit compat instruction format: 0x1XX
-caseline = re.compile("(\s+case )(0x1[0-9a-f]+):.*")
-def strip_1(str):
-    return "0x"+str[-2:]
-onebyte_start = 8472
-twobyte_start = 9245
-twobyte_end = 9647
+#caseline = re.compile("(\s+case )(0x1[0-9a-f]+):.*")
+#def strip_1(str):
+#    return "0x"+str[-2:]
+#onebyte_start = 8472
+#twobyte_start = 9245
+#twobyte_end = 9647
 
 emulatorlines = open("cpux86-ta.js","r").readlines()
 newlines=[]
