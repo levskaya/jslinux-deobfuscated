@@ -65,33 +65,46 @@ outfile=open("twobyte_dict.json",'w')
 json.dump(twodict,outfile)
 outfile.close()
 
-# now transform source file
-caseline = re.compile("(\s+case )(0x[0-9a-f]+):.*")
+# now transform source file --------------------------------------------------------------------------------
+
+# - for normal instruction format: 0xXX
+#caseline = re.compile("(\s+case )(0x[0-9a-f]+):.*")
+#onebyte_start = 5662
+#twobyte_start = 7551
+#twobyte_end = 8291
+
+# - for 16bit compat instruction format: 0x1XX
+caseline = re.compile("(\s+case )(0x1[0-9a-f]+):.*")
+def strip_1(str):
+    return "0x"+str[-2:]
+onebyte_start = 8472
+twobyte_start = 9245
+twobyte_end = 9647
 
 emulatorlines = open("cpux86-ta.js","r").readlines()
 newlines=[]
 for i,line in enumerate(emulatorlines):
-    if i< 5662:
+    if i < onebyte_start:
         newlines.append(line)
-    if 5662<=i<7551: #one-byte instructions
+    if onebyte_start <= i < twobyte_start: #one-byte instructions
         linematch=caseline.match(line)
         if linematch:
             try:
-                newlines.append(linematch.group(1)+linematch.group(2)+"://"+onedict[linematch.group(2)]+"\n")
+                newlines.append(linematch.group(1)+linematch.group(2)+"://"+onedict[strip_1(linematch.group(2))]+"\n")
             except KeyError:
                 newlines.append(line)
         else:
             newlines.append(line)
-    if 7551<=i<8291: #two-byte instructions
+    if twobyte_start <= i < twobyte_end: #two-byte instructions
         linematch=caseline.match(line)
         if linematch:
             try:
-                newlines.append(linematch.group(1)+linematch.group(2)+"://"+twodict[linematch.group(2)]+"\n")
+                newlines.append(linematch.group(1)+linematch.group(2)+"://"+twodict[strip_1(linematch.group(2))]+"\n")
             except KeyError:
                 newlines.append(line)
         else:
             newlines.append(line)
-    if 8291<=i:
+    if twobyte_end <= i:
         newlines.append(line)
 
 outfile=open("cpux86-ta-auto-annotated.js",'w')
