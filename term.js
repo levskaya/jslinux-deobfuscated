@@ -1,4 +1,4 @@
- /* 
+ /*
    Javascript Terminal
 
    Copyright (c) 2011 Fabrice Bellard
@@ -185,7 +185,7 @@ Term.prototype.scroll_disp = function(n) {
     }
     this.refresh(0, this.h - 1);
 };
-Term.prototype.write = function(ua) {
+Term.prototype.write = function(char) {
     function va(y) {
         ka = Math.min(ka, y);
         la = Math.max(la, y);
@@ -230,8 +230,8 @@ Term.prototype.write = function(ua) {
         ka = 0;
         la = this.h - 1;
     }
-    for (i = 0; i < ua.length; i++) {
-        c = ua.charCodeAt(i);
+    for (i = 0; i < char.length; i++) {
+        c = char.charCodeAt(i);
         switch (this.state) {
             case za:
                 switch (c) {
@@ -382,109 +382,109 @@ Term.prototype.write = function(ua) {
     if (la >= ka)
         this.refresh(ka, la);
 };
-Term.prototype.writeln = function(ua) {
-    this.write(ua + '\r\n');
+Term.prototype.writeln = function(char) {
+    this.write(char + '\r\n');
 };
-Term.prototype.keyDownHandler = function(Da) {
-    var ua;
-    ua = "";
-    switch (Da.keyCode) {
+Term.prototype.keyDownHandler = function(event) {
+    var char;
+    char = "";
+    switch (event.keyCode) {
         case 8:
-            ua = "";
+            char = "";
             break;
         case 9:
-            ua = "\t";
+            char = "\t";
             break;
         case 13:
-            ua = "\r";
+            char = "\r";
             break;
         case 27:
-            ua = "\x1b";
+            char = "\x1b";
             break;
         case 37:
-            ua = "\x1b[D";
+            char = "\x1b[D";
             break;
         case 39:
-            ua = "\x1b[C";
+            char = "\x1b[C";
             break;
         case 38:
-            if (Da.ctrlKey) {
+            if (event.ctrlKey) {
                 this.scroll_disp(-1);
             } else {
-                ua = "\x1b[A";
+                char = "\x1b[A";
             }
             break;
         case 40:
-            if (Da.ctrlKey) {
+            if (event.ctrlKey) {
                 this.scroll_disp(1);
             } else {
-                ua = "\x1b[B";
+                char = "\x1b[B";
             }
             break;
         case 46:
-            ua = "\x1b[3~";
+            char = "\x1b[3~";
             break;
         case 45:
-            ua = "\x1b[2~";
+            char = "\x1b[2~";
             break;
         case 36:
-            ua = "\x1bOH";
+            char = "\x1bOH";
             break;
         case 35:
-            ua = "\x1bOF";
+            char = "\x1bOF";
             break;
         case 33:
-            if (Da.ctrlKey) {
+            if (event.ctrlKey) {
                 this.scroll_disp(-(this.h - 1));
             } else {
-                ua = "\x1b[5~";
+                char = "\x1b[5~";
             }
             break;
         case 34:
-            if (Da.ctrlKey) {
+            if (event.ctrlKey) {
                 this.scroll_disp(this.h - 1);
             } else {
-                ua = "\x1b[6~";
+                char = "\x1b[6~";
             }
             break;
         default:
-            if (Da.ctrlKey) {
-                if (Da.keyCode >= 65 && Da.keyCode <= 90) {
-                    ua = String.fromCharCode(Da.keyCode - 64);
-                } else if (Da.keyCode == 32) {
-                    ua = String.fromCharCode(0);
+            if (event.ctrlKey) {
+                if (event.keyCode >= 65 && event.keyCode <= 90) {
+                    char = String.fromCharCode(event.keyCode - 64);
+                } else if (event.keyCode == 32) {
+                    char = String.fromCharCode(0);
                 }
-            } else if ((!this.is_mac && Da.altKey) || (this.is_mac && Da.metaKey)) {
-                if (Da.keyCode >= 65 && Da.keyCode <= 90) {
-                    ua = "\x1b" + String.fromCharCode(Da.keyCode + 32);
+            } else if ((!this.is_mac && event.altKey) || (this.is_mac && event.metaKey)) {
+                if (event.keyCode >= 65 && event.keyCode <= 90) {
+                    char = "\x1b" + String.fromCharCode(event.keyCode + 32);
                 }
             }
             break;
     }
-    if (ua) {
-        if (Da.stopPropagation)
-            Da.stopPropagation();
-        if (Da.preventDefault)
-            Da.preventDefault();
+    if (char) {
+        if (event.stopPropagation)
+            event.stopPropagation();
+        if (event.preventDefault)
+            event.preventDefault();
         this.show_cursor();
         this.key_rep_state = 1;
-        this.key_rep_str = ua;
-        this.handler(ua);
+        this.key_rep_str = char;
+        this.handler(char);
         return false;
     } else {
         this.key_rep_state = 0;
         return true;
     }
 };
-Term.prototype.keyPressHandler = function(Da) {
-    var ua, Ea;
-    if (Da.stopPropagation)
-        Da.stopPropagation();
-    if (Da.preventDefault)
-        Da.preventDefault();
-    ua = "";
-    if (!("charCode" in Da)) {
-        Ea = Da.keyCode;
+Term.prototype.keyPressHandler = function(event) {
+    var char, charcode;
+    if (event.stopPropagation)
+        event.stopPropagation();
+    if (event.preventDefault)
+        event.preventDefault();
+    char = "";
+    if (!("charCode" in event)) {
+        charcode = event.keyCode;
         if (this.key_rep_state == 1) {
             this.key_rep_state = 2;
             return false;
@@ -494,23 +494,23 @@ Term.prototype.keyPressHandler = function(Da) {
             return false;
         }
     } else {
-        Ea = Da.charCode;
+        charcode = event.charCode;
     }
-    if (Ea != 0) {
-        if (!Da.ctrlKey && ((!this.is_mac && !Da.altKey) || (this.is_mac && !Da.metaKey))) {
-            ua = String.fromCharCode(Ea);
+    if (charcode != 0) {
+        if (!event.ctrlKey && ((!this.is_mac && !event.altKey) || (this.is_mac && !event.metaKey))) {
+            char = String.fromCharCode(charcode);
         }
     }
-    if (ua) {
+    if (char) {
         this.show_cursor();
-        this.handler(ua);
+        this.handler(char);
         return false;
     } else {
         return true;
     }
 };
-Term.prototype.queue_chars = function(ua) {
-    this.output_queue += ua;
+Term.prototype.queue_chars = function(char) {
+    this.output_queue += char;
     if (this.output_queue)
         setTimeout(this.outputHandler.bind(this), 0);
 };
@@ -520,3 +520,9 @@ Term.prototype.outputHandler = function() {
         this.output_queue = "";
     }
 };
+
+
+
+
+
+

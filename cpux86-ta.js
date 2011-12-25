@@ -17,17 +17,10 @@ http://en.wikipedia.org/wiki/X86_assembly_language
 http://en.wikipedia.org/wiki/Translation_lookaside_buffer
 
 http://bellard.org/jslinux/tech.html :
-"""
 The exact restrictions of the emulated CPU are:
 - No FPU/MMX/SSE
-- No segment limit and right checks when accessing memory (Linux does not rely on them for memory protection,
-so it is not an issue. The x86 emulator of QEMU has the same restriction).
+- No segment limit and right checks when accessing memory
 - No single-stepping
-
-I added some tricks which are not present in QEMU to be more precise
-when emulating unaligned load/stores at page boundaries. The condition
-code emulation is also more efficient than the one in QEMU.
-"""
 
 
 Memory Modes
@@ -1570,26 +1563,26 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
        ==========================================================================================
     */
 
-    function oc(conditional_var, Yb, Zb, pc) {
-        var qc;
+    function op_16_SHRD_SHLD(conditional_var, Yb, Zb, pc) {
+        var bool;
         pc &= 0x1f;
         if (pc) {
             if (conditional_var == 0) {
                 Zb &= 0xffff;
-                qc = Zb | (Yb << 16);
-                _src = qc >> (32 - pc);
-                qc <<= pc;
+                bool = Zb | (Yb << 16);
+                _src = bool >> (32 - pc);
+                bool <<= pc;
                 if (pc > 16)
-                    qc |= Zb << (pc - 16);
-                Yb = _dst = qc >> 16;
+                    bool |= Zb << (pc - 16);
+                Yb = _dst = bool >> 16;
                 _op = 19;
             } else {
-                qc = (Yb & 0xffff) | (Zb << 16);
-                _src = qc >> (pc - 1);
-                qc >>= pc;
+                bool = (Yb & 0xffff) | (Zb << 16);
+                _src = bool >> (pc - 1);
+                bool >>= pc;
                 if (pc > 16)
-                    qc |= Zb << (32 - pc);
-                Yb = _dst = (((qc) << 16) >> 16);
+                    bool |= Zb << (32 - pc);
+                Yb = _dst = (((bool) << 16) >> 16);
                 _op = 19;
             }
         }
@@ -1613,7 +1606,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         return Yb;
     }
-    function tc(Yb, Zb) {
+    function op_16_BT(Yb, Zb) {
         Zb &= 0xf;
         _src = Yb >> Zb;
         _op = 19;
@@ -1623,7 +1616,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _src = Yb >> Zb;
         _op = 20;
     }
-    function vc(conditional_var, Yb, Zb) {
+    function op_16_BTS_BTR_BTC(conditional_var, Yb, Zb) {
         var wc;
         Zb &= 0xf;
         _src = Yb >> Zb;
@@ -1663,7 +1656,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _op = 20;
         return Yb;
     }
-    function yc(Yb, Zb) {
+    function op_16_BSF(Yb, Zb) {
         Zb &= 0xffff;
         if (Zb) {
             Yb = 0;
@@ -1678,7 +1671,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _op = 14;
         return Yb;
     }
-    function zc(Yb, Zb) {
+    function op_BSF(Yb, Zb) {
         if (Zb) {
             Yb = 0;
             while ((Zb & 1) == 0) {
@@ -1692,7 +1685,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _op = 14;
         return Yb;
     }
-    function Ac(Yb, Zb) {
+    function op_16_BSR(Yb, Zb) {
         Zb &= 0xffff;
         if (Zb) {
             Yb = 15;
@@ -1707,7 +1700,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _op = 14;
         return Yb;
     }
-    function Bc(Yb, Zb) {
+    function op_BSR(Yb, Zb) {
         if (Zb) {
             Yb = 31;
             while (Zb >= 0) {
@@ -1721,7 +1714,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _op = 14;
         return Yb;
     }
-    function Cc(OPbyte) {
+
+    /*
+      Multiply / Divide Functions
+      ==========================================================================================
+    */
+
+    function op_DIV(OPbyte) {
         var a, q, r;
         a = regs[0] & 0xffff;
         OPbyte &= 0xff;
@@ -1731,7 +1730,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         r = (a % OPbyte);
         set_lower_word_in_register(0, (q & 0xff) | (r << 8));
     }
-    function Ec(OPbyte) {
+    function op_IDIV(OPbyte) {
         var a, q, r;
         a = (regs[0] << 16) >> 16;
         OPbyte = (OPbyte << 24) >> 24;
@@ -1743,7 +1742,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         r = (a % OPbyte);
         set_lower_word_in_register(0, (q & 0xff) | (r << 8));
     }
-    function Fc(OPbyte) {
+    function op_16_DIV(OPbyte) {
         var a, q, r;
         a = (regs[2] << 16) | (regs[0] & 0xffff);
         OPbyte &= 0xffff;
@@ -1754,7 +1753,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         set_lower_word_in_register(0, q);
         set_lower_word_in_register(2, r);
     }
-    function Gc(OPbyte) {
+    function op_16_IDIV(OPbyte) {
         var a, q, r;
         a = (regs[2] << 16) | (regs[0] & 0xffff);
         OPbyte = (OPbyte << 16) >> 16;
@@ -1767,7 +1766,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         set_lower_word_in_register(0, q);
         set_lower_word_in_register(2, r);
     }
-    function Hc(Ic, Jc, OPbyte) {
+    function op_DIV32(Ic, Jc, OPbyte) {
         var a, i, Kc;
         Ic = Ic >>> 0;
         Jc = Jc >>> 0;
@@ -1794,7 +1793,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             return Jc;
         }
     }
-    function Lc(Ic, Jc, OPbyte) {
+    function op_IDIV32(Ic, Jc, OPbyte) {
         var Mc, Nc, q;
         if (Ic < 0) {
             Mc = 1;
@@ -1811,7 +1810,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         } else {
             Nc = 0;
         }
-        q = Hc(Ic, Jc, OPbyte);
+        q = op_DIV32(Ic, Jc, OPbyte);
         Nc ^= Mc;
         if (Nc) {
             if ((q >>> 0) > 0x80000000)
@@ -1826,45 +1825,45 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         return q;
     }
-    function Oc(a, OPbyte) {
-        var qc;
+    function op_MUL(a, OPbyte) {
+        var bool;
         a &= 0xff;
         OPbyte &= 0xff;
-        qc = (regs[0] & 0xff) * (OPbyte & 0xff);
-        _src = qc >> 8;
-        _dst = (((qc) << 24) >> 24);
+        bool = (regs[0] & 0xff) * (OPbyte & 0xff);
+        _src = bool >> 8;
+        _dst = (((bool) << 24) >> 24);
         _op = 21;
-        return qc;
+        return bool;
     }
-    function Pc(a, OPbyte) {
-        var qc;
+    function op_IMUL(a, OPbyte) {
+        var bool;
         a = (((a) << 24) >> 24);
         OPbyte = (((OPbyte) << 24) >> 24);
-        qc = (a * OPbyte) >> 0;
-        _dst = (((qc) << 24) >> 24);
-        _src = (qc != _dst) >> 0;
+        bool = (a * OPbyte) >> 0;
+        _dst = (((bool) << 24) >> 24);
+        _src = (bool != _dst) >> 0;
         _op = 21;
-        return qc;
+        return bool;
     }
-    function Qc(a, OPbyte) {
-        var qc;
-        qc = ((a & 0xffff) * (OPbyte & 0xffff)) >> 0;
-        _src = qc >>> 16;
-        _dst = (((qc) << 16) >> 16);
+    function op_16_MUL(a, OPbyte) {
+        var bool;
+        bool = ((a & 0xffff) * (OPbyte & 0xffff)) >> 0;
+        _src = bool >>> 16;
+        _dst = (((bool) << 16) >> 16);
         _op = 22;
-        return qc;
+        return bool;
     }
-    function Rc(a, OPbyte) {
-        var qc;
+    function op_16_IMUL(a, OPbyte) {
+        var bool;
         a = (a << 16) >> 16;
         OPbyte = (OPbyte << 16) >> 16;
-        qc = (a * OPbyte) >> 0;
-        _dst = (((qc) << 16) >> 16);
-        _src = (qc != _dst) >> 0;
+        bool = (a * OPbyte) >> 0;
+        _dst = (((bool) << 16) >> 16);
+        _src = (bool != _dst) >> 0;
         _op = 22;
-        return qc;
+        return bool;
     }
-    function Sc(a, OPbyte) {
+    function do_multiply32(a, OPbyte) {
         var r, Jc, Ic, Tc, Uc, m;
         a = a >>> 0;
         OPbyte = OPbyte >>> 0;
@@ -1898,13 +1897,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         return r;
     }
-    function Vc(a, OPbyte) {
-        _dst = Sc(a, OPbyte);
+    function op_MUL32(a, OPbyte) {
+        _dst = do_multiply32(a, OPbyte);
         _src = v;
         _op = 23;
         return _dst;
     }
-    function Wc(a, OPbyte) {
+    function op_IMUL32(a, OPbyte) {
         var s, r;
         s = 0;
         if (a < 0) {
@@ -1915,7 +1914,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             OPbyte = -OPbyte;
             s ^= 1;
         }
-        r = Sc(a, OPbyte);
+        r = do_multiply32(a, OPbyte);
         if (s) {
             v = ~v;
             r = (-r) >> 0;
@@ -1936,7 +1935,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     */
 
     function check_carry() {
-        var Yb, qc, current_op, relevant_dst;
+        var Yb, bool, current_op, relevant_dst;
         if (_op >= 25) {
             current_op = _op2;
             relevant_dst = _dst2;
@@ -1946,195 +1945,195 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         switch (current_op) {
             case 0:
-                qc = (relevant_dst & 0xff) < (_src & 0xff);
+                bool = (relevant_dst & 0xff) < (_src & 0xff);
                 break;
             case 1:
-                qc = (relevant_dst & 0xffff) < (_src & 0xffff);
+                bool = (relevant_dst & 0xffff) < (_src & 0xffff);
                 break;
             case 2:
-                qc = (relevant_dst >>> 0) < (_src >>> 0);
+                bool = (relevant_dst >>> 0) < (_src >>> 0);
                 break;
             case 3:
-                qc = (relevant_dst & 0xff) <= (_src & 0xff);
+                bool = (relevant_dst & 0xff) <= (_src & 0xff);
                 break;
             case 4:
-                qc = (relevant_dst & 0xffff) <= (_src & 0xffff);
+                bool = (relevant_dst & 0xffff) <= (_src & 0xffff);
                 break;
             case 5:
-                qc = (relevant_dst >>> 0) <= (_src >>> 0);
+                bool = (relevant_dst >>> 0) <= (_src >>> 0);
                 break;
             case 6:
-                qc = ((relevant_dst + _src) & 0xff) < (_src & 0xff);
+                bool = ((relevant_dst + _src) & 0xff) < (_src & 0xff);
                 break;
             case 7:
-                qc = ((relevant_dst + _src) & 0xffff) < (_src & 0xffff);
+                bool = ((relevant_dst + _src) & 0xffff) < (_src & 0xffff);
                 break;
             case 8:
-                qc = ((relevant_dst + _src) >>> 0) < (_src >>> 0);
+                bool = ((relevant_dst + _src) >>> 0) < (_src >>> 0);
                 break;
             case 9:
                 Yb = (relevant_dst + _src + 1) & 0xff;
-                qc = Yb <= (_src & 0xff);
+                bool = Yb <= (_src & 0xff);
                 break;
             case 10:
                 Yb = (relevant_dst + _src + 1) & 0xffff;
-                qc = Yb <= (_src & 0xffff);
+                bool = Yb <= (_src & 0xffff);
                 break;
             case 11:
                 Yb = (relevant_dst + _src + 1) >>> 0;
-                qc = Yb <= (_src >>> 0);
+                bool = Yb <= (_src >>> 0);
                 break;
             case 12:
             case 13:
             case 14:
-                qc = 0;
+                bool = 0;
                 break;
             case 15:
-                qc = (_src >> 7) & 1;
+                bool = (_src >> 7) & 1;
                 break;
             case 16:
-                qc = (_src >> 15) & 1;
+                bool = (_src >> 15) & 1;
                 break;
             case 17:
-                qc = (_src >> 31) & 1;
+                bool = (_src >> 31) & 1;
                 break;
             case 18:
             case 19:
             case 20:
-                qc = _src & 1;
+                bool = _src & 1;
                 break;
             case 21:
             case 22:
             case 23:
-                qc = _src != 0;
+                bool = _src != 0;
                 break;
             case 24:
-                qc = _src & 1;
+                bool = _src & 1;
                 break;
             default:
                 throw "GET_CARRY: unsupported cc_op=" + _op;
         }
-        return qc;
+        return bool;
     }
     function check_overflow() {
-        var qc, Yb;
+        var bool, Yb;
         switch (_op) {
             case 0:
                 Yb = (_dst - _src) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 7) & 1;
+                bool = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 1:
                 Yb = (_dst - _src) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 15) & 1;
+                bool = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 2:
                 Yb = (_dst - _src) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 31) & 1;
+                bool = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 3:
                 Yb = (_dst - _src - 1) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 7) & 1;
+                bool = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 4:
                 Yb = (_dst - _src - 1) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 15) & 1;
+                bool = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 5:
                 Yb = (_dst - _src - 1) >> 0;
-                qc = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 31) & 1;
+                bool = (((Yb ^ _src ^ -1) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 6:
                 Yb = (_dst + _src) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 7) & 1;
+                bool = (((Yb ^ _src) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 7:
                 Yb = (_dst + _src) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 15) & 1;
+                bool = (((Yb ^ _src) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 8:
                 Yb = (_dst + _src) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 31) & 1;
+                bool = (((Yb ^ _src) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 9:
                 Yb = (_dst + _src + 1) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 7) & 1;
+                bool = (((Yb ^ _src) & (Yb ^ _dst)) >> 7) & 1;
                 break;
             case 10:
                 Yb = (_dst + _src + 1) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 15) & 1;
+                bool = (((Yb ^ _src) & (Yb ^ _dst)) >> 15) & 1;
                 break;
             case 11:
                 Yb = (_dst + _src + 1) >> 0;
-                qc = (((Yb ^ _src) & (Yb ^ _dst)) >> 31) & 1;
+                bool = (((Yb ^ _src) & (Yb ^ _dst)) >> 31) & 1;
                 break;
             case 12:
             case 13:
             case 14:
-                qc = 0;
+                bool = 0;
                 break;
             case 15:
             case 18:
-                qc = ((_src ^ _dst) >> 7) & 1;
+                bool = ((_src ^ _dst) >> 7) & 1;
                 break;
             case 16:
             case 19:
-                qc = ((_src ^ _dst) >> 15) & 1;
+                bool = ((_src ^ _dst) >> 15) & 1;
                 break;
             case 17:
             case 20:
-                qc = ((_src ^ _dst) >> 31) & 1;
+                bool = ((_src ^ _dst) >> 31) & 1;
                 break;
             case 21:
             case 22:
             case 23:
-                qc = _src != 0;
+                bool = _src != 0;
                 break;
             case 24:
-                qc = (_src >> 11) & 1;
+                bool = (_src >> 11) & 1;
                 break;
             case 25:
-                qc = (_dst & 0xff) == 0x80;
+                bool = (_dst & 0xff) == 0x80;
                 break;
             case 26:
-                qc = (_dst & 0xffff) == 0x8000;
+                bool = (_dst & 0xffff) == 0x8000;
                 break;
             case 27:
-                qc = (_dst == -2147483648);
+                bool = (_dst == -2147483648);
                 break;
             case 28:
-                qc = (_dst & 0xff) == 0x7f;
+                bool = (_dst & 0xff) == 0x7f;
                 break;
             case 29:
-                qc = (_dst & 0xffff) == 0x7fff;
+                bool = (_dst & 0xffff) == 0x7fff;
                 break;
             case 30:
-                qc = _dst == 0x7fffffff;
+                bool = _dst == 0x7fffffff;
                 break;
             default:
                 throw "JO: unsupported cc_op=" + _op;
         }
-        return qc;
+        return bool;
     }
     function check_below_or_equal() {
-        var qc;
+        var bool;
         switch (_op) {
             case 6:
-                qc = ((_dst + _src) & 0xff) <= (_src & 0xff);
+                bool = ((_dst + _src) & 0xff) <= (_src & 0xff);
                 break;
             case 7:
-                qc = ((_dst + _src) & 0xffff) <= (_src & 0xffff);
+                bool = ((_dst + _src) & 0xffff) <= (_src & 0xffff);
                 break;
             case 8:
-                qc = ((_dst + _src) >>> 0) <= (_src >>> 0);
+                bool = ((_dst + _src) >>> 0) <= (_src >>> 0);
                 break;
             case 24:
-                qc = (_src & (0x0040 | 0x0001)) != 0;
+                bool = (_src & (0x0040 | 0x0001)) != 0;
                 break;
             default:
-                qc = check_carry() | (_dst == 0);
+                bool = check_carry() | (_dst == 0);
                 break;
         }
-        return qc;
+        return bool;
     }
     function check_parity() {
         if (_op == 24) {
@@ -2144,16 +2143,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
     }
     function check_less_than() {
-        var qc;
+        var bool;
         switch (_op) {
             case 6:
-                qc = ((_dst + _src) << 24) < (_src << 24);
+                bool = ((_dst + _src) << 24) < (_src << 24);
                 break;
             case 7:
-                qc = ((_dst + _src) << 16) < (_src << 16);
+                bool = ((_dst + _src) << 16) < (_src << 16);
                 break;
             case 8:
-                qc = ((_dst + _src) >> 0) < _src;
+                bool = ((_dst + _src) >> 0) < _src;
                 break;
             case 12:
             case 25:
@@ -2164,28 +2163,28 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             case 14:
             case 27:
             case 30:
-                qc = _dst < 0;
+                bool = _dst < 0;
                 break;
             case 24:
-                qc = ((_src >> 7) ^ (_src >> 11)) & 1;
+                bool = ((_src >> 7) ^ (_src >> 11)) & 1;
                 break;
             default:
-                qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ check_overflow();
+                bool = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ check_overflow();
                 break;
         }
-        return qc;
+        return bool;
     }
     function check_less_or_equal() {
-        var qc;
+        var bool;
         switch (_op) {
             case 6:
-                qc = ((_dst + _src) << 24) <= (_src << 24);
+                bool = ((_dst + _src) << 24) <= (_src << 24);
                 break;
             case 7:
-                qc = ((_dst + _src) << 16) <= (_src << 16);
+                bool = ((_dst + _src) << 16) <= (_src << 16);
                 break;
             case 8:
-                qc = ((_dst + _src) >> 0) <= _src;
+                bool = ((_dst + _src) >> 0) <= _src;
                 break;
             case 12:
             case 25:
@@ -2196,48 +2195,48 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             case 14:
             case 27:
             case 30:
-                qc = _dst <= 0;
+                bool = _dst <= 0;
                 break;
             case 24:
-                qc = (((_src >> 7) ^ (_src >> 11)) | (_src >> 6)) & 1;
+                bool = (((_src >> 7) ^ (_src >> 11)) | (_src >> 6)) & 1;
                 break;
             default:
-                qc = ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ check_overflow()) | (_dst == 0);
+                bool = ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) ^ check_overflow()) | (_dst == 0);
                 break;
         }
-        return qc;
+        return bool;
     }
     function check_adjust_flag() {
-        var Yb, qc;
+        var Yb, bool;
         switch (_op) {
             case 0:
             case 1:
             case 2:
                 Yb = (_dst - _src) >> 0;
-                qc = (_dst ^ Yb ^ _src) & 0x10;
+                bool = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 3:
             case 4:
             case 5:
                 Yb = (_dst - _src - 1) >> 0;
-                qc = (_dst ^ Yb ^ _src) & 0x10;
+                bool = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 6:
             case 7:
             case 8:
                 Yb = (_dst + _src) >> 0;
-                qc = (_dst ^ Yb ^ _src) & 0x10;
+                bool = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 9:
             case 10:
             case 11:
                 Yb = (_dst + _src + 1) >> 0;
-                qc = (_dst ^ Yb ^ _src) & 0x10;
+                bool = (_dst ^ Yb ^ _src) & 0x10;
                 break;
             case 12:
             case 13:
             case 14:
-                qc = 0;
+                bool = 0;
                 break;
             case 15:
             case 18:
@@ -2248,57 +2247,57 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             case 21:
             case 22:
             case 23:
-                qc = 0;
+                bool = 0;
                 break;
             case 24:
-                qc = _src & 0x10;
+                bool = _src & 0x10;
                 break;
             case 25:
             case 26:
             case 27:
-                qc = (_dst ^ (_dst - 1)) & 0x10;
+                bool = (_dst ^ (_dst - 1)) & 0x10;
                 break;
             case 28:
             case 29:
             case 30:
-                qc = (_dst ^ (_dst + 1)) & 0x10;
+                bool = (_dst ^ (_dst + 1)) & 0x10;
                 break;
             default:
                 throw "AF: unsupported cc_op=" + _op;
         }
-        return qc;
+        return bool;
     }
     function check_status_bits_for_jump(gd) {
-        var qc;
+        var bool;
         switch (gd >> 1) {
             case 0:
-                qc = check_overflow();
+                bool = check_overflow();
                 break;
             case 1:
-                qc = check_carry();
+                bool = check_carry();
                 break;
             case 2:
-                qc = (_dst == 0);
+                bool = (_dst == 0);
                 break;
             case 3:
-                qc = check_below_or_equal();
+                bool = check_below_or_equal();
                 break;
             case 4:
-                qc = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0));
+                bool = (_op == 24 ? ((_src >> 7) & 1) : (_dst < 0));
                 break;
             case 5:
-                qc = check_parity();
+                bool = check_parity();
                 break;
             case 6:
-                qc = check_less_than();
+                bool = check_less_than();
                 break;
             case 7:
-                qc = check_less_or_equal();
+                bool = check_less_or_equal();
                 break;
             default:
                 throw "unsupported cond: " + gd;
         }
-        return qc ^ (gd & 1);
+        return bool ^ (gd & 1);
     }
     function conditional_flags_for_rot_shift_ops() {
         return (check_parity() << 2) | ((_dst == 0) << 6) | ((_op == 24 ? ((_src >> 7) & 1) : (_dst < 0)) << 7) | check_adjust_flag();
@@ -3685,8 +3684,16 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
 
 
+    /*
+      Flow Control Functions
+      -----------------------------------------------------
+      These are some of the most complicated subroutines here as they involve storing / retrieving the TSS and other
+      key data structures when transferring control to other locations.
+    */
+
+
     /* used only in CALLF, and InterruptF in paged mode */
-    function ge(he) {
+    function load_from_TR(he) {
         var ie, Rb, je, ke, le;
         if (!(cpu.tr.flags & (1 << 15)))
             cpu_abort("invalid tss");  //task state segment
@@ -3774,7 +3781,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         if (!(descriptor_high4bytes & (1 << 15)))
             abort_with_error_code(11, selector & 0xfffc);
         if (!(descriptor_high4bytes & (1 << 10)) && he < cpl_var) {
-            e = ge(he);
+            e = load_from_TR(he);
             ke = e[0];
             le = e[1];
             if ((ke & 0xfffc) == 0)
@@ -3984,10 +3991,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
     function do_interrupt(intno, ne, error_code, oe, pe) {
         if (intno == 0x06) {
-            var Be = eip;
+            var eip_tmp = eip;
             var eip_offset;
             str = "do_interrupt: intno=" + _2_bytes_(intno) + " error_code=" + _4_bytes_(error_code)
-                + " EIP=" + _4_bytes_(Be) + " ESP=" + _4_bytes_(regs[4]) + " EAX=" + _4_bytes_(regs[0])
+                + " EIP=" + _4_bytes_(eip_tmp) + " ESP=" + _4_bytes_(regs[4]) + " EAX=" + _4_bytes_(regs[0])
                 + " EBX=" + _4_bytes_(regs[3]) + " ECX=" + _4_bytes_(regs[1]);
             if (intno == 0x0e) {
                 str += " CR2=" + _4_bytes_(cpu.cr2);
@@ -3996,7 +4003,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             if (intno == 0x06) {
                 var str, i, n;
                 str = "Code:";
-                eip_offset = (Be + CS_base) >> 0;
+                eip_offset = (eip_tmp + CS_base) >> 0;
                 n = 4096 - (eip_offset & 0xfff);
                 if (n > 15)
                     n = 15;
@@ -4132,13 +4139,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             Fe(register, selector);
         }
     }
-    function Je(Ke, Le) {
+    function do_JMPF_virtual_mode(Ke, Le) {
         eip = Le, physmem8_ptr = initial_mem_ptr = 0;
         cpu.segs[1].selector = Ke;
         cpu.segs[1].base = (Ke << 4);
         init_segment_local_vars();
     }
-    function Me(Ke, Le) {
+    function do_JMPF(Ke, Le) {
         var Ne, ie, descriptor_low4bytes, descriptor_high4bytes, cpl_var, he, He, limit, e;
         if ((Ke & 0xfffc) == 0)
             abort_with_error_code(13, 0);
@@ -4175,9 +4182,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
     function op_JMPF(Ke, Le) {
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
-            Je(Ke, Le);
+            do_JMPF_virtual_mode(Ke, Le);
         } else {
-            Me(Ke, Le);
+            do_JMPF(Ke, Le);
         }
     }
 
@@ -4332,7 +4339,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             if (!(descriptor_high4bytes & (1 << 15)))
                 abort_with_error_code(11, selector & 0xfffc);
             if (!(descriptor_high4bytes & (1 << 10)) && he < cpl_var) {
-                e = ge(he);
+                e = load_from_TR(he);
                 ke = e[0];
                 Te = e[1];
                 if ((ke & 0xfffc) == 0)
@@ -6604,7 +6611,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         y = ld_32bits_mem8_read();
                     }
                     z = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
-                    regs[reg_idx1] = Wc(y, z);
+                    regs[reg_idx1] = op_IMUL32(y, z);
                     break EXEC_LOOP;
                 case 0x69://IMUL Evqp Gvqp Signed Multiply
                     mem8 = phys_mem8[physmem8_ptr++];
@@ -6619,7 +6626,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         z = phys_mem8[physmem8_ptr] | (phys_mem8[physmem8_ptr + 1] << 8) | (phys_mem8[physmem8_ptr + 2] << 16) | (phys_mem8[physmem8_ptr + 3] << 24);
                         physmem8_ptr += 4;
                     }
-                    regs[reg_idx1] = Wc(y, z);
+                    regs[reg_idx1] = op_IMUL32(y, z);
                     break EXEC_LOOP;
                 case 0x84://TEST Eb  Logical Compare
                     mem8 = phys_mem8[physmem8_ptr++];
@@ -6716,7 +6723,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
-                            set_lower_word_in_register(0, Oc(regs[0], x));
+                            set_lower_word_in_register(0, op_MUL(regs[0], x));
                             break;
                         case 5:
                             if ((mem8 >> 6) == 3) {
@@ -6726,7 +6733,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
-                            set_lower_word_in_register(0, Pc(regs[0], x));
+                            set_lower_word_in_register(0, op_IMUL(regs[0], x));
                             break;
                         case 6:
                             if ((mem8 >> 6) == 3) {
@@ -6736,7 +6743,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
-                            Cc(x);
+                            op_DIV(x);
                             break;
                         case 7:
                             if ((mem8 >> 6) == 3) {
@@ -6746,7 +6753,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_8bits_mem8_read();
                             }
-                            Ec(x);
+                            op_IDIV(x);
                             break;
                         default:
                             abort(6);
@@ -6801,7 +6808,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
-                            regs[0] = Vc(regs[0], x);
+                            regs[0] = op_MUL32(regs[0], x);
                             regs[2] = v;
                             break;
                         case 5:
@@ -6811,7 +6818,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
-                            regs[0] = Wc(regs[0], x);
+                            regs[0] = op_IMUL32(regs[0], x);
                             regs[2] = v;
                             break;
                         case 6:
@@ -6821,7 +6828,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
-                            regs[0] = Hc(regs[2], regs[0], x);
+                            regs[0] = op_DIV32(regs[2], regs[0], x);
                             regs[2] = v;
                             break;
                         case 7:
@@ -6831,7 +6838,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 x = ld_32bits_mem8_read();
                             }
-                            regs[0] = Lc(regs[2], regs[0], x);
+                            regs[0] = op_IDIV32(regs[2], regs[0], x);
                             regs[2] = v;
                             break;
                         default:
@@ -8176,9 +8183,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 y = ld_32bits_mem8_read();
                             }
                             if (OPbyte & 1)
-                                regs[reg_idx1] = Bc(regs[reg_idx1], y);
+                                regs[reg_idx1] = op_BSR(regs[reg_idx1], y);
                             else
-                                regs[reg_idx1] = zc(regs[reg_idx1], y);
+                                regs[reg_idx1] = op_BSF(regs[reg_idx1], y);
                             break EXEC_LOOP;
                         case 0xaf://IMUL Evqp Gvqp Signed Multiply
                             mem8 = phys_mem8[physmem8_ptr++];
@@ -8189,7 +8196,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 mem8_loc = segment_translation(mem8);
                                 y = ld_32bits_mem8_read();
                             }
-                            regs[reg_idx1] = Wc(regs[reg_idx1], y);
+                            regs[reg_idx1] = op_IMUL32(regs[reg_idx1], y);
                             break EXEC_LOOP;
                         case 0x31://RDTSC IA32_TIME_STAMP_COUNTER EAX Read Time-Stamp Counter
                             if ((cpu.cr4 & (1 << 2)) && cpu.cpl != 0)
@@ -8686,7 +8693,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 y = ld_16bits_mem8_read();
                             }
                             z = ((phys_mem8[physmem8_ptr++] << 24) >> 24);
-                            set_lower_word_in_register(reg_idx1, Rc(y, z));
+                            set_lower_word_in_register(reg_idx1, op_16_IMUL(y, z));
                             break EXEC_LOOP;
                         case 0x169://IMUL Evqp Gvqp Signed Multiply
                             mem8 = phys_mem8[physmem8_ptr++];
@@ -8698,7 +8705,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                 y = ld_16bits_mem8_read();
                             }
                             z = ld16_mem8_direct();
-                            set_lower_word_in_register(reg_idx1, Rc(y, z));
+                            set_lower_word_in_register(reg_idx1, op_16_IMUL(y, z));
                             break EXEC_LOOP;
                         case 0x185://TEST Evqp  Logical Compare
                             mem8 = phys_mem8[physmem8_ptr++];
@@ -8767,7 +8774,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
-                                    x = Qc(regs[0], x);
+                                    x = op_16_MUL(regs[0], x);
                                     set_lower_word_in_register(0, x);
                                     set_lower_word_in_register(2, x >> 16);
                                     break;
@@ -8778,7 +8785,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
-                                    x = Rc(regs[0], x);
+                                    x = op_16_IMUL(regs[0], x);
                                     set_lower_word_in_register(0, x);
                                     set_lower_word_in_register(2, x >> 16);
                                     break;
@@ -8789,7 +8796,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
-                                    Fc(x);
+                                    op_16_DIV(x);
                                     break;
                                 case 7:
                                     if ((mem8 >> 6) == 3) {
@@ -8798,7 +8805,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_read();
                                     }
-                                    Gc(x);
+                                    op_16_IDIV(x);
                                     break;
                                 default:
                                     abort(6);
@@ -9329,7 +9336,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         mem8_loc = segment_translation(mem8);
                                         y = ld_16bits_mem8_read();
                                     }
-                                    set_lower_word_in_register(reg_idx1, Rc(regs[reg_idx1], y));
+                                    set_lower_word_in_register(reg_idx1, op_16_IMUL(regs[reg_idx1], y));
                                     break EXEC_LOOP;
                                 case 0x1c1://XADD  Evqp Exchange and Add
                                     mem8 = phys_mem8[physmem8_ptr++];
@@ -9370,12 +9377,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     if ((mem8 >> 6) == 3) {
                                         z = phys_mem8[physmem8_ptr++];
                                         reg_idx0 = mem8 & 7;
-                                        set_lower_word_in_register(reg_idx0, oc(conditional_var, regs[reg_idx0], y, z));
+                                        set_lower_word_in_register(reg_idx0, op_16_SHRD_SHLD(conditional_var, regs[reg_idx0], y, z));
                                     } else {
                                         mem8_loc = segment_translation(mem8);
                                         z = phys_mem8[physmem8_ptr++];
                                         x = ld_16bits_mem8_write();
-                                        x = oc(conditional_var, x, y, z);
+                                        x = op_16_SHRD_SHLD(conditional_var, x, y, z);
                                         st16_mem8_write(x);
                                     }
                                     break EXEC_LOOP;
@@ -9387,11 +9394,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     conditional_var = (OPbyte >> 3) & 1;
                                     if ((mem8 >> 6) == 3) {
                                         reg_idx0 = mem8 & 7;
-                                        set_lower_word_in_register(reg_idx0, oc(conditional_var, regs[reg_idx0], y, z));
+                                        set_lower_word_in_register(reg_idx0, op_16_SHRD_SHLD(conditional_var, regs[reg_idx0], y, z));
                                     } else {
                                         mem8_loc = segment_translation(mem8);
                                         x = ld_16bits_mem8_write();
-                                        x = oc(conditional_var, x, y, z);
+                                        x = op_16_SHRD_SHLD(conditional_var, x, y, z);
                                         st16_mem8_write(x);
                                     }
                                     break EXEC_LOOP;
@@ -9408,7 +9415,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                                 y = phys_mem8[physmem8_ptr++];
                                                 x = ld_16bits_mem8_read();
                                             }
-                                            tc(x, y);
+                                            op_16_BT(x, y);
                                             break;
                                         case 5:
                                         case 6:
@@ -9416,12 +9423,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                             if ((mem8 >> 6) == 3) {
                                                 reg_idx0 = mem8 & 7;
                                                 y = phys_mem8[physmem8_ptr++];
-                                                regs[reg_idx0] = vc(conditional_var & 3, regs[reg_idx0], y);
+                                                regs[reg_idx0] = op_16_BTS_BTR_BTC(conditional_var & 3, regs[reg_idx0], y);
                                             } else {
                                                 mem8_loc = segment_translation(mem8);
                                                 y = phys_mem8[physmem8_ptr++];
                                                 x = ld_16bits_mem8_write();
-                                                x = vc(conditional_var & 3, x, y);
+                                                x = op_16_BTS_BTR_BTC(conditional_var & 3, x, y);
                                                 st16_mem8_write(x);
                                             }
                                             break;
@@ -9439,7 +9446,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                         mem8_loc = (mem8_loc + (((y & 0xffff) >> 4) << 1)) >> 0;
                                         x = ld_16bits_mem8_read();
                                     }
-                                    tc(x, y);
+                                    op_16_BT(x, y);
                                     break EXEC_LOOP;
                                 case 0x1ab://BTS Gvqp Evqp Bit Test and Set
                                 case 0x1b3://BTR Gvqp Evqp Bit Test and Reset
@@ -9449,12 +9456,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     conditional_var = (OPbyte >> 3) & 3;
                                     if ((mem8 >> 6) == 3) {
                                         reg_idx0 = mem8 & 7;
-                                        set_lower_word_in_register(reg_idx0, vc(conditional_var, regs[reg_idx0], y));
+                                        set_lower_word_in_register(reg_idx0, op_16_BTS_BTR_BTC(conditional_var, regs[reg_idx0], y));
                                     } else {
                                         mem8_loc = segment_translation(mem8);
                                         mem8_loc = (mem8_loc + (((y & 0xffff) >> 4) << 1)) >> 0;
                                         x = ld_16bits_mem8_write();
-                                        x = vc(conditional_var, x, y);
+                                        x = op_16_BTS_BTR_BTC(conditional_var, x, y);
                                         st16_mem8_write(x);
                                     }
                                     break EXEC_LOOP;
@@ -9470,9 +9477,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     }
                                     x = regs[reg_idx1];
                                     if (OPbyte & 1)
-                                        x = Ac(x, y);
+                                        x = op_16_BSR(x, y);
                                     else
-                                        x = yc(x, y);
+                                        x = op_16_BSF(x, y);
                                     set_lower_word_in_register(reg_idx1, x);
                                     break EXEC_LOOP;
                                 case 0x1b1://CMPXCHG Gvqp Evqp Compare and Exchange
@@ -9753,6 +9760,33 @@ CPU_X86.prototype.load_binary = function(url, mem8_loc) {
     }
     return len;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
