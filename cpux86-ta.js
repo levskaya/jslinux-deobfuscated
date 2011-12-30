@@ -3602,7 +3602,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
     }
     function set_CR0(Qd) {
-        if (!(Qd & (1 << 0)))  //0th bit protected or real, only real supported!
+        if (!(Qd & (1 << 0)))  //0th bit protected or real, real not supported!
             cpu_abort("real mode not supported");
         //if changing flags 31, 16, or 0 must flush tlb
         if ((Qd & ((1 << 31) | (1 << 16) | (1 << 0))) != (cpu.cr0 & ((1 << 31) | (1 << 16) | (1 << 0)))) {
