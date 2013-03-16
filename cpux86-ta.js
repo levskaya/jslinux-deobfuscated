@@ -3758,9 +3758,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 abort_with_error_code(13, intno * 8 + 2);
                 break;
         }
-        he = (descriptor_high4bytes >> 13) & 3;
+        dpl = (descriptor_high4bytes >> 13) & 3;
         cpl_var = cpu.cpl;
-        if (ne && he < cpl_var)
+        if (ne && dpl < cpl_var)
             abort_with_error_code(13, intno * 8 + 2);
         if (!(descriptor_high4bytes & (1 << 15)))
             abort_with_error_code(11, intno * 8 + 2);
@@ -3775,18 +3775,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         descriptor_high4bytes = e[1];
         if (!(descriptor_high4bytes & (1 << 12)) || !(descriptor_high4bytes & ((1 << 11))))
             abort_with_error_code(13, selector & 0xfffc);
-        he = (descriptor_high4bytes >> 13) & 3;
-        if (he > cpl_var)
+        dpl = (descriptor_high4bytes >> 13) & 3;
+        if (dpl > cpl_var)
             abort_with_error_code(13, selector & 0xfffc);
         if (!(descriptor_high4bytes & (1 << 15)))
             abort_with_error_code(11, selector & 0xfffc);
-        if (!(descriptor_high4bytes & (1 << 10)) && he < cpl_var) {
-            e = load_from_TR(he);
+        if (!(descriptor_high4bytes & (1 << 10)) && dpl < cpl_var) {
+            e = load_from_TR(dpl);
             ke = e[0];
             le = e[1];
             if ((ke & 0xfffc) == 0)
                 abort_with_error_code(10, ke & 0xfffc);
-            if ((ke & 3) != he)
+            if ((ke & 3) != dpl)
                 abort_with_error_code(10, ke & 0xfffc);
             e = load_from_descriptor_table(ke);
             if (!e)
@@ -3794,7 +3794,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             we = e[0];
             xe = e[1];
             re = (xe >> 13) & 3;
-            if (re != he)
+            if (re != dpl)
                 abort_with_error_code(10, ke & 0xfffc);
             if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
                 abort_with_error_code(10, ke & 0xfffc);
@@ -3803,14 +3803,14 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             ue = 1;
             SS_mask = SS_mask_from_flags(xe);
             qe = calculate_descriptor_base(we, xe);
-        } else if ((descriptor_high4bytes & (1 << 10)) || he == cpl_var) {
+        } else if ((descriptor_high4bytes & (1 << 10)) || dpl == cpl_var) {
             if (cpu.eflags & 0x00020000)
                 abort_with_error_code(13, selector & 0xfffc);
             ue = 0;
             SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
             qe = cpu.segs[2].base;
             le = regs[4];
-            he = cpl_var;
+            dpl = cpl_var;
         } else {
             abort_with_error_code(13, selector & 0xfffc);
             ue = 0;
@@ -3941,13 +3941,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 set_segment_vars(4, 0, 0, 0, 0);
                 set_segment_vars(5, 0, 0, 0, 0);
             }
-            ke = (ke & ~3) | he;
+            ke = (ke & ~3) | dpl;
             set_segment_vars(2, ke, qe, calculate_descriptor_limit(we, xe), xe);
         }
         regs[4] = (regs[4] & ~SS_mask) | ((le) & SS_mask);
-        selector = (selector & ~3) | he;
+        selector = (selector & ~3) | dpl;
         set_segment_vars(1, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
-        change_permission_level(he);
+        change_permission_level(dpl);
         eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         if ((ie & 1) == 0) {
             cpu.eflags &= ~0x00000200;
@@ -4146,7 +4146,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         init_segment_local_vars();
     }
     function do_JMPF(Ke, Le) {
-        var Ne, ie, descriptor_low4bytes, descriptor_high4bytes, cpl_var, he, He, limit, e;
+        var Ne, ie, descriptor_low4bytes, descriptor_high4bytes, cpl_var, dpl, rpl, limit, e;
         if ((Ke & 0xfffc) == 0)
             abort_with_error_code(13, 0);
         e = load_from_descriptor_table(Ke);
@@ -4158,15 +4158,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         if (descriptor_high4bytes & (1 << 12)) {
             if (!(descriptor_high4bytes & (1 << 11)))
                 abort_with_error_code(13, Ke & 0xfffc);
-            he = (descriptor_high4bytes >> 13) & 3;
+            dpl = (descriptor_high4bytes >> 13) & 3;
             if (descriptor_high4bytes & (1 << 10)) {
-                if (he > cpl_var)
+                if (dpl > cpl_var)
                     abort_with_error_code(13, Ke & 0xfffc);
             } else {
-                He = Ke & 3;
-                if (He > cpl_var)
+                rpl = Ke & 3;
+                if (rpl > cpl_var)
                     abort_with_error_code(13, Ke & 0xfffc);
-                if (he != cpl_var)
+                if (dpl != cpl_var)
                     abort_with_error_code(13, Ke & 0xfffc);
             }
             if (!(descriptor_high4bytes & (1 << 15)))
@@ -4190,13 +4190,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
 
     /* used only in do_return_paged_mode */
     function Pe(register, cpl_var) {
-        var he, descriptor_high4bytes;
+        var dpl, descriptor_high4bytes;
         if ((register == 4 || register == 5) && (cpu.segs[register].selector & 0xfffc) == 0)
             return;
         descriptor_high4bytes = cpu.segs[register].flags;
-        he = (descriptor_high4bytes >> 13) & 3;
+        dpl = (descriptor_high4bytes >> 13) & 3;
         if (!(descriptor_high4bytes & (1 << 11)) || !(descriptor_high4bytes & (1 << 10))) {
-            if (he < cpl_var) {
+            if (dpl < cpl_var) {
                 set_segment_vars(register, 0, 0, 0, 0);
             }
         }
@@ -4236,7 +4236,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
     function op_CALLF_paged_mode(je, Ke, Le, oe) {
         var ue, i, e;
-        var descriptor_low4bytes, descriptor_high4bytes, cpl_var, he, He, selector, ve, Se;
+        var descriptor_low4bytes, descriptor_high4bytes, cpl_var, dpl, rpl, selector, ve, Se;
         var ke, we, xe, Te, ie, re, SS_mask;
         var x, limit, Ue;
         var qe, Ve, We;
@@ -4252,15 +4252,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         if (descriptor_high4bytes & (1 << 12)) {
             if (!(descriptor_high4bytes & (1 << 11)))
                 abort_with_error_code(13, Ke & 0xfffc);
-            he = (descriptor_high4bytes >> 13) & 3;
+            dpl = (descriptor_high4bytes >> 13) & 3;
             if (descriptor_high4bytes & (1 << 10)) {
-                if (he > cpl_var)
+                if (dpl > cpl_var)
                     abort_with_error_code(13, Ke & 0xfffc);
             } else {
-                He = Ke & 3;
-                if (He > cpl_var)
+                rpl = Ke & 3;
+                if (rpl > cpl_var)
                     abort_with_error_code(13, Ke & 0xfffc);
-                if (he != cpl_var)
+                if (dpl != cpl_var)
                     abort_with_error_code(13, Ke & 0xfffc);
             }
             if (!(descriptor_high4bytes & (1 << 15)))
@@ -4301,8 +4301,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
         } else {
             ie = (descriptor_high4bytes >> 8) & 0x1f;
-            he = (descriptor_high4bytes >> 13) & 3;
-            He = Ke & 3;
+            dpl = (descriptor_high4bytes >> 13) & 3;
+            rpl = Ke & 3;
             switch (ie) {
                 case 1:
                 case 9:
@@ -4317,7 +4317,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     break;
             }
             je = ie >> 3;
-            if (he < cpl_var || he < He)
+            if (dpl < cpl_var || dpl < rpl)
                 abort_with_error_code(13, Ke & 0xfffc);
             if (!(descriptor_high4bytes & (1 << 15)))
                 abort_with_error_code(11, Ke & 0xfffc);
@@ -4333,18 +4333,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             descriptor_high4bytes = e[1];
             if (!(descriptor_high4bytes & (1 << 12)) || !(descriptor_high4bytes & ((1 << 11))))
                 abort_with_error_code(13, selector & 0xfffc);
-            he = (descriptor_high4bytes >> 13) & 3;
-            if (he > cpl_var)
+            dpl = (descriptor_high4bytes >> 13) & 3;
+            if (dpl > cpl_var)
                 abort_with_error_code(13, selector & 0xfffc);
             if (!(descriptor_high4bytes & (1 << 15)))
                 abort_with_error_code(11, selector & 0xfffc);
-            if (!(descriptor_high4bytes & (1 << 10)) && he < cpl_var) {
-                e = load_from_TR(he);
+            if (!(descriptor_high4bytes & (1 << 10)) && dpl < cpl_var) {
+                e = load_from_TR(dpl);
                 ke = e[0];
                 Te = e[1];
                 if ((ke & 0xfffc) == 0)
                     abort_with_error_code(10, ke & 0xfffc);
-                if ((ke & 3) != he)
+                if ((ke & 3) != dpl)
                     abort_with_error_code(10, ke & 0xfffc);
                 e = load_from_descriptor_table(ke);
                 if (!e)
@@ -4352,7 +4352,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 we = e[0];
                 xe = e[1];
                 re = (xe >> 13) & 3;
-                if (re != he)
+                if (re != dpl)
                     abort_with_error_code(10, ke & 0xfffc);
                 if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
                     abort_with_error_code(10, ke & 0xfffc);
@@ -4432,12 +4432,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 }
             }
             if (ue) {
-                ke = (ke & ~3) | he;
+                ke = (ke & ~3) | dpl;
                 set_segment_vars(2, ke, qe, calculate_descriptor_limit(we, xe), xe);
             }
-            selector = (selector & ~3) | he;
+            selector = (selector & ~3) | dpl;
             set_segment_vars(1, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
-            change_permission_level(he);
+            change_permission_level(dpl);
             regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
             eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         }
@@ -4507,7 +4507,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         var Ke, df, gf;
         var hf, jf, kf, lf;
         var e, descriptor_low4bytes, descriptor_high4bytes, we, xe;
-        var cpl_var, he, He, ef, iopl;
+        var cpl_var, dpl, rpl, ef, iopl;
         var qe, Te, Le, wd, SS_mask;
         SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
         Te = regs[4];
@@ -4602,21 +4602,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         if (!(descriptor_high4bytes & (1 << 12)) || !(descriptor_high4bytes & (1 << 11)))
             abort_with_error_code(13, Ke & 0xfffc);
         cpl_var = cpu.cpl;
-        He = Ke & 3;
-        if (He < cpl_var)
+        rpl = Ke & 3;
+        if (rpl < cpl_var)
             abort_with_error_code(13, Ke & 0xfffc);
-        he = (descriptor_high4bytes >> 13) & 3;
+        dpl = (descriptor_high4bytes >> 13) & 3;
         if (descriptor_high4bytes & (1 << 10)) {
-            if (he > He)
+            if (dpl > rpl)
                 abort_with_error_code(13, Ke & 0xfffc);
         } else {
-            if (he != He)
+            if (dpl != rpl)
                 abort_with_error_code(13, Ke & 0xfffc);
         }
         if (!(descriptor_high4bytes & (1 << 15)))
             abort_with_error_code(11, Ke & 0xfffc);
         Te = (Te + cf) & -1;
-        if (He == cpl_var) {
+        if (rpl == cpl_var) {
             set_segment_vars(1, Ke, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
         } else {
             if (je == 1) {
@@ -4646,7 +4646,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             if ((gf & 0xfffc) == 0) {
                 abort_with_error_code(13, 0);
             } else {
-                if ((gf & 3) != He)
+                if ((gf & 3) != rpl)
                     abort_with_error_code(13, gf & 0xfffc);
                 e = load_from_descriptor_table(gf);
                 if (!e)
@@ -4655,21 +4655,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 xe = e[1];
                 if (!(xe & (1 << 12)) || (xe & (1 << 11)) || !(xe & (1 << 9)))
                     abort_with_error_code(13, gf & 0xfffc);
-                he = (xe >> 13) & 3;
-                if (he != He)
+                dpl = (xe >> 13) & 3;
+                if (dpl != rpl)
                     abort_with_error_code(13, gf & 0xfffc);
                 if (!(xe & (1 << 15)))
                     abort_with_error_code(11, gf & 0xfffc);
                 set_segment_vars(2, gf, calculate_descriptor_base(we, xe), calculate_descriptor_limit(we, xe), xe);
             }
             set_segment_vars(1, Ke, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
-            change_permission_level(He);
+            change_permission_level(rpl);
             Te = wd;
             SS_mask = SS_mask_from_flags(xe);
-            Pe(0, He);
-            Pe(3, He);
-            Pe(4, He);
-            Pe(5, He);
+            Pe(0, rpl);
+            Pe(3, rpl);
+            Pe(4, rpl);
+            Pe(5, rpl);
             Te = (Te + cf) & -1;
         }
         regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
@@ -4713,7 +4713,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
 
     //utility function for op_LAR_LSL
     function of(selector, pf) {
-        var e, descriptor_low4bytes, descriptor_high4bytes, He, he, cpl_var, ie;
+        var e, descriptor_low4bytes, descriptor_high4bytes, rpl, he, cpl_var, ie;
         if ((selector & 0xfffc) == 0)
             return null;
         e = load_from_descriptor_table(selector);
@@ -4721,13 +4721,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             return null;
         descriptor_low4bytes = e[0];
         descriptor_high4bytes = e[1];
-        He = selector & 3;
-        he = (descriptor_high4bytes >> 13) & 3;
+        rpl = selector & 3;
+        dpl = (descriptor_high4bytes >> 13) & 3;
         cpl_var = cpu.cpl;
         if (descriptor_high4bytes & (1 << 12)) {
             if ((descriptor_high4bytes & (1 << 11)) && (descriptor_high4bytes & (1 << 10))) {
             } else {
-                if (he < cpl_var || he < He)
+                if (dpl < cpl_var || dpl < rpl)
                     return null;
             }
         } else {
@@ -4748,7 +4748,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 default:
                     return null;
             }
-            if (he < cpl_var || he < He)
+            if (he < cpl_var || he < rpl)
                 return null;
         }
         if (pf) {
@@ -4786,7 +4786,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
 
     //utility function for op_VERR_VERW
     function rf(selector, ud) {
-        var e, descriptor_low4bytes, descriptor_high4bytes, He, he, cpl_var;
+        var e, descriptor_low4bytes, descriptor_high4bytes, rpl, dpl, cpl_var;
         if ((selector & 0xfffc) == 0)
             return 0;
         e = load_from_descriptor_table(selector);
@@ -4796,8 +4796,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         descriptor_high4bytes = e[1];
         if (!(descriptor_high4bytes & (1 << 12)))
             return 0;
-        He = selector & 3;
-        he = (descriptor_high4bytes >> 13) & 3;
+        rpl = selector & 3;
+        dpl = (descriptor_high4bytes >> 13) & 3;
         cpl_var = cpu.cpl;
         if (descriptor_high4bytes & (1 << 11)) {
             if (ud) {
@@ -4806,12 +4806,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 if (!(descriptor_high4bytes & (1 << 9)))
                     return 1;
                 if (!(descriptor_high4bytes & (1 << 10))) {
-                    if (he < cpl_var || he < He)
+                    if (dpl < cpl_var || dpl < rpl)
                         return 0;
                 }
             }
         } else {
-            if (he < cpl_var || he < He)
+            if (dpl < cpl_var || dpl < rpl)
                 return 0;
             if (ud && !(descriptor_high4bytes & (1 << 9)))
                 return 0;
