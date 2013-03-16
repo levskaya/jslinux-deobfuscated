@@ -4732,6 +4732,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
         } else {
             descriptor_type = (descriptor_high4bytes >> 8) & 0xf;
+						//Valid descriptors fall through this switch. Invalid descriptors return null
             switch (descriptor_type) {
                 case 1:
                 case 2:
