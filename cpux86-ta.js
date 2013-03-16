@@ -4077,11 +4077,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         cpu.tr.selector = selector;
     }
-    function Fe(register, selector) {
-        var descriptor_low4bytes, descriptor_high4bytes, cpl_var, he, He, descriptor_table, Rb;
+    function set_protected_mode_segment_register(register, selector) {
+        var descriptor_low4bytes, descriptor_high4bytes, cpl_var, dpl, rpl, descriptor_table, selector_index;
         cpl_var = cpu.cpl;
-        if ((selector & 0xfffc) == 0) {
-            if (register == 2)
+        if ((selector & 0xfffc) == 0) {                        //null selector
+            if (register == 2)                                 //(SS == null) => #GP(0)
                 abort_with_error_code(13, 0);
             set_segment_vars(register, selector, 0, 0, 0);
         } else {
@@ -4089,27 +4089,27 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 descriptor_table = cpu.ldt;
             else
                 descriptor_table = cpu.gdt;
-            Rb = selector & ~7;
-            if ((Rb + 7) > descriptor_table.limit)
+            selector_index = selector & ~7;
+            if ((selector_index + 7) > descriptor_table.limit)
                 abort_with_error_code(13, selector & 0xfffc);
-            mem8_loc = (descriptor_table.base + Rb) & -1;
+            mem8_loc = (descriptor_table.base + selector_index) & -1;
             descriptor_low4bytes = ld32_mem8_kernel_read();
             mem8_loc += 4;
             descriptor_high4bytes = ld32_mem8_kernel_read();
             if (!(descriptor_high4bytes & (1 << 12)))
                 abort_with_error_code(13, selector & 0xfffc);
-            He = selector & 3;
-            he = (descriptor_high4bytes >> 13) & 3;
+            rpl = selector & 3;
+            dpl = (descriptor_high4bytes >> 13) & 3;
             if (register == 2) {
                 if ((descriptor_high4bytes & (1 << 11)) || !(descriptor_high4bytes & (1 << 9)))
                     abort_with_error_code(13, selector & 0xfffc);
-                if (He != cpl_var || he != cpl_var)
+                if (rpl != cpl_var || dpl != cpl_var)
                     abort_with_error_code(13, selector & 0xfffc);
             } else {
                 if ((descriptor_high4bytes & ((1 << 11) | (1 << 9))) == (1 << 11))
                     abort_with_error_code(13, selector & 0xfffc);
                 if (!(descriptor_high4bytes & (1 << 11)) || !(descriptor_high4bytes & (1 << 10))) {
-                    if (he < cpl_var || he < He)
+                    if (dpl < cpl_var || dpl < rpl)
                         abort_with_error_code(13, selector & 0xfffc);
                 }
             }
@@ -4126,18 +4126,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             set_segment_vars(register, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
         }
     }
-    function Ie(register, selector) {
+    function set_segment_register(register, selector) {
         var descriptor_table;
         selector &= 0xffff;
-        if (!(cpu.cr0 & (1 << 0))) {
+        if (!(cpu.cr0 & (1 << 0))) {          //CR0.PE (0 == real mode)
             descriptor_table = cpu.segs[register];
             descriptor_table.selector = selector;
             descriptor_table.base = selector << 4;
-        } else if (cpu.eflags & 0x00020000) {
+        } else if (cpu.eflags & 0x00020000) { //EFLAGS.VM (1 == v86 mode)
             init_segment_vars_with_selector(register, selector);
-        } else {
-            Fe(register, selector);
-        }
+        } else {                              //protected mode
+            set_protected_mode_segment_register(register, selector);
+         }
     }
     function do_JMPF_virtual_mode(Ke, Le) {
         eip = Le, physmem8_ptr = initial_mem_ptr = 0;
@@ -5156,7 +5156,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         x = ld_32bits_mem8_read();
         mem8_loc += 4;
         y = ld_16bits_mem8_read();
-        Ie(Sb, y);
+        set_segment_register(Sb, y);
         regs[(mem8 >> 3) & 7] = x;
     }
     function op_16_load_far_pointer16(Sb) {
@@ -5168,7 +5168,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         x = ld_16bits_mem8_read();
         mem8_loc += 2;
         y = ld_16bits_mem8_read();
-        Ie(Sb, y);
+        set_segment_register(Sb, y);
         set_lower_word_in_register((mem8 >> 3) & 7, x);
     }
     function stringOp_INSB() {
@@ -6238,7 +6238,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         mem8_loc = segment_translation(mem8);
                         x = ld_16bits_mem8_read();
                     }
-                    Ie(reg_idx1, x);
+                    set_segment_register(reg_idx1, x);
                     break EXEC_LOOP;
                 case 0x8c://MOV Sw Mw Move
                     mem8 = phys_mem8[physmem8_ptr++];
@@ -7084,7 +7084,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 case 0x07://POP SS:[rSP] ES Pop a Value from the Stack
                 case 0x17://POP SS:[rSP] SS Pop a Value from the Stack
                 case 0x1f://POP SS:[rSP] DS Pop a Value from the Stack
-                    Ie(OPbyte >> 3, pop_dword_from_stack_read() & 0xffff);
+                    set_segment_register(OPbyte >> 3, pop_dword_from_stack_read() & 0xffff);
                     pop_dword_from_stack_incr_ptr();
                     break EXEC_LOOP;
                 case 0x8d://LEA M Gvqp Load Effective Address
@@ -8291,7 +8291,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                             break EXEC_LOOP;
                         case 0xa1://POP SS:[rSP] FS Pop a Value from the Stack
                         case 0xa9://POP SS:[rSP] GS Pop a Value from the Stack
-                            Ie((OPbyte >> 3) & 7, pop_dword_from_stack_read() & 0xffff);
+                            set_segment_register((OPbyte >> 3) & 7, pop_dword_from_stack_read() & 0xffff);
                             pop_dword_from_stack_incr_ptr();
                             break EXEC_LOOP;
                         case 0xc8://BSWAP  Zvqp Byte Swap
@@ -8929,7 +8929,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         case 0x107://POP SS:[rSP] ES Pop a Value from the Stack
                         case 0x117://POP SS:[rSP] SS Pop a Value from the Stack
                         case 0x11f://POP SS:[rSP] DS Pop a Value from the Stack
-                            Ie((OPbyte >> 3) & 3, pop_word_from_stack_read());
+                            set_segment_register((OPbyte >> 3) & 3, pop_word_from_stack_read());
                             pop_word_from_stack_incr_ptr();
                             break EXEC_LOOP;
                         case 0x18d://LEA M Gvqp Load Effective Address
@@ -9361,7 +9361,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                                     break EXEC_LOOP;
                                 case 0x1a1://POP SS:[rSP] FS Pop a Value from the Stack
                                 case 0x1a9://POP SS:[rSP] GS Pop a Value from the Stack
-                                    Ie((OPbyte >> 3) & 7, pop_word_from_stack_read());
+                                    set_segment_register((OPbyte >> 3) & 7, pop_word_from_stack_read());
                                     pop_word_from_stack_incr_ptr();
                                     break EXEC_LOOP;
                                 case 0x1b2://LSS Mptp SS Load Far Pointer
