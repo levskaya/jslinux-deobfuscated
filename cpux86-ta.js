@@ -3694,18 +3694,18 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
 
     /* used only in CALLF, and InterruptF in paged mode */
     function load_from_TR(he) {
-        var tr_type, Rb, je, ke, le;
+        var tr_type, Rb, is_32_bit, ke, le;
         if (!(cpu.tr.flags & (1 << 15)))
             cpu_abort("invalid tss");  //task state segment
         tr_type = (cpu.tr.flags >> 8) & 0xf;
         if ((tr_type & 7) != 1)
             cpu_abort("invalid tss type");
-        je = tr_type >> 3;
-        Rb = (he * 4 + 2) << je;
-        if (Rb + (4 << je) - 1 > cpu.tr.limit)
+        is_32_bit = tr_type >> 3;
+        Rb = (he * 4 + 2) << is_32_bit;
+        if (Rb + (4 << is_32_bit) - 1 > cpu.tr.limit)
             abort_with_error_code(10, cpu.tr.selector & 0xfffc);
         mem8_loc = (cpu.tr.base + Rb) & -1;
-        if (je == 0) {
+        if (is_32_bit == 0) {
             le = ld16_mem8_kernel_read();
             mem8_loc += 2;
         } else {
@@ -3717,7 +3717,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
     function do_interrupt_paged_mode(intno, ne, error_code, oe, pe) {
         var descriptor_table, qe, descriptor_type, he, selector, re, cpl_var;
-        var te, ue, je;
+        var te, ue, is_32_bit;
         var e, descriptor_low4bytes, descriptor_high4bytes, ve, ke, le, we, xe;
         var ye, SS_mask;
         te = 0;
@@ -3818,8 +3818,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             qe = 0;
             le = 0;
         }
-        je = descriptor_type >> 3;
-        if (je == 1) {
+        is_32_bit = descriptor_type >> 3;
+        if (is_32_bit == 1) {
             if (ue) {
                 if (cpu.eflags & 0x00020000) {
                     {
@@ -4202,10 +4202,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
     }
 
-    function op_CALLF_not_paged_mode(je, Ke, Le, oe) {
+    function op_CALLF_not_paged_mode(is_32_bit, Ke, Le, oe) {
         var le;
         le = regs[4];
-        if (je) {
+        if (is_32_bit) {
             {
                 le = (le - 4) >> 0;
                 mem8_loc = ((le & SS_mask) + SS_base) >> 0;
@@ -4234,7 +4234,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         cpu.segs[1].base = (Ke << 4);
         init_segment_local_vars();
     }
-    function op_CALLF_paged_mode(je, Ke, Le, oe) {
+    function op_CALLF_paged_mode(is_32_bit, Ke, Le, oe) {
         var ue, i, e;
         var descriptor_low4bytes, descriptor_high4bytes, cpl_var, dpl, rpl, selector, ve, Se;
         var ke, we, xe, Te, descriptor_type, re, SS_mask;
@@ -4269,7 +4269,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 Te = We;
                 SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
                 qe = cpu.segs[2].base;
-                if (je) {
+                if (is_32_bit) {
                     {
                         Te = (Te - 4) & -1;
                         mem8_loc = (qe + (Te & SS_mask)) & -1;
@@ -4316,7 +4316,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     abort_with_error_code(13, Ke & 0xfffc);
                     break;
             }
-            je = descriptor_type >> 3;
+            is_32_bit = descriptor_type >> 3;
             if (dpl < cpl_var || dpl < rpl)
                 abort_with_error_code(13, Ke & 0xfffc);
             if (!(descriptor_high4bytes & (1 << 15)))
@@ -4362,7 +4362,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 Ve = cpu.segs[2].base;
                 SS_mask = SS_mask_from_flags(xe);
                 qe = calculate_descriptor_base(we, xe);
-                if (je) {
+                if (is_32_bit) {
                     {
                         Te = (Te - 4) & -1;
                         mem8_loc = (qe + (Te & SS_mask)) & -1;
@@ -4408,7 +4408,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 qe = cpu.segs[2].base;
                 ue = 0;
             }
-            if (je) {
+            if (is_32_bit) {
                 {
                     Te = (Te - 4) & -1;
                     mem8_loc = (qe + (Te & SS_mask)) & -1;
@@ -4442,19 +4442,19 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         }
     }
-    function op_CALLF(je, Ke, Le, oe) {
+    function op_CALLF(is_32_bit, Ke, Le, oe) {
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
-            op_CALLF_not_paged_mode(je, Ke, Le, oe);
+            op_CALLF_not_paged_mode(is_32_bit, Ke, Le, oe);
         } else {
-            op_CALLF_paged_mode(je, Ke, Le, oe);
+            op_CALLF_paged_mode(is_32_bit, Ke, Le, oe);
         }
     }
-    function do_return_not_paged_mode(je, bf, cf) {
+    function do_return_not_paged_mode(is_32_bit, bf, cf) {
         var Te, Ke, Le, df, SS_mask, qe, ef;
         SS_mask = 0xffff;
         Te = regs[4];
         qe = cpu.segs[2].base;
-        if (je == 1) {
+        if (is_32_bit == 1) {
             {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
                 Le = ld32_mem8_kernel_read();
@@ -4497,13 +4497,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00010000 | 0x00004000;
             else
                 ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00003000 | 0x00010000 | 0x00004000;
-            if (je == 0)
+            if (is_32_bit == 0)
                 ef &= 0xffff;
             set_FLAGS(df, ef);
         }
         init_segment_local_vars();
     }
-    function do_return_paged_mode(je, bf, cf) {
+    function do_return_paged_mode(is_32_bit, bf, cf) {
         var Ke, df, gf;
         var hf, jf, kf, lf;
         var e, descriptor_low4bytes, descriptor_high4bytes, we, xe;
@@ -4513,7 +4513,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         Te = regs[4];
         qe = cpu.segs[2].base;
         df = 0;
-        if (je == 1) {
+        if (is_32_bit == 1) {
             {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
                 Le = ld32_mem8_kernel_read();
@@ -4619,7 +4619,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         if (rpl == cpl_var) {
             set_segment_vars(1, Ke, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
         } else {
-            if (je == 1) {
+            if (is_32_bit == 1) {
                 {
                     mem8_loc = (qe + (Te & SS_mask)) & -1;
                     wd = ld32_mem8_kernel_read();
@@ -4681,12 +4681,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             iopl = (cpu.eflags >> 12) & 3;
             if (cpl_var <= iopl)
                 ef |= 0x00000200;
-            if (je == 0)
+            if (is_32_bit == 0)
                 ef &= 0xffff;
             set_FLAGS(df, ef);
         }
     }
-    function op_IRET(je) {
+    function op_IRET(is_32_bit) {
         var iopl;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
             if (cpu.eflags & 0x00020000) {
@@ -4694,20 +4694,20 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 if (iopl != 3)
                     abort(13);
             }
-            do_return_not_paged_mode(je, 1, 0);
+            do_return_not_paged_mode(is_32_bit, 1, 0);
         } else {
             if (cpu.eflags & 0x00004000) {
                 throw "unsupported task gate";
             } else {
-                do_return_paged_mode(je, 1, 0);
+                do_return_paged_mode(is_32_bit, 1, 0);
             }
         }
     }
-    function op_RETF(je, cf) {
+    function op_RETF(is_32_bit, cf) {
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
-            do_return_not_paged_mode(je, 0, cf);
+            do_return_not_paged_mode(is_32_bit, 0, cf);
         } else {
-            do_return_paged_mode(je, 0, cf);
+            do_return_paged_mode(is_32_bit, 0, cf);
         }
     }
 
@@ -4757,7 +4757,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             return descriptor_high4bytes & 0x00f0ff00;
         }
     }
-    function op_LAR_LSL(je, is_lsl) {
+    function op_LAR_LSL(is_32_bit, is_lsl) {
         var x, mem8, reg_idx1, selector;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
             abort(6);
@@ -4775,7 +4775,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             _src &= ~0x0040;
         } else {
             _src |= 0x0040;
-            if (je)
+            if (is_32_bit)
                 regs[reg_idx1] = x;
             else
                 set_lower_word_in_register(reg_idx1, x);
