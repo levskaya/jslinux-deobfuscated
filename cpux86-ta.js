@@ -139,7 +139,7 @@ function CPU_X86() {
     this.cycle_count = 0;
     this.hard_irq    = 0;
     this.hard_intno  = -1;
-    this.cpl         = 0; //cpu privilege level
+    this.cpl         = 0; //current privilege level
 
     /*
        Control Registers
