@@ -4449,15 +4449,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             op_CALLF_paged_mode(is_32_bit, selector, Le, oe);
         }
     }
-    function do_return_not_paged_mode(is_32_bit, bf, cf) {
-        var Te, selector, Le, df, SS_mask, qe, ef;
+    function do_return_not_paged_mode(is_32_bit, is_iret, cf) {
+        var Te, selector, stack_eip, stack_eflags, SS_mask, qe, ef;
         SS_mask = 0xffff;
         Te = regs[4];
         qe = cpu.segs[2].base;
         if (is_32_bit == 1) {
             {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
-                Le = ld32_mem8_kernel_read();
+                stack_eip = ld32_mem8_kernel_read();
                 Te = (Te + 4) & -1;
             }
             {
@@ -4466,15 +4466,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 Te = (Te + 4) & -1;
             }
             selector &= 0xffff;
-            if (bf) {
+            if (is_iret) {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
-                df = ld32_mem8_kernel_read();
+                stack_eflags = ld32_mem8_kernel_read();
                 Te = (Te + 4) & -1;
             }
         } else {
             {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
-                Le = ld16_mem8_kernel_read();
+                stack_eip = ld16_mem8_kernel_read();
                 Te = (Te + 2) & -1;
             }
             {
@@ -4482,41 +4482,41 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 selector = ld16_mem8_kernel_read();
                 Te = (Te + 2) & -1;
             }
-            if (bf) {
+            if (is_iret) {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
-                df = ld16_mem8_kernel_read();
+                stack_eflags = ld16_mem8_kernel_read();
                 Te = (Te + 2) & -1;
             }
         }
         regs[4] = (regs[4] & ~SS_mask) | ((Te + cf) & SS_mask);
         cpu.segs[1].selector = selector;
         cpu.segs[1].base = (selector << 4);
-        eip = Le, physmem8_ptr = initial_mem_ptr = 0;
-        if (bf) {
+        eip = stack_eip, physmem8_ptr = initial_mem_ptr = 0;
+        if (is_iret) {
             if (cpu.eflags & 0x00020000)
                 ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00010000 | 0x00004000;
             else
                 ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00003000 | 0x00010000 | 0x00004000;
             if (is_32_bit == 0)
                 ef &= 0xffff;
-            set_FLAGS(df, ef);
+            set_FLAGS(stack_eflags, ef);
         }
         init_segment_local_vars();
     }
-    function do_return_paged_mode(is_32_bit, bf, cf) {
-        var selector, df, gf;
+    function do_return_paged_mode(is_32_bit, is_iret, cf) {
+        var selector, stack_eflags, gf;
         var hf, jf, kf, lf;
         var e, descriptor_low4bytes, descriptor_high4bytes, we, xe;
         var cpl_var, dpl, rpl, ef, iopl;
-        var qe, Te, Le, wd, SS_mask;
+        var qe, Te, stack_eip, wd, SS_mask;
         SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
         Te = regs[4];
         qe = cpu.segs[2].base;
-        df = 0;
+        stack_eflags = 0;
         if (is_32_bit == 1) {
             {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
-                Le = ld32_mem8_kernel_read();
+                stack_eip = ld32_mem8_kernel_read();
                 Te = (Te + 4) & -1;
             }
             {
@@ -4525,13 +4525,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 Te = (Te + 4) & -1;
             }
             selector &= 0xffff;
-            if (bf) {
+            if (is_iret) {
                 {
                     mem8_loc = (qe + (Te & SS_mask)) & -1;
-                    df = ld32_mem8_kernel_read();
+                    stack_eflags = ld32_mem8_kernel_read();
                     Te = (Te + 4) & -1;
                 }
-                if (df & 0x00020000) {
+                if (stack_eflags & 0x00020000) {
                     {
                         mem8_loc = (qe + (Te & SS_mask)) & -1;
                         wd = ld32_mem8_kernel_read();
@@ -4562,7 +4562,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                         lf = ld32_mem8_kernel_read();
                         Te = (Te + 4) & -1;
                     }
-                    set_FLAGS(df, 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00003000 | 0x00020000 | 0x00004000 | 0x00080000 | 0x00100000);
+                    set_FLAGS(stack_eflags, 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00003000 | 0x00020000 | 0x00004000 | 0x00080000 | 0x00100000);
                     init_segment_vars_with_selector(1, selector & 0xffff);
                     change_permission_level(3);
                     init_segment_vars_with_selector(2, gf & 0xffff);
@@ -4570,7 +4570,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     init_segment_vars_with_selector(3, jf & 0xffff);
                     init_segment_vars_with_selector(4, kf & 0xffff);
                     init_segment_vars_with_selector(5, lf & 0xffff);
-                    eip = Le & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
+                    eip = stack_eip & 0xffff, physmem8_ptr = initial_mem_ptr = 0;
                     regs[4] = (regs[4] & ~SS_mask) | ((wd) & SS_mask);
                     return;
                 }
@@ -4578,7 +4578,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         } else {
             {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
-                Le = ld16_mem8_kernel_read();
+                stack_eip= ld16_mem8_kernel_read();
                 Te = (Te + 2) & -1;
             }
             {
@@ -4586,9 +4586,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 selector = ld16_mem8_kernel_read();
                 Te = (Te + 2) & -1;
             }
-            if (bf) {
+            if (is_iret) {
                 mem8_loc = (qe + (Te & SS_mask)) & -1;
-                df = ld16_mem8_kernel_read();
+                stack_eflags = ld16_mem8_kernel_read();
                 Te = (Te + 2) & -1;
             }
         }
@@ -4673,8 +4673,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             Te = (Te + cf) & -1;
         }
         regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
-        eip = Le, physmem8_ptr = initial_mem_ptr = 0;
-        if (bf) {
+        eip = stack_eip, physmem8_ptr = initial_mem_ptr = 0;
+        if (is_iret) {
             ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00010000 | 0x00004000;
             if (cpl_var == 0)
                 ef |= 0x00003000;
@@ -4683,7 +4683,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 ef |= 0x00000200;
             if (is_32_bit == 0)
                 ef &= 0xffff;
-            set_FLAGS(df, ef);
+            set_FLAGS(stack_eflags, ef);
         }
     }
     function op_IRET(is_32_bit) {
