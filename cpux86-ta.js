@@ -4237,7 +4237,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     function op_CALLF_paged_mode(is_32_bit, selector, Le, oe) {
         var ue, i, e;
         var descriptor_low4bytes, descriptor_high4bytes, cpl_var, dpl, rpl, selector, ve, Se;
-        var ke, we, xe, Te, descriptor_type, re, SS_mask;
+        var ke, we, xe, esp, descriptor_type, re, SS_mask;
         var x, limit, Ue;
         var qe, Ve, We;
         if ((selector & 0xfffc) == 0)
@@ -4266,36 +4266,36 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             if (!(descriptor_high4bytes & (1 << 15)))
                 abort_with_error_code(11, selector & 0xfffc);
             {
-                Te = We;
+                esp = We;
                 SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
                 qe = cpu.segs[2].base;
                 if (is_32_bit) {
                     {
-                        Te = (Te - 4) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 4) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st32_mem8_kernel_write(cpu.segs[1].selector);
                     }
                     {
-                        Te = (Te - 4) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 4) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st32_mem8_kernel_write(oe);
                     }
                 } else {
                     {
-                        Te = (Te - 2) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 2) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st16_mem8_kernel_write(cpu.segs[1].selector);
                     }
                     {
-                        Te = (Te - 2) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 2) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st16_mem8_kernel_write(oe);
                     }
                 }
                 limit = calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes);
                 if (Le > limit)
                     abort_with_error_code(13, selector & 0xfffc);
-                regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
+                regs[4] = (regs[4] & ~SS_mask) | ((esp) & SS_mask);
                 set_segment_vars(1, (selector & 0xfffc) | cpl_var, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), limit, descriptor_high4bytes);
                 eip = Le, physmem8_ptr = initial_mem_ptr = 0;
             }
@@ -4341,7 +4341,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             if (!(descriptor_high4bytes & (1 << 10)) && dpl < cpl_var) {
                 e = load_from_TR(dpl);
                 ke = e[0];
-                Te = e[1];
+                esp = e[1];
                 if ((ke & 0xfffc) == 0)
                     abort_with_error_code(10, ke & 0xfffc);
                 if ((ke & 3) != dpl)
@@ -4364,70 +4364,70 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 qe = calculate_descriptor_base(we, xe);
                 if (is_32_bit) {
                     {
-                        Te = (Te - 4) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 4) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st32_mem8_kernel_write(cpu.segs[2].selector);
                     }
                     {
-                        Te = (Te - 4) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 4) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st32_mem8_kernel_write(We);
                     }
                     for (i = Se - 1; i >= 0; i--) {
                         x = Xe(Ve + ((We + i * 4) & Ue));
                         {
-                            Te = (Te - 4) & -1;
-                            mem8_loc = (qe + (Te & SS_mask)) & -1;
+                            esp = (esp - 4) & -1;
+                            mem8_loc = (qe + (esp & SS_mask)) & -1;
                             st32_mem8_kernel_write(x);
                         }
                     }
                 } else {
                     {
-                        Te = (Te - 2) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 2) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st16_mem8_kernel_write(cpu.segs[2].selector);
                     }
                     {
-                        Te = (Te - 2) & -1;
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        esp = (esp - 2) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         st16_mem8_kernel_write(We);
                     }
                     for (i = Se - 1; i >= 0; i--) {
                         x = Ye(Ve + ((We + i * 2) & Ue));
                         {
-                            Te = (Te - 2) & -1;
-                            mem8_loc = (qe + (Te & SS_mask)) & -1;
+                            esp = (esp - 2) & -1;
+                            mem8_loc = (qe + (esp & SS_mask)) & -1;
                             st16_mem8_kernel_write(x);
                         }
                     }
                 }
                 ue = 1;
             } else {
-                Te = We;
+                esp = We;
                 SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
                 qe = cpu.segs[2].base;
                 ue = 0;
             }
             if (is_32_bit) {
                 {
-                    Te = (Te - 4) & -1;
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    esp = (esp - 4) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     st32_mem8_kernel_write(cpu.segs[1].selector);
                 }
                 {
-                    Te = (Te - 4) & -1;
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    esp = (esp - 4) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     st32_mem8_kernel_write(oe);
                 }
             } else {
                 {
-                    Te = (Te - 2) & -1;
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    esp = (esp - 2) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     st16_mem8_kernel_write(cpu.segs[1].selector);
                 }
                 {
-                    Te = (Te - 2) & -1;
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    esp = (esp - 2) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     st16_mem8_kernel_write(oe);
                 }
             }
@@ -4438,7 +4438,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             selector = (selector & ~3) | dpl;
             set_segment_vars(1, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
             change_permission_level(dpl);
-            regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
+            regs[4] = (regs[4] & ~SS_mask) | ((esp) & SS_mask);
             eip = ve, physmem8_ptr = initial_mem_ptr = 0;
         }
     }
@@ -4450,45 +4450,45 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
     }
     function do_return_not_paged_mode(is_32_bit, is_iret, imm16) {
-        var Te, selector, stack_eip, stack_eflags, SS_mask, qe, ef;
+        var esp, selector, stack_eip, stack_eflags, SS_mask, qe, ef;
         SS_mask = 0xffff;
-        Te = regs[4];
+        esp = regs[4];
         qe = cpu.segs[2].base;
         if (is_32_bit == 1) {
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 stack_eip = ld32_mem8_kernel_read();
-                Te = (Te + 4) & -1;
+                esp = (esp + 4) & -1;
             }
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 selector = ld32_mem8_kernel_read();
-                Te = (Te + 4) & -1;
+                esp = (esp + 4) & -1;
             }
             selector &= 0xffff;
             if (is_iret) {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 stack_eflags = ld32_mem8_kernel_read();
-                Te = (Te + 4) & -1;
+                esp = (esp + 4) & -1;
             }
         } else {
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 stack_eip = ld16_mem8_kernel_read();
-                Te = (Te + 2) & -1;
+                esp = (esp + 2) & -1;
             }
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 selector = ld16_mem8_kernel_read();
-                Te = (Te + 2) & -1;
+                esp = (esp + 2) & -1;
             }
             if (is_iret) {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 stack_eflags = ld16_mem8_kernel_read();
-                Te = (Te + 2) & -1;
+                esp = (esp + 2) & -1;
             }
         }
-        regs[4] = (regs[4] & ~SS_mask) | ((Te + imm16) & SS_mask);
+        regs[4] = (regs[4] & ~SS_mask) | ((esp + imm16) & SS_mask);
         cpu.segs[1].selector = selector;
         cpu.segs[1].base = (selector << 4);
         eip = stack_eip, physmem8_ptr = initial_mem_ptr = 0;
@@ -4508,59 +4508,59 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         var hf, jf, kf, lf;
         var e, descriptor_low4bytes, descriptor_high4bytes, we, xe;
         var cpl_var, dpl, rpl, ef, iopl;
-        var qe, Te, stack_eip, wd, SS_mask;
+        var qe, esp, stack_eip, wd, SS_mask;
         SS_mask = SS_mask_from_flags(cpu.segs[2].flags);
-        Te = regs[4];
+        esp = regs[4];
         qe = cpu.segs[2].base;
         stack_eflags = 0;
         if (is_32_bit == 1) {
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 stack_eip = ld32_mem8_kernel_read();
-                Te = (Te + 4) & -1;
+                esp = (esp + 4) & -1;
             }
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 selector = ld32_mem8_kernel_read();
-                Te = (Te + 4) & -1;
+                esp = (esp + 4) & -1;
             }
             selector &= 0xffff;
             if (is_iret) {
                 {
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     stack_eflags = ld32_mem8_kernel_read();
-                    Te = (Te + 4) & -1;
+                    esp = (esp + 4) & -1;
                 }
                 if (stack_eflags & 0x00020000) {
                     {
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         wd = ld32_mem8_kernel_read();
-                        Te = (Te + 4) & -1;
+                        esp = (esp + 4) & -1;
                     }
                     {
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         gf = ld32_mem8_kernel_read();
-                        Te = (Te + 4) & -1;
+                        esp = (esp + 4) & -1;
                     }
                     {
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         hf = ld32_mem8_kernel_read();
-                        Te = (Te + 4) & -1;
+                        esp = (esp + 4) & -1;
                     }
                     {
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         jf = ld32_mem8_kernel_read();
-                        Te = (Te + 4) & -1;
+                        esp = (esp + 4) & -1;
                     }
                     {
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         kf = ld32_mem8_kernel_read();
-                        Te = (Te + 4) & -1;
+                        esp = (esp + 4) & -1;
                     }
                     {
-                        mem8_loc = (qe + (Te & SS_mask)) & -1;
+                        mem8_loc = (qe + (esp & SS_mask)) & -1;
                         lf = ld32_mem8_kernel_read();
-                        Te = (Te + 4) & -1;
+                        esp = (esp + 4) & -1;
                     }
                     set_FLAGS(stack_eflags, 0x00000100 | 0x00040000 | 0x00200000 | 0x00000200 | 0x00003000 | 0x00020000 | 0x00004000 | 0x00080000 | 0x00100000);
                     init_segment_vars_with_selector(1, selector & 0xffff);
@@ -4577,19 +4577,19 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
         } else {
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 stack_eip= ld16_mem8_kernel_read();
-                Te = (Te + 2) & -1;
+                esp = (esp + 2) & -1;
             }
             {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 selector = ld16_mem8_kernel_read();
-                Te = (Te + 2) & -1;
+                esp = (esp + 2) & -1;
             }
             if (is_iret) {
-                mem8_loc = (qe + (Te & SS_mask)) & -1;
+                mem8_loc = (qe + (esp & SS_mask)) & -1;
                 stack_eflags = ld16_mem8_kernel_read();
-                Te = (Te + 2) & -1;
+                esp = (esp + 2) & -1;
             }
         }
         if ((selector & 0xfffc) == 0)
@@ -4615,32 +4615,32 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         if (!(descriptor_high4bytes & (1 << 15)))
             abort_with_error_code(11, selector & 0xfffc);
-        Te = (Te + imm16) & -1;
+        esp = (esp + imm16) & -1;
         if (rpl == cpl_var) {
             set_segment_vars(1, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
         } else {
             if (is_32_bit == 1) {
                 {
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     wd = ld32_mem8_kernel_read();
-                    Te = (Te + 4) & -1;
+                    esp = (esp + 4) & -1;
                 }
                 {
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     gf = ld32_mem8_kernel_read();
-                    Te = (Te + 4) & -1;
+                    esp = (esp + 4) & -1;
                 }
                 gf &= 0xffff;
             } else {
                 {
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     wd = ld16_mem8_kernel_read();
-                    Te = (Te + 2) & -1;
+                    esp = (esp + 2) & -1;
                 }
                 {
-                    mem8_loc = (qe + (Te & SS_mask)) & -1;
+                    mem8_loc = (qe + (esp & SS_mask)) & -1;
                     gf = ld16_mem8_kernel_read();
-                    Te = (Te + 2) & -1;
+                    esp = (esp + 2) & -1;
                 }
             }
             if ((gf & 0xfffc) == 0) {
@@ -4664,15 +4664,15 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
             set_segment_vars(1, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
             change_permission_level(rpl);
-            Te = wd;
+            esp = wd;
             SS_mask = SS_mask_from_flags(xe);
             Pe(0, rpl);
             Pe(3, rpl);
             Pe(4, rpl);
             Pe(5, rpl);
-            Te = (Te + imm16) & -1;
+            esp = (esp + imm16) & -1;
         }
-        regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
+        regs[4] = (regs[4] & ~SS_mask) | ((esp) & SS_mask);
         eip = stack_eip, physmem8_ptr = initial_mem_ptr = 0;
         if (is_iret) {
             ef = 0x00000100 | 0x00040000 | 0x00200000 | 0x00010000 | 0x00004000;
