@@ -4449,7 +4449,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             op_CALLF_paged_mode(is_32_bit, selector, Le, oe);
         }
     }
-    function do_return_not_paged_mode(is_32_bit, is_iret, cf) {
+    function do_return_not_paged_mode(is_32_bit, is_iret, imm16) {
         var Te, selector, stack_eip, stack_eflags, SS_mask, qe, ef;
         SS_mask = 0xffff;
         Te = regs[4];
@@ -4488,7 +4488,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 Te = (Te + 2) & -1;
             }
         }
-        regs[4] = (regs[4] & ~SS_mask) | ((Te + cf) & SS_mask);
+        regs[4] = (regs[4] & ~SS_mask) | ((Te + imm16) & SS_mask);
         cpu.segs[1].selector = selector;
         cpu.segs[1].base = (selector << 4);
         eip = stack_eip, physmem8_ptr = initial_mem_ptr = 0;
@@ -4503,7 +4503,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         init_segment_local_vars();
     }
-    function do_return_paged_mode(is_32_bit, is_iret, cf) {
+    function do_return_paged_mode(is_32_bit, is_iret, imm16) {
         var selector, stack_eflags, gf;
         var hf, jf, kf, lf;
         var e, descriptor_low4bytes, descriptor_high4bytes, we, xe;
@@ -4615,7 +4615,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         if (!(descriptor_high4bytes & (1 << 15)))
             abort_with_error_code(11, selector & 0xfffc);
-        Te = (Te + cf) & -1;
+        Te = (Te + imm16) & -1;
         if (rpl == cpl_var) {
             set_segment_vars(1, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
         } else {
@@ -4670,7 +4670,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             Pe(3, rpl);
             Pe(4, rpl);
             Pe(5, rpl);
-            Te = (Te + cf) & -1;
+            Te = (Te + imm16) & -1;
         }
         regs[4] = (regs[4] & ~SS_mask) | ((Te) & SS_mask);
         eip = stack_eip, physmem8_ptr = initial_mem_ptr = 0;
@@ -4703,11 +4703,11 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
         }
     }
-    function op_RETF(is_32_bit, cf) {
+    function op_RETF(is_32_bit, imm16) {
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
-            do_return_not_paged_mode(is_32_bit, 0, cf);
+            do_return_not_paged_mode(is_32_bit, 0, imm16);
         } else {
-            do_return_paged_mode(is_32_bit, 0, cf);
+            do_return_paged_mode(is_32_bit, 0, imm16);
         }
     }
 
@@ -7477,7 +7477,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     }
                     break EXEC_LOOP;
                 case 0xca://RETF Iw  Return from procedure
-                    y = (ld16_mem8_direct() << 16) >> 16;
+                    y = (ld16_mem8_direct() << 16) >> 16;     //16 bit immediate field
                     op_RETF((((CS_flags >> 8) & 1) ^ 1), y);
                     {
                         if (cpu.hard_irq != 0 && (cpu.eflags & 0x00000200))
