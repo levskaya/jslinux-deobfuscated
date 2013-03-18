@@ -3694,13 +3694,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
 
     /* used only in CALLF, and InterruptF in paged mode */
     function load_from_TR(he) {
-        var ie, Rb, je, ke, le;
+        var tr_type, Rb, je, ke, le;
         if (!(cpu.tr.flags & (1 << 15)))
             cpu_abort("invalid tss");  //task state segment
-        ie = (cpu.tr.flags >> 8) & 0xf;
-        if ((ie & 7) != 1)
+        tr_type = (cpu.tr.flags >> 8) & 0xf;
+        if ((tr_type & 7) != 1)
             cpu_abort("invalid tss type");
-        je = ie >> 3;
+        je = tr_type >> 3;
         Rb = (he * 4 + 2) << je;
         if (Rb + (4 << je) - 1 > cpu.tr.limit)
             abort_with_error_code(10, cpu.tr.selector & 0xfffc);
@@ -3716,7 +3716,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         return [ke, le];
     }
     function do_interrupt_paged_mode(intno, ne, error_code, oe, pe) {
-        var descriptor_table, qe, ie, he, selector, re, cpl_var;
+        var descriptor_table, qe, descriptor_type, he, selector, re, cpl_var;
         var te, ue, je;
         var e, descriptor_low4bytes, descriptor_high4bytes, ve, ke, le, we, xe;
         var ye, SS_mask;
@@ -3745,8 +3745,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         descriptor_low4bytes = ld32_mem8_kernel_read();
         mem8_loc += 4;
         descriptor_high4bytes = ld32_mem8_kernel_read();
-        ie = (descriptor_high4bytes >> 8) & 0x1f;
-        switch (ie) {
+        descriptor_type = (descriptor_high4bytes >> 8) & 0x1f;
+        switch (descriptor_type) {
             case 5:
             case 7:
             case 6:
@@ -3818,7 +3818,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             qe = 0;
             le = 0;
         }
-        je = ie >> 3;
+        je = descriptor_type >> 3;
         if (je == 1) {
             if (ue) {
                 if (cpu.eflags & 0x00020000) {
@@ -3949,7 +3949,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         set_segment_vars(1, selector, calculate_descriptor_base(descriptor_low4bytes, descriptor_high4bytes), calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes), descriptor_high4bytes);
         change_permission_level(dpl);
         eip = ve, physmem8_ptr = initial_mem_ptr = 0;
-        if ((ie & 1) == 0) {
+        if ((descriptor_type & 1) == 0) {
             cpu.eflags &= ~0x00000200;
         }
         cpu.eflags &= ~(0x00000100 | 0x00020000 | 0x00010000 | 0x00004000);
@@ -4048,7 +4048,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         cpu.ldt.selector = selector;
     }
     function op_LTR(selector) {
-        var descriptor_table, descriptor_low4bytes, descriptor_high4bytes, Rb, ie, De;
+        var descriptor_table, descriptor_low4bytes, descriptor_high4bytes, Rb, descriptor_type, De;
         selector &= 0xffff;
         if ((selector & 0xfffc) == 0) {
             cpu.tr.base = 0;
@@ -4066,8 +4066,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             descriptor_low4bytes = ld32_mem8_kernel_read();
             mem8_loc += 4;
             descriptor_high4bytes = ld32_mem8_kernel_read();
-            ie = (descriptor_high4bytes >> 8) & 0xf;
-            if ((descriptor_high4bytes & (1 << 12)) || (ie != 1 && ie != 9))
+            descriptor_type = (descriptor_high4bytes >> 8) & 0xf;
+            if ((descriptor_high4bytes & (1 << 12)) || (descriptor_type != 1 && descriptor_type != 9))
                 abort_with_error_code(13, selector & 0xfffc);
             if (!(descriptor_high4bytes & (1 << 15)))
                 abort_with_error_code(11, selector & 0xfffc);
@@ -4237,7 +4237,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     function op_CALLF_paged_mode(je, Ke, Le, oe) {
         var ue, i, e;
         var descriptor_low4bytes, descriptor_high4bytes, cpl_var, dpl, rpl, selector, ve, Se;
-        var ke, we, xe, Te, ie, re, SS_mask;
+        var ke, we, xe, Te, descriptor_type, re, SS_mask;
         var x, limit, Ue;
         var qe, Ve, We;
         if ((Ke & 0xfffc) == 0)
@@ -4300,10 +4300,10 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 eip = Le, physmem8_ptr = initial_mem_ptr = 0;
             }
         } else {
-            ie = (descriptor_high4bytes >> 8) & 0x1f;
+            descriptor_type = (descriptor_high4bytes >> 8) & 0x1f;
             dpl = (descriptor_high4bytes >> 13) & 3;
             rpl = Ke & 3;
-            switch (ie) {
+            switch (descriptor_type) {
                 case 1:
                 case 9:
                 case 5:
@@ -4316,7 +4316,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     abort_with_error_code(13, Ke & 0xfffc);
                     break;
             }
-            je = ie >> 3;
+            je = descriptor_type >> 3;
             if (dpl < cpl_var || dpl < rpl)
                 abort_with_error_code(13, Ke & 0xfffc);
             if (!(descriptor_high4bytes & (1 << 15)))
@@ -4712,8 +4712,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
 
     //utility function for op_LAR_LSL
-    function of(selector, pf) {
-        var e, descriptor_low4bytes, descriptor_high4bytes, rpl, he, cpl_var, ie;
+    function of(selector, is_lsl) {
+        var e, descriptor_low4bytes, descriptor_high4bytes, rpl, dpl, cpl_var, descriptor_type;
         if ((selector & 0xfffc) == 0)
             return null;
         e = load_from_descriptor_table(selector);
@@ -4731,8 +4731,8 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     return null;
             }
         } else {
-            ie = (descriptor_high4bytes >> 8) & 0xf;
-            switch (ie) {
+            descriptor_type = (descriptor_high4bytes >> 8) & 0xf;
+            switch (descriptor_type) {
                 case 1:
                 case 2:
                 case 3:
