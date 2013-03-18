@@ -4742,22 +4742,22 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 case 4:
                 case 5:
                 case 12:
-                    if (pf)
+                    if (is_lsl)
                         return null;
                     break;
                 default:
                     return null;
             }
-            if (he < cpl_var || he < rpl)
+            if (dpl < cpl_var || dpl < rpl)
                 return null;
         }
-        if (pf) {
+        if (is_lsl) {
             return calculate_descriptor_limit(descriptor_low4bytes, descriptor_high4bytes);
         } else {
             return descriptor_high4bytes & 0x00f0ff00;
         }
     }
-    function op_LAR_LSL(je, pf) {
+    function op_LAR_LSL(je, is_lsl) {
         var x, mem8, reg_idx1, selector;
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000))
             abort(6);
@@ -4769,7 +4769,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             mem8_loc = segment_translation(mem8);
             selector = ld_16bits_mem8_read();
         }
-        x = of(selector, pf);
+        x = of(selector, is_lsl);
         _src = get_conditional_flags();
         if (x === null) {
             _src &= ~0x0040;
