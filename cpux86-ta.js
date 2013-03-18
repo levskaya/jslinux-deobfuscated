@@ -4521,7 +4521,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
             {
                 mem8_loc = (qe + (esp & SS_mask)) & -1;
-                selector = ld32_mem8_kernel_read();
+                selector = ld32_mem8_kernel_read();                //CS selector
                 esp = (esp + 4) & -1;
             }
             selector &= 0xffff;
@@ -4531,12 +4531,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                     stack_eflags = ld32_mem8_kernel_read();
                     esp = (esp + 4) & -1;
                 }
-                if (stack_eflags & 0x00020000) {
+                if (stack_eflags & 0x00020000) {     //eflags.VM (return to v86 mode)
                     {
                         mem8_loc = (qe + (esp & SS_mask)) & -1;
                         wd = ld32_mem8_kernel_read();
                         esp = (esp + 4) & -1;
                     }
+                    //pop segment selectors from stack
                     {
                         mem8_loc = (qe + (esp & SS_mask)) & -1;
                         gf = ld32_mem8_kernel_read();
