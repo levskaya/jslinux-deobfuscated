@@ -27,6 +27,8 @@ Everything but the flow-control (JMP CALL RET) routines is fairly
 comprehensible.  There's still some unnamed functions there as I
 haven't worked out exactly what's going on.
 
+There is a much more complete, ground-up project to build a 386-style emulator in javascript called [jslm32][3].
+
 ### ETC
 
 I highly recommend, by the way, the excellent [JSShaper][2] library for transforming large javascript code bases.  The hacks I made from it are in this repo: a little symbol-name-transformer node.js script and an emacs function for doing this in live buffers.
@@ -56,3 +58,4 @@ Some other helpful references for understanding what's going on:
 
 [1]: http://bellard.org/jslinux/tech.html
 [2]: http://jsshaper.org
+[3]: https://github.com/ubercomp/jslm32
