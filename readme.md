@@ -13,6 +13,8 @@ In the off-chance someone else might be interested in this code as a
 basis for further weird in-browser x86 hacking I'm posting this
 redacted version of the code here.
 
+There is a much more complete, ground-up project to build a 386-style emulator in javascript called [jslm32][3].
+
 ### Status
 It's still a dense code base, it's an emulator of a rather
 complicated architecture, after all.  However this version is nowhere
@@ -26,8 +28,6 @@ instruction operation the opcode refers to.
 Everything but the flow-control (JMP CALL RET) routines is fairly
 comprehensible.  There's still some unnamed functions there as I
 haven't worked out exactly what's going on.
-
-There is a much more complete, ground-up project to build a 386-style emulator in javascript called [jslm32][3].
 
 ### ETC
 
