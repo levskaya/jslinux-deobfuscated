@@ -3715,7 +3715,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         ke = ld16_mem8_kernel_read();
         return [ke, le];
     }
-    function do_interrupt_paged_mode(intno, ne, error_code, oe, pe) {
+    function do_interrupt_protected_mode(intno, ne, error_code, oe, pe) {
         var descriptor_table, qe, descriptor_type, he, selector, re, cpl_var;
         var te, ue, is_32_bit;
         var e, descriptor_low4bytes, descriptor_high4bytes, ve, ke, le, we, xe;
@@ -3954,7 +3954,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         cpu.eflags &= ~(0x00000100 | 0x00020000 | 0x00010000 | 0x00004000);
     }
-    function do_interrupt_not_paged_mode(intno, ne, error_code, oe, pe) {
+    function do_interrupt_not_protected_mode(intno, ne, error_code, oe, pe) {
         var descriptor_table, qe, selector, ve, le, ye;
         descriptor_table = cpu.idt;
         if (intno * 4 + 3 > descriptor_table.limit)
@@ -4015,9 +4015,9 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             }
         }
         if (cpu.cr0 & (1 << 0)) {
-            do_interrupt_paged_mode(intno, ne, error_code, oe, pe);
+            do_interrupt_protected_mode(intno, ne, error_code, oe, pe);
         } else {
-            do_interrupt_not_paged_mode(intno, ne, error_code, oe, pe);
+            do_interrupt_not_protected_mode(intno, ne, error_code, oe, pe);
         }
     }
     //SLDT routines
@@ -4188,7 +4188,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
     }
 
-    /* used only in do_return_paged_mode */
+    /* used only in do_return_protected_mode */
     function Pe(register, cpl_var) {
         var dpl, descriptor_high4bytes;
         if ((register == 4 || register == 5) && (cpu.segs[register].selector & 0xfffc) == 0)
@@ -4202,7 +4202,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
     }
 
-    function op_CALLF_not_paged_mode(is_32_bit, selector, Le, oe) {
+    function op_CALLF_not_protected_mode(is_32_bit, selector, Le, oe) {
         var le;
         le = regs[4];
         if (is_32_bit) {
@@ -4234,7 +4234,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         cpu.segs[1].base = (selector << 4);
         init_segment_local_vars();
     }
-    function op_CALLF_paged_mode(is_32_bit, selector, Le, oe) {
+    function op_CALLF_protected_mode(is_32_bit, selector, Le, oe) {
         var ue, i, e;
         var descriptor_low4bytes, descriptor_high4bytes, cpl_var, dpl, rpl, selector, ve, Se;
         var ke, we, xe, esp, descriptor_type, re, SS_mask;
@@ -4444,12 +4444,12 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
     function op_CALLF(is_32_bit, selector, Le, oe) {
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
-            op_CALLF_not_paged_mode(is_32_bit, selector, Le, oe);
+            op_CALLF_not_protected_mode(is_32_bit, selector, Le, oe);
         } else {
-            op_CALLF_paged_mode(is_32_bit, selector, Le, oe);
+            op_CALLF_protected_mode(is_32_bit, selector, Le, oe);
         }
     }
-    function do_return_not_paged_mode(is_32_bit, is_iret, imm16) {
+    function do_return_not_protected_mode(is_32_bit, is_iret, imm16) {
         var esp, selector, stack_eip, stack_eflags, SS_mask, qe, ef;
         SS_mask = 0xffff;
         esp = regs[4];
@@ -4503,7 +4503,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         }
         init_segment_local_vars();
     }
-    function do_return_paged_mode(is_32_bit, is_iret, imm16) {
+    function do_return_protected_mode(is_32_bit, is_iret, imm16) {
         var selector, stack_eflags, gf;
         var hf, jf, kf, lf;
         var e, descriptor_low4bytes, descriptor_high4bytes, we, xe;
@@ -4695,20 +4695,20 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 if (iopl != 3)
                     abort(13);
             }
-            do_return_not_paged_mode(is_32_bit, 1, 0);
+            do_return_not_protected_mode(is_32_bit, 1, 0);
         } else {
             if (cpu.eflags & 0x00004000) {
                 throw "unsupported task gate";
             } else {
-                do_return_paged_mode(is_32_bit, 1, 0);
+                do_return_protected_mode(is_32_bit, 1, 0);
             }
         }
     }
     function op_RETF(is_32_bit, imm16) {
         if (!(cpu.cr0 & (1 << 0)) || (cpu.eflags & 0x00020000)) {
-            do_return_not_paged_mode(is_32_bit, 0, imm16);
+            do_return_not_protected_mode(is_32_bit, 0, imm16);
         } else {
-            do_return_paged_mode(is_32_bit, 0, imm16);
+            do_return_protected_mode(is_32_bit, 0, imm16);
         }
     }
 
