@@ -3,7 +3,7 @@ De-obfuscated JSLinux
 
 I wanted to understand how the amazing [JsLinux][1] worked.
 
-However,  Mr Bellard seems to have applied a decidedly french proclivity towards obfuscatory algorithmic prose, replete with two-letter variable names and the like... ;)  I have no idea if he passed it through a minifier or if the code was generated algorithmically from stuff in the QEMU codebase.  In any case, it's hard to follow the action as presented originally, let alone extend it to do new tricks.
+I have no idea if he passed it through a minifier or if the code was generated algorithmically from stuff in the QEMU codebase.  In any case, it's hard to follow the action as presented originally, let alone extend it to do new tricks.
 
 I hand de-obfuscated the codebase (primarily the core cpu-emulation
 routines and a bit of the rest as well) while studying it over a few
