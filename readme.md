@@ -55,4 +55,4 @@ Some other helpful references for understanding what's going on:
 - http://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming
 
 [1]: http://bellard.org/jslinux/tech.html
-[2]: http://sshaper.org
+[2]: http://jsshaper.org
