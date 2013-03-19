@@ -4862,21 +4862,21 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         _op = 24;
     }
     function op_CPUID() {
-        var Rb;
-        Rb = regs[0];
-        switch (Rb) {
-            case 0:
+        var eax;
+        eax = regs[0];
+        switch (eax) {
+            case 0:  // eax == 0: vendor ID
                 regs[0] = 1;
                 regs[3] = 0x756e6547 & -1;
                 regs[2] = 0x49656e69 & -1;
                 regs[1] = 0x6c65746e & -1;
                 break;
-            case 1:
+            case 1:  // eax == 1: processor info and feature flags
             default:
-                regs[0] = (5 << 8) | (4 << 4) | 3;
-                regs[3] = 8 << 8;
+                regs[0] = (5 << 8) | (4 << 4) | 3; // family | model | stepping
+                regs[3] = 8 << 8;                  // danluu: This is a mystery to me. This bit now indicates clflush line size, but must have meant something else in the past.
                 regs[1] = 0;
-                regs[2] = (1 << 4);
+                regs[2] = (1 << 4);                // rdtsc support
                 break;
         }
     }

@@ -25,6 +25,8 @@ have been added.
 The core opcode execution loop has been autocommented to indicate what
 instruction operation the opcode refers to.
 
+One mystery is, why does CPUID(1) return 8 << 8 in EBX? EBX[15:8] is now used to indicate CLFLUSH line size, but that field must have been used for something else in the past.
+
 ### ETC
 
 I highly recommend, by the way, the excellent [JSShaper][2] library for transforming large javascript code bases.  The hacks I made from it are in this repo: a little symbol-name-transformer node.js script and an emacs function for doing this in live buffers.
