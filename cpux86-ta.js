@@ -4787,7 +4787,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
     }
 
     //utility function for op_VERR_VERW
-    function rf(selector, ud) {
+    function segment_isnt_accessible(selector, is_verw) {
         var e, descriptor_low4bytes, descriptor_high4bytes, rpl, dpl, cpl_var;
         if ((selector & 0xfffc) == 0)
             return 0;
@@ -4796,13 +4796,13 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
             return 0;
         descriptor_low4bytes = e[0];
         descriptor_high4bytes = e[1];
-        if (!(descriptor_high4bytes & (1 << 12)))
+        if (!(descriptor_high4bytes & (1 << 12)))   // s bit (system == 0)
             return 0;
         rpl = selector & 3;
         dpl = (descriptor_high4bytes >> 13) & 3;
         cpl_var = cpu.cpl;
-        if (descriptor_high4bytes & (1 << 11)) {
-            if (ud) {
+        if (descriptor_high4bytes & (1 << 11)) {   // code == 1, data == 0
+            if (is_verw) {                         // code segments are never writable
                 return 0;
             } else {
                 if (!(descriptor_high4bytes & (1 << 9)))
@@ -4813,17 +4813,19 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
                 }
             }
         } else {
-            if (dpl < cpl_var || dpl < rpl)
+            if (dpl < cpl_var || dpl < rpl)        // data segments are always readable, if privilege is sufficient
                 return 0;
-            if (ud && !(descriptor_high4bytes & (1 << 9)))
+            if (is_verw && !(descriptor_high4bytes & (1 << 9)))  //writable data segment
                 return 0;
         }
         return 1;
     }
-    function op_VERR_VERW(selector, ud) {
+    function op_VERR_VERW(selector, is_verw) {
         var z;
-        z = rf(selector, ud);
+        z = segment_isnt_accessible(selector, is_verw);
         _src = get_conditional_flags();
+				
+        // clear eflags.zf if selector is accessible and (readable (for VERR) or writable (for VERW))
         if (z)
             _src |= 0x0040;
         else
