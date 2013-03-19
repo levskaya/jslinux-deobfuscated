@@ -23,10 +23,6 @@ have been added.
 The core opcode execution loop has been autocommented to indicate what
 instruction operation the opcode refers to.
 
-Everything but the flow-control (JMP CALL RET) routines is fairly
-comprehensible.  There's still some unnamed functions there as I
-haven't worked out exactly what's going on.
-
 ### ETC
 
 I highly recommend, by the way, the excellent [JSShaper][2] library for transforming large javascript code bases.  The hacks I made from it are in this repo: a little symbol-name-transformer node.js script and an emacs function for doing this in live buffers.
@@ -41,7 +37,9 @@ Some other helpful references for understanding what's going on:
 
 #### x86
 - http://pdos.csail.mit.edu/6.828/2005/readings/i386/
+- http://pdos.csail.mit.edu/6.828/2010/readings/i386.pdf (PDF of above)
 - http://ref.x86asm.net/coder32.html
+- http://www.sandpile.org/
 - http://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
 - http://en.wikipedia.org/wiki/X86
 - http://en.wikipedia.org/wiki/Control_register
