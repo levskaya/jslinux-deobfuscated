@@ -15,6 +15,9 @@ function PIT(PC, ah, bh) {
     }
     this.speaker_data_on = 0;
     this.set_irq = ah;
+    // Ports:
+    // 0x40: Channel 0 data port
+    // 0x61: Control
     PC.register_ioport_write(0x40, 4, 1, this.ioport_write.bind(this));
     PC.register_ioport_read(0x40, 3, 1, this.ioport_read.bind(this));
     PC.register_ioport_read(0x61, 1, 1, this.speaker_ioport_read.bind(this));
@@ -58,22 +61,28 @@ IRQCH.prototype.pit_get_out = function() {
     d = this.get_time() - this.count_load_time;
     switch (this.mode) {
         default:
+	// Interrupt on terminal count
         case 0:
             eh = (d >= this.count) >> 0;
             break;
+	// One shot
         case 1:
             eh = (d < this.count) >> 0;
             break;
+	// Frequency divider
         case 2:
             if ((d % this.count) == 0 && d != 0)
                 eh = 1;
             else
                 eh = 0;
             break;
+	// Square wave
         case 3:
             eh = ((d % this.count) < (this.count >> 1)) >> 0;
             break;
+	// SW strobe
         case 4:
+	// HW strobe
         case 5:
             eh = (d == this.count) >> 0;
             break;
