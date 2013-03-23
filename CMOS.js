@@ -27,7 +27,10 @@ function CMOS(PC) {
 }
 CMOS.prototype.ioport_write = function(mem8_loc, data) {
     if (mem8_loc == 0x70) {
-        this.cmos_index = data & 0x7f;
+	// the high order bit is used to indicate NMI masking
+        // low order bits are used to address CMOS
+        // the index written here is used on an ioread 0x71
+        this.cmos_index = data & 0x7f; 
     }
 };
 CMOS.prototype.ioport_read = function(mem8_loc) {
@@ -35,10 +38,13 @@ CMOS.prototype.ioport_read = function(mem8_loc) {
     if (mem8_loc == 0x70) {
         return 0xff;
     } else {
+	// else here => 0x71, i.e., CMOS read
         data = this.cmos_data[this.cmos_index];
         if (this.cmos_index == 10)
+	    // flip the UIP (update in progress) bit on a read
             this.cmos_data[10] ^= 0x80;
         else if (this.cmos_index == 12)
+	    // Always return interrupt status == 0
             this.cmos_data[12] = 0x00;
         return data;
     }

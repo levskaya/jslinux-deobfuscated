@@ -13,7 +13,7 @@ KBD.prototype.read_status = function(mem8_loc) {
 };
 KBD.prototype.write_command = function(mem8_loc, x) {
     switch (x) {
-        case 0xfe:
+        case 0xfe: // Resend command. Other commands are, apparently, ignored.
             this.reset_request();
             break;
         default:

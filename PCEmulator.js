@@ -185,7 +185,7 @@ PCEmulator.prototype.register_ioport_write = function(start, len, iotype, io_cal
     }
 };
 
-PCEmulator.prototype.ioport80_write = function(mem8_loc, data) {};
+PCEmulator.prototype.ioport80_write = function(mem8_loc, data) {}; //POST codes! Seem to be ignored?
 PCEmulator.prototype.reset = function() { this.request_request = 1; };
 
 

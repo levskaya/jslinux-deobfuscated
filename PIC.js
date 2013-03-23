@@ -72,6 +72,16 @@ PIC.prototype.ioport_write = function(mem8_loc, x) {
     mem8_loc &= 1;
     if (mem8_loc == 0) {
         if (x & 0x10) {
+	    /*
+	      ICW1
+	      // 7:5 = address (if MCS-80/85 mode)
+	      // 4 == 1
+	      // 3: 1 == level triggered, 0 == edge triggered
+	      // 2: 1 == call interval 4, 0 == call interval 8
+	      // 1: 1 == single PIC, 0 == cascaded PICs
+	      // 0: 1 == send ICW4
+
+	     */
             this.reset();
             this.init_state = 1;
             this.init4 = x & 1;
