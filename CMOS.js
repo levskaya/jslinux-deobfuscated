@@ -1,5 +1,8 @@
 /*
-Fabrix - An annotated version of the original JSLinux which is Copyright (c) 2011 Fabrice Bellard
+  JSLinux-deobfuscated - An annotated version of the original JSLinux.
+
+  Original is Copyright (c) 2011-2012 Fabrice Bellard
+  Redistribution or commercial use is prohibited without the author's permission.
 
 Clock Emulator
 */
@@ -30,7 +33,7 @@ CMOS.prototype.ioport_write = function(mem8_loc, data) {
 	// the high order bit is used to indicate NMI masking
         // low order bits are used to address CMOS
         // the index written here is used on an ioread 0x71
-        this.cmos_index = data & 0x7f; 
+        this.cmos_index = data & 0x7f;
     }
 };
 CMOS.prototype.ioport_read = function(mem8_loc) {

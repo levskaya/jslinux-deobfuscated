@@ -3,17 +3,14 @@ De-obfuscated JSLinux
 
 I wanted to understand how the amazing [JsLinux][1] worked.
 
-I have no idea if he passed it through a minifier or if the code was generated algorithmically from stuff in the QEMU codebase.  In any case, it's hard to follow the action as presented originally, let alone extend it to do new tricks.
-
-I hand de-obfuscated the codebase (primarily the core cpu-emulation
-routines and a bit of the rest as well) while studying it over a few
-days' time.
+However the original was passed through a minifier and was completely incomprehensible in that form.  (Mr Bellard's standards for the code that he open sources is very high.)  I couldn't wait for the proper release of the opus, so in a fit of mania I hand de-obfuscated the codebase (primarily the core cpu-emulation
+routines and a bit of the rest as well) while studying it over a few days' time.
 
 In the off-chance someone else might be interested in this code as a
 basis for further weird in-browser x86 hacking I'm posting this
-redacted version of the code here.
+redacted version of the code here, with permission of Mr. Bellard.
 
-There is a much more complete, ground-up project to build a 386-style emulator in javascript called [jslm32][3].
+Note that there is a much more readable, ground-up project to build an open-source 386-style emulator in javascript called [jslm32][3].
 
 ### Status
 It's still a dense code base, it's an emulator of a rather
@@ -21,6 +18,8 @@ complicated architecture, after all.  However this version is nowhere
 near so incomprehensible as the original.  Nearly all of the global variables
 and function names have been named somewhat sensibly.  Many comments
 have been added.
+
+It seems to run identically to the original.
 
 The core opcode execution loop has been autocommented to indicate what
 instruction operation the opcode refers to.
@@ -31,10 +30,9 @@ One mystery is, why does CPUID(1) return 8 << 8 in EBX? EBX[15:8] is now used to
 
 I highly recommend, by the way, the excellent [JSShaper][2] library for transforming large javascript code bases.  The hacks I made from it are in this repo: a little symbol-name-transformer node.js script and an emacs function for doing this in live buffers.
 
-### Caveat Coder
-This is a pedagogical/aesthetic reinterpretation of the original
-JSLinux code Copyright (c) 2011 Fabrice Bellard.  It seems to run
-identically to the original.
+### License
+
+This is a pedagogical/aesthetic derivative of the original JSLinux code Copyright (c) 2011-2013 Fabrice Bellard.  It is posted here with permission of the original author subject to his original constraints : Redistribution or commercial use is prohibited without the (original) author's permission.
 
 ### References
 Some other helpful references for understanding what's going on:

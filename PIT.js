@@ -1,7 +1,10 @@
 /*
-Fabrix - An annotated version of the original JSLinux which is Copyright (c) 2011 Fabrice Bellard
+JSLinux-deobfuscated - An annotated version of the original JSLinux.
 
-PIT Emulator
+Original is Copyright (c) 2011-2012 Fabrice Bellard
+Redistribution or commercial use is prohibited without the author's permission.
+
+8254 Programmble Interrupt Timer Emulator
 */
 function PIT(PC, ah, bh) {
     var s, i;

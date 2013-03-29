@@ -1,8 +1,11 @@
 /*
-Fabrix - An annotated version of the original JSLinux Copyright (c) 2011 Fabrice Bellard
-==================================================================================================
+JSLinux-deobfuscated - An annotated version of the original JSLinux.
+
+Original is Copyright (c) 2011-2012 Fabrice Bellard
+Redistribution or commercial use is prohibited without the author's permission.
 
 A x86 CPU (circa 486 sans FPU) Emulator
+======================================================================
 
 Useful references:
 ======================================================================
@@ -4824,7 +4827,7 @@ CPU_X86.prototype.exec_internal = function(N_cycles, interrupt) {
         var z;
         z = segment_isnt_accessible(selector, is_verw);
         _src = get_conditional_flags();
-				
+
         // clear eflags.zf if selector is accessible and (readable (for VERR) or writable (for VERW))
         if (z)
             _src |= 0x0040;

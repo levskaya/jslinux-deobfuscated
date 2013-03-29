@@ -1,5 +1,8 @@
 /*
-Fabrix - An annotated version of the original JSLinux which is Copyright (c) 2011 Fabrice Bellard
+JSLinux-deobfuscated - An annotated version of the original JSLinux.
+
+Original is Copyright (c) 2011-2012 Fabrice Bellard
+Redistribution or commercial use is prohibited without the author's permission.
 
 8259 PIC (Programmable Interrupt Controller) Emulation Code
 */
