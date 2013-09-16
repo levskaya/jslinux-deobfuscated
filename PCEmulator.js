@@ -7,25 +7,25 @@ Redistribution or commercial use is prohibited without the author's permission.
 Main PC Emulator Routine
 */
 
+// used as callback wrappers for emulated PIT and PIC chips
 function set_hard_irq_wrapper(irq) { this.hard_irq = irq;}
-
 function return_cycle_count() { return this.cycle_count; }
 
-function PCEmulator(uh) {
+function PCEmulator(params) {
     var cpu;
     cpu = new CPU_X86();
     this.cpu = cpu;
-    cpu.phys_mem_resize(uh.mem_size);
+    cpu.phys_mem_resize(params.mem_size);
     this.init_ioports();
     this.register_ioport_write(0x80, 1, 1, this.ioport80_write);
     this.pic    = new PIC_Controller(this, 0x20, 0xa0, set_hard_irq_wrapper.bind(cpu));
     this.pit    = new PIT(this, this.pic.set_irq.bind(this.pic, 0),  return_cycle_count.bind(cpu));
     this.cmos   = new CMOS(this);
-    this.serial = new Serial(this, 0x3f8, this.pic.set_irq.bind(this.pic, 4), uh.serial_write);
+    this.serial = new Serial(this, 0x3f8, this.pic.set_irq.bind(this.pic, 4), params.serial_write);
     this.kbd    = new KBD(this, this.reset.bind(this));
     this.reset_request = 0;
-    if (uh.clipboard_get && uh.clipboard_set) {
-        this.jsclipboard = new clipboard_device(this, 0x3c0, uh.clipboard_get, uh.clipboard_set, uh.get_boot_time);
+    if (params.clipboard_get && params.clipboard_set) {
+        this.jsclipboard = new clipboard_device(this, 0x3c0, params.clipboard_get, params.clipboard_set, params.get_boot_time);
     }
     cpu.ld8_port       = this.ld8_port.bind(this);
     cpu.ld16_port      = this.ld16_port.bind(this);
@@ -36,7 +36,7 @@ function PCEmulator(uh) {
     cpu.get_hard_intno = this.pic.get_hard_intno.bind(this.pic);
 }
 
-PCEmulator.prototype.load_binary = function(Gg, ha) { return this.cpu.load_binary(Gg, ha); };
+PCEmulator.prototype.load_binary = function(url, mem8_loc) { return this.cpu.load_binary(url, mem8_loc); };
 
 PCEmulator.prototype.start = function() { setTimeout(this.timer_func.bind(this), 10); };
 

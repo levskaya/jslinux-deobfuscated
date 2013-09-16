@@ -1,23 +1,27 @@
 /*
-JSLinux-deobfuscated - An annotated version of the original JSLinux.
+  JSLinux-deobfuscated - An annotated version of the original JSLinux.
 
-Original is Copyright (c) 2011-2012 Fabrice Bellard
-Redistribution or commercial use is prohibited without the author's permission.
+  Original is Copyright (c) 2011-2012 Fabrice Bellard
+  Redistribution or commercial use is prohibited without the author's permission.
 
-8254 Programmble Interrupt Timer Emulator
+  8254 Programmble Interrupt Timer Emulator
+
+  Useful References
+  -----------------
+  https://en.wikipedia.org/wiki/Intel_8253
 */
-function PIT(PC, ah, bh) {
+function PIT(PC, set_irq_callback, cycle_count_callback) {
     var s, i;
     this.pit_channels = new Array();
     for (i = 0; i < 3; i++) {
-        s = new IRQCH(bh);
+        s = new IRQCH(cycle_count_callback);
         this.pit_channels[i] = s;
         s.mode = 3;
         s.gate = (i != 2) >> 0;
         s.pit_load_count(0);
     }
     this.speaker_data_on = 0;
-    this.set_irq = ah;
+    this.set_irq = set_irq_callback;
     // Ports:
     // 0x40: Channel 0 data port
     // 0x61: Control
@@ -27,9 +31,7 @@ function PIT(PC, ah, bh) {
     PC.register_ioport_write(0x61, 1, 1, this.speaker_ioport_write.bind(this));
 }
 
-
-
-function IRQCH(bh) {
+function IRQCH(cycle_count_callback) {
     this.count = 0;
     this.latched_count = 0;
     this.rw_state = 0;
@@ -37,7 +39,7 @@ function IRQCH(bh) {
     this.bcd = 0;
     this.gate = 0;
     this.count_load_time = 0;
-    this.get_ticks = bh;
+    this.get_ticks = cycle_count_callback;
     this.pit_time_unit = 1193182 / 2000000;
 }
 IRQCH.prototype.get_time = function() {
@@ -64,29 +66,23 @@ IRQCH.prototype.pit_get_out = function() {
     d = this.get_time() - this.count_load_time;
     switch (this.mode) {
         default:
-	// Interrupt on terminal count
-        case 0:
+        case 0:	// Interrupt on terminal count
             eh = (d >= this.count) >> 0;
             break;
-	// One shot
-        case 1:
+        case 1: // One shot
             eh = (d < this.count) >> 0;
             break;
-	// Frequency divider
-        case 2:
+        case 2:	// Frequency divider
             if ((d % this.count) == 0 && d != 0)
                 eh = 1;
             else
                 eh = 0;
             break;
-	// Square wave
-        case 3:
+        case 3:	// Square wave
             eh = ((d % this.count) < (this.count >> 1)) >> 0;
             break;
-	// SW strobe
-        case 4:
-	// HW strobe
-        case 5:
+        case 4:	// SW strobe
+        case 5:	// HW strobe
             eh = (d == this.count) >> 0;
             break;
     }
@@ -97,21 +93,21 @@ IRQCH.prototype.get_next_transition_time = function() {
     d = this.get_time() - this.count_load_time;
     switch (this.mode) {
         default:
-        case 0:
-        case 1:
+        case 0:	// Interrupt on terminal count
+        case 1: // One shot
             if (d < this.count)
                 fh = this.count;
             else
                 return -1;
             break;
-        case 2:
+        case 2: // Frequency divider
             base = (d / this.count) * this.count;
             if ((d - base) == 0 && d != 0)
                 fh = base + this.count;
             else
                 fh = base + this.count + 1;
             break;
-        case 3:
+        case 3: // Square wave
             base = (d / this.count) * this.count;
             gh = ((this.count + 1) >> 1);
             if ((d - base) < gh)
@@ -119,8 +115,8 @@ IRQCH.prototype.get_next_transition_time = function() {
             else
                 fh = base + this.count;
             break;
-        case 4:
-        case 5:
+        case 4: // SW strobe
+        case 5:	// HW strobe
             if (d < this.count)
                 fh = this.count;
             else if (d == this.count)
