@@ -13,13 +13,14 @@ redacted version of the code here, with permission of Mr. Bellard.
 Note that there is a much more readable, ground-up project to build an open-source 386-style emulator in javascript called [jslm32][3].
 
 ### Status
-It's still a dense code base, it's an emulator of a rather
+
+The current codebase won't run on recent webkit browsers due to a breaking change in the way Synchronous [XHR][4] requests are handled.  The binary loading routines need to be rewritten to be asynchronous, not terribly hard but annoying enough that I haven't just done it. (Fabrice's original online version has been patched and runs fine.)
+
+jslinux-deobfuscated is still a dense code base, it's an emulator of a rather
 complicated architecture, after all.  However this version is nowhere
 near so incomprehensible as the original.  Nearly all of the global variables
 and function names have been named somewhat sensibly.  Many comments
 have been added.
-
-It seems to run identically to the original.
 
 The core opcode execution loop has been autocommented to indicate what
 instruction operation the opcode refers to.
@@ -57,3 +58,4 @@ Some other helpful references for understanding what's going on:
 [1]: http://bellard.org/jslinux/tech.html
 [2]: http://jsshaper.org
 [3]: https://github.com/ubercomp/jslm32
+[4]: https://bugs.webkit.org/show_bug.cgi?id=72154
