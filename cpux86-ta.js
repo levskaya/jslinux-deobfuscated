@@ -9703,154 +9703,17 @@ CPU_X86.prototype.exec = function(N_cycles) {
 
 
 /*
-  Binary Loaders
+  Binary Loader
   ==========================================================================================
-  These routines load binary files into memory via AJAX.
+  This routine loads a binary array into memory.
 */
 
-CPU_X86.prototype.load_binary_ie9 = function(url, mem8_loc) {
-    var req, binary_array, len, i;
-    req = new XMLHttpRequest();
-    req.open('GET', url, false);
-    req.send(null);
-    if (req.status != 200 && req.status != 0) {
-        throw "Error while loading " + url;
-    }
-    binary_array = new VBArray(req.responseBody).toArray();
-    len = binary_array.length;
-    for (i = 0; i < len; i++) {
-        this.st8_phys(mem8_loc + i, binary_array[i]);
-    }
-    return len;
+CPU_X86.prototype.load_binary = function(binary_array, mem8_loc) {
+  var len, i, typed_binary_array;
+  len = binary_array.byteLength;
+  typed_binary_array = new Uint8Array(binary_array, 0, len);
+  for (i = 0; i < len; i++) {
+    this.st8_phys(mem8_loc + i, typed_binary_array[i]);
+  }
+  return len;
 };
-
-CPU_X86.prototype.load_binary = function(url, mem8_loc) {
-    var req, binary_array, len, i, typed_binary_array, typed_arrays_exist;
-    if (typeof ActiveXObject == "function")
-        return this.load_binary_ie9(url, mem8_loc);
-    req = new XMLHttpRequest();
-    req.open('GET', url, false);
-    typed_arrays_exist = ('ArrayBuffer' in window && 'Uint8Array' in window);
-    if (typed_arrays_exist && 'mozResponseType' in req) {
-        req.mozResponseType = 'arraybuffer';
-    } else if (typed_arrays_exist && 'responseType' in req) {
-        req.responseType = 'arraybuffer';
-    } else {
-        req.overrideMimeType('text/plain; charset=x-user-defined');
-        typed_arrays_exist = false;
-    }
-    req.send(null);
-    if (req.status != 200 && req.status != 0) {
-        throw "Error while loading " + url;
-    }
-    if (typed_arrays_exist && 'mozResponse' in req) {
-        binary_array = req.mozResponse;
-    } else if (typed_arrays_exist && req.mozResponseArrayBuffer) {
-        binary_array = req.mozResponseArrayBuffer;
-    } else if ('responseType' in req) {
-        binary_array = req.response;
-    } else {
-        binary_array = req.responseText;
-        typed_arrays_exist = false;
-    }
-    if (typed_arrays_exist) {
-        len = binary_array.byteLength;
-        typed_binary_array = new Uint8Array(binary_array, 0, len);
-        for (i = 0; i < len; i++) {
-            this.st8_phys(mem8_loc + i, typed_binary_array[i]);
-        }
-    } else {
-        len = binary_array.length;
-        for (i = 0; i < len; i++) {
-            this.st8_phys(mem8_loc + i, binary_array.charCodeAt(i));
-        }
-    }
-    return len;
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

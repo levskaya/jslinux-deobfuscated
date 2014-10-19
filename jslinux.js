@@ -50,6 +50,73 @@ function get_boot_time()
     return (+new Date()) - boot_start_time;
 }
 
+/* global to hold binary data from async XHR requests */
+var binaries = [false,false,false];
+
+function loadbinary(url,slot) {
+    var req, binary_array, len, typed_arrays_exist;
+
+    req = new XMLHttpRequest();
+
+    req.open('GET', url, true);
+
+    typed_arrays_exist = ('ArrayBuffer' in window && 'Uint8Array' in window);
+    if (typed_arrays_exist && 'mozResponseType' in req) {
+        req.mozResponseType = 'arraybuffer';
+    } else if (typed_arrays_exist && 'responseType' in req) {
+        req.responseType = 'arraybuffer';
+    } else {
+        req.overrideMimeType('text/plain; charset=x-user-defined');
+        typed_arrays_exist = false;
+    }
+
+    req.onerror = function(e) {
+      throw "Error while loading " + req.statusText;
+    };
+
+    req.onload = function (e) {
+      console.log('onload triggered');
+      if (req.readyState === 4) {
+        if (req.status === 200) {
+          if (typed_arrays_exist && 'mozResponse' in req) {
+            binaries[slot] = req.mozResponse;
+          } else if (typed_arrays_exist && req.mozResponseArrayBuffer) {
+            binaries[slot] = req.mozResponseArrayBuffer;
+          } else if ('responseType' in req) {
+            binaries[slot] = req.response;
+          } else {
+            binaries[slot] = req.responseText;
+          }
+          //cb_f()
+        } else {
+          throw "Error while loading " + url;
+        }
+      }
+    }
+
+    req.send(null);
+};
+
+function checkbinaries() {
+    //console.log("checkbinaries: ",(binaries[0]!=false),(binaries[1]!=false),(binaries[2]!=false));
+    if((binaries[0] != false) && (binaries[1] != false) && (binaries[2] != false)){
+        console.log("...binaries done loading, calling start()")
+        start();
+    } else {
+         setTimeout(checkbinaries, 500);
+    }
+};
+
+function load_binaries() {
+    console.log("requesting binaries");
+    loadbinary("vmlinux-2.6.20.bin", 0);
+    loadbinary("root.bin", 1);
+    loadbinary("linuxstart.bin", 2);
+
+    console.log("waiting for binaries to finish loading...");
+    checkbinaries();
+}
+
 function start()
 {
     var start_addr, initrd_size, params, cmdline_addr;
@@ -70,12 +137,12 @@ function start()
 
     pc = new PCEmulator(params);
 
-    pc.load_binary("vmlinux-2.6.20.bin", 0x00100000);
+    pc.load_binary(binaries[0], 0x00100000);
 
-    initrd_size = pc.load_binary("root.bin", 0x00400000);
+    initrd_size = pc.load_binary(binaries[1], 0x00400000);
 
     start_addr = 0x10000;
-    pc.load_binary("linuxstart.bin", start_addr);
+    pc.load_binary(binaries[2], start_addr);
 
     /* set the Linux kernel command line */
     /* Note: we don't use initramfs because it is not possible to
