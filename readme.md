@@ -11,8 +11,16 @@ Mr. Bellard.
 I highly recommend checking out another open-source x86 emulation
 project that includes vga support, "v86" ([demo][6] / [source][7]).
 There's yet another open-source 386-style emulator in javascript
-called [jslm32][3].  For a simpler architecture, take a look at the
-remarkable linux on [jor1k][5] emulator project.
+called [jslm32][3].
+
+For a simpler RISC architecture, take a look at the linux on
+[jor1k][5] emulator project.
+
+Finally, the [Angel][8] emulator ([source][9]) shows off the elegant
+open-ISA 64bit [RISC-V][10] architecture that is being brought to
+silicon by the [lowrisc][11] team.  This is by far the cleanest
+architecture for studying general low-level hardware and operating
+system implementation details.
 
 ### Status
 
@@ -85,3 +93,7 @@ Some other helpful references for understanding what's going on:
 [5]: https://github.com/s-macke/jor1k
 [6]: http://copy.sh/v86/
 [7]: https://github.com/copy/v86
+[8]: http://riscv.org/angel/
+[9]: https://github.com/ucb-bar/riscv-angel
+[10]: http://riscv.org/
+[11]: http://www.lowrisc.org/
