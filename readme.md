@@ -70,7 +70,7 @@ the (original) author's permission.
 Some other helpful references for understanding what's going on:
 
 #### x86
-- http://pdos.csail.mit.edu/6.828/2005/readings/i386/
+- http://pdos.csail.mit.edu/6.828/2010/readings/i386/toc.htm
 - http://pdos.csail.mit.edu/6.828/2010/readings/i386.pdf (PDF of above)
 - http://ref.x86asm.net/coder32.html
 - http://www.sandpile.org/
