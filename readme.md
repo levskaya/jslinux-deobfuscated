@@ -2,7 +2,8 @@ De-obfuscated JSLinux
 =========================================================
 
 This repo corresponds to a very old version of jslinux, Mr. Bellard 
-currently uses an emscripten converted emulator for the current jslinux.  
+currently uses an emscripten converted emulator for the current jslinux.
+
 There are better emulator codebases out there for pedagogical use!
 
 I highly recommend checking out another open-source x86 emulation
