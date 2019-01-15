@@ -1,12 +1,9 @@
 De-obfuscated JSLinux
 =========================================================
 
-I wanted to understand how the amazing [JsLinux][1] worked, so in a
-fit of mania I hand de-obfuscated the codebase while studying it over
-a few days' time.  In the off-chance someone else might be interested
-in this code as a basis for further weird in-browser x86 hacking I
-posted this redacted version of the code here, with permission of
-Mr. Bellard.
+This repo corresponds to a very old version of jslinux, Mr. Bellard 
+currently uses an emscripten converted emulator for the current jslinux.  
+There are better emulator codebases out there for pedagogical use!
 
 I highly recommend checking out another open-source x86 emulation
 project that includes vga support, "v86" ([demo][6] / [source][7]).
@@ -21,6 +18,14 @@ open-ISA 64bit [RISC-V][10] architecture that is being brought to
 silicon by the [lowrisc][11] team.  This is by far the cleanest
 architecture for studying general low-level hardware and operating
 system implementation details.
+
+### History
+I wanted to understand how the amazing [JsLinux][1] worked, so in a
+fit of mania I hand de-obfuscated the codebase while studying it over
+a few days' time.  In the off-chance someone else might be interested
+in this code as a basis for further weird in-browser x86 hacking I
+posted this redacted version of the code here, with permission of
+Mr. Bellard.
 
 ### Status
 
